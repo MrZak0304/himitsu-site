@@ -57,9 +57,17 @@
     color: #888888;
     text-align: center;
   }
+  .back-nav { max-width: 720px; margin: 0 auto 1.2rem; }
+  .back-nav a {
+    color: #8a6420;
+    font-weight: bold;
+    text-decoration: none;
+  }
+  .back-nav a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
+<p class="back-nav"><a href="#" id="back-link" hidden>&#9664; アプリにもどる</a></p>
 <main>
   <h1>&#x1F5DD;&#xFE0F; お手軽暗号文章(ヒミツのやりとり)</h1>
   <p>ひらがなベースの「遊べる暗号」を作成・復号できるアプリです。5種類の暗号の組み合わせ、画像のモザイク暗号、キーをクイズとして出題できる遊び方が特徴です。</p>
@@ -76,5 +84,18 @@
   運営: t_tool<br>
   &copy; 2026 t_tool
 </footer>
+<script>
+  // アプリやタブから開いた場合だけ「もどる」を表示する(直接アクセス時は戻り先がないため非表示)
+  (function () {
+    var back = document.getElementById('back-link');
+    if (history.length > 1 || window.opener) {
+      back.hidden = false;
+      back.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (history.length > 1) { history.back(); } else { window.close(); }
+      });
+    }
+  })();
+</script>
 </body>
 </html>
