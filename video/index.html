@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>簡単動画修正(プロトタイプ)</title>
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>簡単動画修正 <span class="proto-badge">PROTOTYPE</span></h1>
+    <nav class="tabs">
+      <button id="tab-create" class="tab active" type="button">作成</button>
+      <button id="tab-restore" class="tab" type="button">復元</button>
+    </nav>
+  </header>
+
+  <!-- 作成 -->
+  <main id="panel-create" class="panel">
+    <section class="block">
+      <label class="file-label">
+        <span class="btn btn-secondary">動画を選ぶ</span>
+        <input type="file" id="createFile" accept="video/*" hidden>
+      </label>
+      <span id="createFileName" class="file-name">未選択(MP4推奨)</span>
+    </section>
+
+    <section class="block preview-block" id="createPreviewBlock" hidden>
+      <div class="canvas-wrap">
+        <canvas id="createCanvas"></canvas>
+      </div>
+      <div class="transport">
+        <button id="playBtn" class="btn btn-icon" type="button">▶</button>
+        <input type="range" id="timeline" min="0" max="1" step="0.01" value="0">
+        <span id="timeLabel" class="mono">0.00 / 0.00</span>
+      </div>
+
+      <div class="controls-grid">
+        <fieldset class="control-group">
+          <legend>領域(タップで選択・ドラッグで移動・縁ドラッグでサイズ変更)</legend>
+          <div class="row">
+            <button id="addCircle" class="btn" type="button">+ 円を追加</button>
+            <button id="addEllipse" class="btn" type="button">+ 楕円を追加</button>
+          </div>
+          <div id="regionList" class="chip-row"></div>
+          <div class="row">
+            <button id="addKeyframe" class="btn btn-small" type="button">現在位置にキーフレーム追加</button>
+            <button id="deleteRegion" class="btn btn-small btn-danger" type="button">選択中の領域を削除</button>
+          </div>
+          <div id="keyframeList" class="chip-row"></div>
+          <p class="hint">動きに合わせたい時は、時間を動かして領域をドラッグするとその時刻にキーフレームが記録され、間は自動でつながります。</p>
+        </fieldset>
+
+        <fieldset class="control-group">
+          <legend>フィルター</legend>
+          <div class="row">
+            <label><input type="radio" name="filterType" value="mosaic" checked> モザイク</label>
+            <label><input type="radio" name="filterType" value="blur"> ぼかし</label>
+          </div>
+          <div class="row">
+            <label for="filterSize" id="filterSizeLabel">粗さ</label>
+            <input type="range" id="filterSize" min="4" max="64" step="1" value="16">
+            <span id="filterSizeValue" class="mono">16</span>
+          </div>
+        </fieldset>
+
+        <fieldset class="control-group">
+          <legend>復元データの形式(検証中: A/B比較)</legend>
+          <label><input type="radio" name="format" value="A" id="formatA" checked> A: 別ファイル(動画+復元ファイルの2点。SNS経由に強い)</label>
+          <label><input type="radio" name="format" value="B" id="formatB"> B: MP4に埋め込み(1ファイル。再エンコードされると復元不可)</label>
+        </fieldset>
+      </div>
+
+      <div class="row export-row">
+        <button id="exportBtn" class="btn btn-primary" type="button">暗号化して書き出し</button>
+      </div>
+    </section>
+
+    <section class="block progress-block" id="createProgress" hidden>
+      <div class="progress-track"><div class="progress-bar" id="createProgressBar"></div></div>
+      <span id="createProgressLabel" class="mono">0%</span>
+    </section>
+
+    <p id="createStatus" class="status"></p>
+
+    <section class="block result-block" id="createResult" hidden>
+      <h2>書き出し完了</h2>
+      <div class="key-box">
+        <span class="key-caption">解除キー(相手に別の方法で伝える)</span>
+        <code id="keyOutput" class="key-value mono"></code>
+        <button id="copyKey" class="btn btn-small" type="button">コピー</button>
+      </div>
+      <div id="downloadLinks" class="row"></div>
+      <p id="resultNote" class="hint"></p>
+    </section>
+  </main>
+
+  <!-- 復元 -->
+  <main id="panel-restore" class="panel" hidden>
+    <section class="block">
+      <label class="file-label">
+        <span class="btn btn-secondary">動画を選ぶ</span>
+        <input type="file" id="restoreVideoFile" accept="video/*,.mp4" hidden>
+      </label>
+      <span id="restoreVideoName" class="file-name">未選択</span>
+    </section>
+    <section class="block">
+      <label class="file-label">
+        <span class="btn btn-secondary">復元ファイルを選ぶ(A形式のみ)</span>
+        <input type="file" id="restorePayloadFile" accept=".ezmv" hidden>
+      </label>
+      <span id="restorePayloadName" class="file-name">未選択(埋め込み形式なら不要)</span>
+    </section>
+    <section class="block">
+      <label for="restoreKey">解除キー</label>
+      <input type="text" id="restoreKey" class="mono key-input" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off">
+    </section>
+    <div class="row">
+      <button id="restoreBtn" class="btn btn-primary" type="button">復元する</button>
+    </div>
+
+    <section class="block progress-block" id="restoreProgress" hidden>
+      <div class="progress-track"><div class="progress-bar" id="restoreProgressBar"></div></div>
+      <span id="restoreProgressLabel" class="mono">0%</span>
+    </section>
+
+    <p id="restoreStatus" class="status"></p>
+
+    <section class="block result-block" id="restoreResult" hidden>
+      <h2>復元完了</h2>
+      <video id="restoreResultVideo" controls playsinline></video>
+      <div class="row">
+        <a id="restoreDownload" class="btn" download>復元動画を保存</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <span>プロトタイプ版 — 全処理は端末内で完結し、動画やキーを外部へ送信しません</span>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
