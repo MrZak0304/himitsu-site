@@ -11,10 +11,13 @@
 <body>
   <header class="app-header">
     <h1>簡単動画修正 <span class="proto-badge">PROTOTYPE</span></h1>
-    <nav class="tabs">
-      <button id="tab-create" class="tab active" type="button">作成</button>
-      <button id="tab-restore" class="tab" type="button">復元</button>
-    </nav>
+    <div class="header-right">
+      <button id="helpBtn" class="btn btn-small" type="button">使い方</button>
+      <nav class="tabs">
+        <button id="tab-create" class="tab active" type="button">作成</button>
+        <button id="tab-restore" class="tab" type="button">復元</button>
+      </nav>
+    </div>
   </header>
 
   <!-- 作成 -->
@@ -39,7 +42,7 @@
 
       <div class="controls-grid">
         <fieldset class="control-group">
-          <legend>領域(タップで選択・ドラッグで移動・縁ドラッグでサイズ変更)</legend>
+          <legend>領域</legend>
           <div class="row">
             <button id="addCircle" class="btn" type="button">+ 円を追加</button>
             <button id="addEllipse" class="btn" type="button">+ 楕円を追加</button>
@@ -50,7 +53,6 @@
             <button id="deleteRegion" class="btn btn-small btn-danger" type="button">選択中の領域を削除</button>
           </div>
           <div id="keyframeList" class="chip-row"></div>
-          <p class="hint">動きに合わせたい時は、時間を動かして領域をドラッグするとその時刻にキーフレームが記録され、間は自動でつながります。</p>
         </fieldset>
 
         <fieldset class="control-group">
@@ -140,6 +142,20 @@
   <footer class="app-footer">
     <span>プロトタイプ版 — 全処理は端末内で完結し、動画やキーを外部へ送信しません</span>
   </footer>
+
+  <!-- チュートリアル(初回表示+「使い方」から再表示) -->
+  <div id="tutorial" class="tutorial-overlay" hidden>
+    <div class="tutorial-card">
+      <button id="tutorialClose" class="tutorial-x" type="button" aria-label="閉じる">×</button>
+      <h2 id="tutorialTitle" class="tutorial-title"></h2>
+      <p id="tutorialBody" class="tutorial-body"></p>
+      <div class="tutorial-nav">
+        <button id="tutorialPrev" class="btn btn-small" type="button">← 前へ</button>
+        <span id="tutorialDots" class="tutorial-dots"></span>
+        <button id="tutorialNext" class="btn btn-small" type="button">次へ →</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module" src="js/app.js"></script>
 </body>

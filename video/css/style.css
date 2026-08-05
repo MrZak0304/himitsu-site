@@ -13,6 +13,9 @@
 
 * { box-sizing: border-box; }
 
+/* display 指定のあるクラスでも hidden 属性を常に優先させる */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -45,6 +48,7 @@ body {
   letter-spacing: 0.15em;
 }
 
+.header-right { display: flex; align-items: center; gap: 12px; }
 .tabs { display: flex; gap: 6px; }
 .tab {
   background: var(--panel);
@@ -200,6 +204,49 @@ body {
   font-size: 11px;
   padding: 18px 8px 24px;
 }
+
+/* チュートリアル */
+.tutorial-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 10, 14, 0.78);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+.tutorial-card {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--accent-dark);
+  border-radius: 8px;
+  padding: 22px 24px 16px;
+  max-width: 420px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+}
+.tutorial-x {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+}
+.tutorial-title { font-size: 16px; color: var(--accent); margin: 0 0 10px; }
+.tutorial-body { margin: 0 0 16px; min-height: 4.5em; }
+.tutorial-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.tutorial-dots { display: flex; gap: 6px; }
+.tutorial-dots i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--panel-edge);
+}
+.tutorial-dots i.on { background: var(--accent); }
 
 @media (min-width: 700px) {
   .controls-grid { grid-template-columns: 1fr 1fr; }

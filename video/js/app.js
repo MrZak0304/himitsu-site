@@ -335,7 +335,7 @@ $('exportBtn').addEventListener('click', async () => {
     }
     $('resultNote').textContent =
       (c.format === 'A'
-        ? '動画と復元ファイルの2点を相手に渡し、解除キーは別の方法で伝えてください。'
+        ? '動画と復元ファイルの2点を相手に渡し、解除キーは別の方法で伝えてください。※復元ファイルはLINEでは送れません(メール・Slack等で)。'
         : '復元データは動画に埋め込み済みです。SNSにアップすると埋め込みが消えるため、ファイルのまま(AirDrop等)で渡してください。')
       + (hasAudio ? '' : ' ※音声は引き継げませんでした(無音になります)。');
     $('createResult').hidden = false;
@@ -412,6 +412,76 @@ $('restoreBtn').addEventListener('click', async () => {
     $('restoreProgress').hidden = true;
   }
 });
+
+// ---- チュートリアル(初回表示+「使い方」から再表示) ----
+const TUTORIAL_KEY = 'kdms_tutorial_done';
+const TUTORIAL_STEPS = [
+  {
+    title: '① 動画を選ぶ',
+    body: '「動画を選ぶ」からスマホで撮った動画を読み込みます(MP4推奨)。',
+  },
+  {
+    title: '② 隠す場所に領域を置く',
+    body: '「+ 円を追加」で領域を追加。ドラッグで移動、縁をつまむと大きさを変えられます。',
+  },
+  {
+    title: '③ 動きに合わせる',
+    body: '下のバーで時間を進めて領域をドラッグし直すと、その時刻の位置が記録され、間の動きは自動でつながります。',
+  },
+  {
+    title: '④ 暗号化して書き出し',
+    body: 'モザイク動画・復元ファイル・解除キーの3つができます。動画とファイルを相手に渡し、キーは別の方法で伝えます。※復元ファイルはLINEでは送れません(メール・Slack等で)。',
+  },
+  {
+    title: '⑤ 元に戻すには',
+    body: '受け取った人は「復元」タブで、動画+復元ファイル+解除キーを入れると元の動画に戻せます。',
+  },
+];
+let tutorialIndex = 0;
+
+function renderTutorialStep() {
+  const step = TUTORIAL_STEPS[tutorialIndex];
+  $('tutorialTitle').textContent = step.title;
+  $('tutorialBody').textContent = step.body;
+  $('tutorialPrev').disabled = tutorialIndex === 0;
+  $('tutorialNext').textContent = tutorialIndex === TUTORIAL_STEPS.length - 1 ? 'はじめる' : '次へ →';
+  $('tutorialDots').innerHTML = TUTORIAL_STEPS
+    .map((_, i) => `<i${i === tutorialIndex ? ' class="on"' : ''}></i>`)
+    .join('');
+}
+
+function openTutorial() {
+  tutorialIndex = 0;
+  $('tutorial').hidden = false;
+  renderTutorialStep();
+}
+
+function closeTutorial() {
+  $('tutorial').hidden = true;
+  try {
+    localStorage.setItem(TUTORIAL_KEY, '1');
+  } catch { /* プライベートブラウズ等では保存できなくてもよい */ }
+}
+
+$('helpBtn').addEventListener('click', openTutorial);
+$('tutorialClose').addEventListener('click', closeTutorial);
+$('tutorialPrev').addEventListener('click', () => {
+  if (tutorialIndex > 0) {
+    tutorialIndex--;
+    renderTutorialStep();
+  }
+});
+$('tutorialNext').addEventListener('click', () => {
+  if (tutorialIndex < TUTORIAL_STEPS.length - 1) {
+    tutorialIndex++;
+    renderTutorialStep();
+  } else {
+    closeTutorial();
+  }
+});
+try {
+  if (!localStorage.getItem(TUTORIAL_KEY)) openTutorial();
+} catch { /* 同上 */ }
 
 // ---- 共通ヘルパー ----
 function setStatus(id, message, kind) {
