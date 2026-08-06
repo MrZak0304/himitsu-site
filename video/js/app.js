@@ -77,6 +77,8 @@ $('playBtn').addEventListener('click', () => {
   const v = state.create.src?.video;
   if (!v) return;
   if (v.paused) {
+    // 読み込みは muted で行うため、再生時(ユーザー操作)に消音を解除して音声を出す
+    v.muted = false;
     v.play();
     $('playBtn').textContent = '❚❚';
   } else {
