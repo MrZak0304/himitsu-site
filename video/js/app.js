@@ -14,6 +14,10 @@ const state = {
     selectedId: null,
     liveGeom: null, // ドラッグ中の一時ジオメトリ {id, geom}
     nextId: 1,
+    beeps: [], // {id, start, end}
+    selectedBeepId: null,
+    nextBeepId: 1,
+    beepFile: null,
     filter: { type: 'mosaic', size: 16 },
     format: 'B',
     busy: false,
@@ -51,6 +55,8 @@ $('createFile').addEventListener('change', async (e) => {
     state.create.src = src;
     state.create.tracks = [];
     state.create.selectedId = null;
+    state.create.beeps = [];
+    state.create.selectedBeepId = null;
     state.create.result = null;
     $('createResult').hidden = true;
     $('createFileName').textContent =
@@ -67,6 +73,7 @@ $('createFile').addEventListener('change', async (e) => {
       setStatus('createStatus', '「+ 円を追加」で隠したい場所に領域を置いてください');
     }
     renderRegionUI();
+    renderBeepUI();
   } catch (err) {
     setStatus('createStatus', err.message, 'error');
   }
@@ -187,6 +194,75 @@ function renderRegionUI() {
       });
       kfList.appendChild(chip);
     }
+  }
+}
+
+// ---- 作成: ピー音(音声を隠す時間範囲) ----
+$('addBeep').addEventListener('click', () => {
+  const src = state.create.src;
+  if (!src) return;
+  const start = Math.min(currentTime(), Math.max(0, src.duration - 0.1));
+  const beep = {
+    id: state.create.nextBeepId++,
+    start,
+    end: Math.min(src.duration, start + 1),
+  };
+  state.create.beeps.push(beep);
+  state.create.selectedBeepId = beep.id;
+  renderBeepUI();
+});
+
+$('beepSetStart').addEventListener('click', () => {
+  const beep = selectedBeep();
+  if (!beep) return;
+  beep.start = Math.min(currentTime(), beep.end - 0.05);
+  renderBeepUI();
+});
+
+$('beepSetEnd').addEventListener('click', () => {
+  const beep = selectedBeep();
+  if (!beep) return;
+  beep.end = Math.max(currentTime(), beep.start + 0.05);
+  renderBeepUI();
+});
+
+$('deleteBeep').addEventListener('click', () => {
+  const c = state.create;
+  c.beeps = c.beeps.filter((b) => b.id !== c.selectedBeepId);
+  c.selectedBeepId = c.beeps.at(-1)?.id ?? null;
+  renderBeepUI();
+});
+
+$('beepFile').addEventListener('change', (e) => {
+  state.create.beepFile = e.target.files[0] ?? null;
+  $('beepFileName').textContent = state.create.beepFile?.name ?? '標準のピー音';
+});
+
+function selectedBeep() {
+  return state.create.beeps.find((b) => b.id === state.create.selectedBeepId) ?? null;
+}
+
+function renderBeepUI() {
+  const list = $('beepList');
+  list.innerHTML = '';
+  for (const beep of state.create.beeps) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip' + (beep.id === state.create.selectedBeepId ? ' selected' : '');
+    chip.innerHTML = `${beep.start.toFixed(2)}〜${beep.end.toFixed(2)}s<span class="x">×</span>`;
+    chip.addEventListener('click', (e) => {
+      if (e.target.classList.contains('x')) {
+        state.create.beeps = state.create.beeps.filter((b) => b.id !== beep.id);
+        if (state.create.selectedBeepId === beep.id) state.create.selectedBeepId = null;
+      } else {
+        state.create.selectedBeepId = beep.id;
+        const v = state.create.src?.video;
+        if (v) v.currentTime = beep.start;
+        $('timeline').value = beep.start;
+      }
+      renderBeepUI();
+    });
+    list.appendChild(chip);
   }
 }
 
@@ -333,6 +409,8 @@ $('exportBtn').addEventListener('click', async () => {
       filter: c.filter,
       format: c.format,
       keyString,
+      beeps: c.beeps.map((b) => ({ start: b.start, end: b.end })),
+      beepFile: c.beepFile,
       onProgress: (p) => updateProgress('create', p),
     });
     const base = c.file.name.replace(/\.[^.]+$/, '') || 'video';
@@ -384,7 +462,7 @@ $('restoreVideoFile').addEventListener('change', (e) => {
 });
 $('restorePayloadFile').addEventListener('change', (e) => {
   state.restore.payloadFile = e.target.files[0] ?? null;
-  $('restorePayloadName').textContent = state.restore.payloadFile?.name ?? '未選択(B形式なら不要)';
+  $('restorePayloadName').textContent = state.restore.payloadFile?.name ?? '未選択(一体型なら不要)';
 });
 
 $('restoreBtn').addEventListener('click', async () => {
@@ -445,12 +523,16 @@ const TUTORIAL_STEPS = [
     body: '下のバーで時間を進めて領域をドラッグし直すと、その時刻の位置が記録され、間の動きは自動でつながります。◀|・|▶ で1コマずつ動かせます。',
   },
   {
-    title: '④ 暗号化して書き出し',
-    body: '復元データ入りのモザイク動画と解除キーができます。動画はファイルのまま(AirDrop・Slack・メール等)相手に渡し、キーは別の方法で伝えます。※SNSやLINEに「動画として」投稿すると復元データが消え、見せる専用になります。',
+    title: '④ 音声を隠すには',
+    body: '「+ ピー音を追加」で時間範囲を指定すると、その間の音声がピー音になります(音はお好みの音声ファイルに変更可能)。復元すると元の音声に戻ります。',
   },
   {
-    title: '⑤ 元に戻すには',
-    body: '受け取った人は「復元」タブで、動画と解除キーを入れると元の動画に戻せます(A形式で作った場合は復元ファイルも指定)。',
+    title: '⑤ 暗号化して書き出し',
+    body: '復元データ入りのモザイク動画(一体型)と解除キーができます。動画はファイルのまま(AirDrop・Slack・メール等)相手に渡し、キーは別の方法で伝えます。※SNSやLINEに「動画として」投稿すると復元データが消え、見せる専用になります。',
+  },
+  {
+    title: '⑥ 元に戻すには',
+    body: '受け取った人は「復元」タブで、動画と解除キーを入れると元の動画に戻せます(分割型で作った場合は復元ファイルも指定)。',
   },
 ];
 let tutorialIndex = 0;
