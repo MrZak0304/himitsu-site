@@ -75,13 +75,22 @@ export function setNativeBlurOverride(value) {
   nativeBlurSupported = value;
 }
 
-function supportsCtxFilter(ctx) {
+// 「filter に代入して読み返す」検出は、プロパティ未実装のブラウザでは
+// ただのプロパティ追加として成功してしまい誤判定する(iPhone Safari で実害)。
+// 実際に1pxぼかして描き、ピクセルが中間値になるかで判定する。
+function supportsCtxFilter() {
   if (nativeBlurSupported === null) {
     try {
-      ctx.save();
-      ctx.filter = 'blur(2px)';
-      nativeBlurSupported = ctx.filter !== 'none';
-      ctx.restore();
+      const c = makeScratchCanvas(8, 8);
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.fillStyle = '#000';
+      x.fillRect(0, 0, 8, 8);
+      x.filter = 'blur(2px)';
+      x.fillStyle = '#fff';
+      x.fillRect(0, 0, 4, 8);
+      x.filter = 'none';
+      const v = x.getImageData(5, 4, 1, 1).data[0];
+      nativeBlurSupported = v > 8 && v < 247; // ぼけていれば境界の外側が中間値になる
     } catch {
       nativeBlurSupported = false;
     }
@@ -90,7 +99,7 @@ function supportsCtxFilter(ctx) {
 }
 
 function blurRegion(ctx, source, g, strength) {
-  if (supportsCtxFilter(ctx)) {
+  if (supportsCtxFilter()) {
     ctx.save();
     regionPath(ctx, g);
     ctx.clip();
