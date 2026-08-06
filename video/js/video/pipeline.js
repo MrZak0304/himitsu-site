@@ -6,6 +6,7 @@
 
 import { interpolateTrack, unionBounds } from '../core/regions.js';
 import { buildRestorePayload, parseRestorePayload } from '../core/keyformat.js';
+import { applyBeeps, normalizeBeepRanges } from '../core/beep.js';
 import { applyFilters, composeRestore } from './filters.js';
 import { createMuxer, avcCodecString, embedPayload, extractPayload } from './mux.js';
 
@@ -56,7 +57,7 @@ export async function seekTo(video, t) {
  * 作成処理。
  * @returns {sharedBytes, payload} — format 'B' なら sharedBytes に埋め込み済み(payload も返す)
  */
-export async function processCreate({ file, tracks, filter, format, keyString, onProgress }) {
+export async function processCreate({ file, tracks, filter, format, keyString, beeps = [], beepFile = null, onProgress }) {
   const src = await loadVideo(file);
   try {
     const { video, duration, width, height } = src;
@@ -83,11 +84,29 @@ export async function processCreate({ file, tracks, filter, format, keyString, o
     const resCanvas = makeCanvas(restoreW, restoreH);
     const resCtx = resCanvas.getContext('2d');
 
-    const audio = await tryEncodeAudio(file, duration).catch(() => null);
+    // 音声: 元音声を取り出し、ピー音があれば共有用コピーの範囲を置き換える。
+    // ピー音の復元用に、元音声は復元動画(restore mp4)の音声トラックへ入れる。
+    const validBeeps = normalizeBeepRanges(beeps, duration);
+    const origBuf = await decodeAudioFile(file).catch(() => null);
+    const sampleRate = origBuf?.sampleRate ?? 48000;
+    let sharedChannels = origBuf ? channelsOf(origBuf) : null;
+    if (validBeeps.length > 0) {
+      sharedChannels = sharedChannels
+        ? sharedChannels.map((c) => c.slice()) // 元音声を復元用に保全
+        : [new Float32Array(Math.ceil(duration * sampleRate))]; // 無音動画にもピー音を入れられる
+      const customBuf = beepFile ? await decodeAudioFile(beepFile).catch(() => null) : null;
+      applyBeeps(sharedChannels, sampleRate, validBeeps, customBuf ? { channelData: channelsOf(customBuf) } : null);
+    }
+    const audio = sharedChannels
+      ? await encodeAudioChannels(sharedChannels, sampleRate, duration).catch(() => null)
+      : null;
+    const restoreAudio = validBeeps.length > 0 && origBuf
+      ? await encodeAudioChannels(channelsOf(origBuf), sampleRate, duration).catch(() => null)
+      : null;
 
     const mainMux = createMuxer({ width, height, fps, audio: audio?.config ?? null });
     const mainEnc = await makeVideoEncoder({ width, height, fps, muxer: mainMux });
-    const resMux = createMuxer({ width: restoreW, height: restoreH, fps, audio: null });
+    const resMux = createMuxer({ width: restoreW, height: restoreH, fps, audio: restoreAudio?.config ?? null });
     const resEnc = await makeVideoEncoder({ width: restoreW, height: restoreH, fps, muxer: resMux, quality: 'high' });
 
     for (let i = 0; i < frames; i++) {
@@ -120,6 +139,9 @@ export async function processCreate({ file, tracks, filter, format, keyString, o
     if (audio) {
       for (const { chunk, meta } of audio.chunks) mainMux.addAudioChunk(chunk, meta);
     }
+    if (restoreAudio) {
+      for (const { chunk, meta } of restoreAudio.chunks) resMux.addAudioChunk(chunk, meta);
+    }
     let sharedBytes = mainMux.finalize();
     const restoreMp4 = resMux.finalize();
 
@@ -141,6 +163,8 @@ export async function processCreate({ file, tracks, filter, format, keyString, o
       })),
       restoreW,
       restoreH,
+      beeps: validBeeps.map((b) => ({ start: round3(b.start), end: round3(b.end) })),
+      hasOriginalAudio: !!restoreAudio,
     };
     const payload = await buildRestorePayload(keyString, meta, restoreMp4);
     if (format === 'B') sharedBytes = embedPayload(sharedBytes, payload);
@@ -167,7 +191,17 @@ export async function processRestore({ videoFile, payloadBytes, keyString, onPro
     const outCanvas = makeCanvas(width, height);
     const ctx = outCanvas.getContext('2d');
 
-    const audio = await tryEncodeAudio(videoFile, shared.duration).catch(() => null);
+    // 音声: ピー音入りで作られた場合は復元動画側の元音声を使い、
+    // それ以外は共有動画の音声をそのまま引き継ぐ
+    let audio = null;
+    if (meta.hasOriginalAudio) {
+      const buf = await decodeAudioFile(new Blob([mp4Bytes], { type: 'video/mp4' })).catch(() => null);
+      if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
+    }
+    if (!audio) {
+      const buf = await decodeAudioFile(videoFile).catch(() => null);
+      if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
+    }
     const mux = createMuxer({ width, height, fps, audio: audio?.config ?? null });
     const enc = await makeVideoEncoder({ width, height, fps, muxer: mux });
 
@@ -244,22 +278,32 @@ async function encodeFrame(encoder, canvas, index, fps) {
   while (encoder.encodeQueueSize > 4) await sleep(1);
 }
 
-/** 元ファイルの音声を AAC で再エンコード。非対応・音声なしは null */
-async function tryEncodeAudio(file, duration) {
-  if (typeof AudioEncoder === 'undefined') return null;
-  const raw = await file.arrayBuffer();
+/** File/Blob の音声をデコードして AudioBuffer を返す。音声なし・非対応は null */
+async function decodeAudioFile(fileOrBlob) {
+  const raw = await fileOrBlob.arrayBuffer();
   const ac = new AudioContext();
-  let buf;
   try {
-    buf = await ac.decodeAudioData(raw.slice(0));
+    const buf = await ac.decodeAudioData(raw);
+    return buf && buf.length > 0 ? buf : null;
   } catch {
     return null;
   } finally {
     ac.close().catch(() => {});
   }
-  if (!buf || buf.length === 0) return null;
-  const numberOfChannels = Math.min(2, buf.numberOfChannels);
-  const sampleRate = buf.sampleRate;
+}
+
+/** AudioBuffer から最大2chの Float32Array 配列を取り出す */
+function channelsOf(buf) {
+  const n = Math.min(2, buf.numberOfChannels);
+  const out = [];
+  for (let ch = 0; ch < n; ch++) out.push(buf.getChannelData(ch));
+  return out;
+}
+
+/** チャンネル配列を AAC でエンコードする。非対応は null */
+async function encodeAudioChannels(channelData, sampleRate, duration) {
+  if (typeof AudioEncoder === 'undefined' || channelData.length === 0) return null;
+  const numberOfChannels = channelData.length;
   const config = { codec: 'mp4a.40.2', sampleRate, numberOfChannels, bitrate: 128_000 };
   const support = await AudioEncoder.isConfigSupported(config).catch(() => null);
   if (!support?.supported) return null;
@@ -272,13 +316,13 @@ async function tryEncodeAudio(file, duration) {
   });
   encoder.configure(config);
 
-  const totalSamples = Math.min(buf.length, Math.ceil(duration * sampleRate));
+  const totalSamples = Math.min(channelData[0].length, Math.ceil(duration * sampleRate));
   const STEP = 4096;
   for (let offset = 0; offset < totalSamples; offset += STEP) {
     const n = Math.min(STEP, totalSamples - offset);
     const planar = new Float32Array(n * numberOfChannels);
     for (let ch = 0; ch < numberOfChannels; ch++) {
-      planar.set(buf.getChannelData(ch).subarray(offset, offset + n), ch * n);
+      planar.set(channelData[ch].subarray(offset, offset + n), ch * n);
     }
     encoder.encode(new AudioData({
       format: 'f32-planar',
