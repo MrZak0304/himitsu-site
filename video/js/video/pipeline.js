@@ -103,7 +103,12 @@ export async function processCreate({ file, tracks, filter, format, keyString, o
 
       // 共有動画: フィルター焼き込み
       outCtx.drawImage(srcCanvas, 0, 0);
-      const geoms = layouts.map(({ track }) => interpolateTrack(track, t)).filter(Boolean);
+      const geoms = layouts
+        .map(({ track }) => {
+          const g = interpolateTrack(track, t);
+          return g ? { ...g, shape: track.shape } : null;
+        })
+        .filter(Boolean);
       applyFilters(outCtx, srcCanvas, geoms, filter);
       await encodeFrame(mainEnc, outCanvas, i, fps);
 

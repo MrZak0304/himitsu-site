@@ -93,7 +93,7 @@ body {
 .btn-secondary { background: #232a34; }
 .btn-small { padding: 4px 10px; font-size: 12px; }
 .btn-danger { color: var(--danger); }
-.btn-icon { width: 42px; font-size: 16px; }
+.btn-icon { width: 42px; font-size: 16px; white-space: nowrap; padding-left: 4px; padding-right: 4px; }
 
 .file-label { cursor: pointer; }
 .file-name { margin-left: 10px; color: var(--text-dim); word-break: break-all; }

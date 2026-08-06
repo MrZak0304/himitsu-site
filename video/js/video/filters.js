@@ -2,10 +2,14 @@
 // フィルターは「見た目を隠す」ためだけの処理で、復元はフィルターの逆変換ではなく
 // 復元データの合成で行う(SPEC §2 合成方式)。
 
-/** 楕円のパスを ctx に設定する */
+/** 領域のパスを ctx に設定する(g.shape: 'rect' は矩形、それ以外は楕円) */
 export function regionPath(ctx, g) {
   ctx.beginPath();
-  ctx.ellipse(g.cx, g.cy, Math.max(1, g.rx), Math.max(1, g.ry), 0, 0, Math.PI * 2);
+  if (g.shape === 'rect') {
+    ctx.rect(g.cx - g.rx, g.cy - g.ry, Math.max(2, g.rx * 2), Math.max(2, g.ry * 2));
+  } else {
+    ctx.ellipse(g.cx, g.cy, Math.max(1, g.rx), Math.max(1, g.ry), 0, 0, Math.PI * 2);
+  }
 }
 
 /**
@@ -77,7 +81,7 @@ function blurRegion(ctx, source, g, strength) {
 export function composeRestore(ctx, restoreSource, track, g, pad = 2) {
   const { crop, slotY } = track;
   ctx.save();
-  regionPath(ctx, { cx: g.cx, cy: g.cy, rx: g.rx + pad, ry: g.ry + pad });
+  regionPath(ctx, { cx: g.cx, cy: g.cy, rx: g.rx + pad, ry: g.ry + pad, shape: track.shape });
   ctx.clip();
   ctx.drawImage(restoreSource, 0, slotY, crop.w, crop.h, crop.x, crop.y, crop.w, crop.h);
   ctx.restore();

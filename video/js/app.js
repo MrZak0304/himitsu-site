@@ -91,10 +91,21 @@ $('timeline').addEventListener('input', () => {
   $('playBtn').textContent = '▶';
   v.currentTime = Number($('timeline').value);
 });
+$('stepBack').addEventListener('click', () => stepFrame(-1));
+$('stepFwd').addEventListener('click', () => stepFrame(1));
+function stepFrame(dir) {
+  const v = state.create.src?.video;
+  if (!v) return;
+  v.pause();
+  $('playBtn').textContent = '▶';
+  v.currentTime = Math.max(0, Math.min(v.duration - 0.001, v.currentTime + dir / 30));
+  $('timeline').value = v.currentTime;
+}
 
 // ---- 作成: 領域 ----
 $('addCircle').addEventListener('click', () => addRegion('circle'));
 $('addEllipse').addEventListener('click', () => addRegion('ellipse'));
+$('addRect').addEventListener('click', () => addRegion('rect'));
 function addRegion(shape) {
   const src = state.create.src;
   if (!src) return;
@@ -146,7 +157,7 @@ function renderRegionUI() {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'chip' + (track.id === state.create.selectedId ? ' selected' : '');
-    chip.textContent = `${track.shape === 'circle' ? '円' : '楕円'} ${track.id}`;
+    chip.textContent = `${{ circle: '円', ellipse: '楕円', rect: '四角' }[track.shape]} ${track.id}`;
     chip.addEventListener('click', () => {
       state.create.selectedId = track.id;
       renderRegionUI();
@@ -190,7 +201,10 @@ canvas.addEventListener('pointerdown', (e) => {
     const track = state.create.tracks[i];
     const g = interpolateTrack(track, t);
     if (!g) continue;
-    const q = Math.hypot((p.x - g.cx) / g.rx, (p.y - g.cy) / g.ry);
+    // 領域内外の判定値(1.0 が境界)。矩形はチェビシェフ距離で判定
+    const q = track.shape === 'rect'
+      ? Math.max(Math.abs(p.x - g.cx) / g.rx, Math.abs(p.y - g.cy) / g.ry)
+      : Math.hypot((p.x - g.cx) / g.rx, (p.y - g.cy) / g.ry);
     if (q <= 1.2) {
       state.create.selectedId = track.id;
       drag = {
@@ -251,8 +265,8 @@ function drawPreview() {
   const geoms = [];
   for (const track of state.create.tracks) {
     const live = state.create.liveGeom;
-    const g = live && live.id === track.id ? live.geom : interpolateTrack(track, t);
-    if (g) geoms.push({ track, g });
+    const g0 = live && live.id === track.id ? live.geom : interpolateTrack(track, t);
+    if (g0) geoms.push({ track, g: { ...g0, shape: track.shape } });
   }
   applyFilters(ctx, canvas, geoms.map((x) => x.g), state.create.filter);
 
@@ -426,7 +440,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '③ 動きに合わせる',
-    body: '下のバーで時間を進めて領域をドラッグし直すと、その時刻の位置が記録され、間の動きは自動でつながります。',
+    body: '下のバーで時間を進めて領域をドラッグし直すと、その時刻の位置が記録され、間の動きは自動でつながります。◀|・|▶ で1コマずつ動かせます。',
   },
   {
     title: '④ 暗号化して書き出し',
