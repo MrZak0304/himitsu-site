@@ -368,7 +368,7 @@ $('restoreVideoFile').addEventListener('change', (e) => {
 });
 $('restorePayloadFile').addEventListener('change', (e) => {
   state.restore.payloadFile = e.target.files[0] ?? null;
-  $('restorePayloadName').textContent = state.restore.payloadFile?.name ?? '未選択(埋め込み形式なら不要)';
+  $('restorePayloadName').textContent = state.restore.payloadFile?.name ?? '未選択(B形式なら不要)';
 });
 
 $('restoreBtn').addEventListener('click', async () => {

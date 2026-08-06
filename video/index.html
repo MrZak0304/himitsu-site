@@ -27,7 +27,7 @@
         <span class="btn btn-secondary">動画を選ぶ</span>
         <input type="file" id="createFile" accept="video/*" hidden>
       </label>
-      <span id="createFileName" class="file-name">未選択(MP4推奨)</span>
+      <span id="createFileName" class="file-name">未選択</span>
     </section>
 
     <section class="block preview-block" id="createPreviewBlock" hidden>
@@ -69,9 +69,9 @@
         </fieldset>
 
         <fieldset class="control-group">
-          <legend>復元データの形式(検証中: A/B比較)</legend>
-          <label><input type="radio" name="format" value="B" id="formatB" checked> B: MP4に埋め込み(1ファイル・おすすめ。ファイルのまま渡すこと)</label>
-          <label><input type="radio" name="format" value="A" id="formatA"> A: 別ファイル(動画+復元ファイルの2点。SNS経由に強い)</label>
+          <legend>形式</legend>
+          <label><input type="radio" name="format" value="B" id="formatB" checked> B: MP4に埋め込み</label>
+          <label><input type="radio" name="format" value="A" id="formatA"> A: 別ファイル</label>
         </fieldset>
       </div>
 
@@ -110,10 +110,10 @@
     </section>
     <section class="block">
       <label class="file-label">
-        <span class="btn btn-secondary">復元ファイルを選ぶ(A形式のみ)</span>
+        <span class="btn btn-secondary">復元ファイルを選ぶ</span>
         <input type="file" id="restorePayloadFile" accept=".ezmv" hidden>
       </label>
-      <span id="restorePayloadName" class="file-name">未選択(埋め込み形式なら不要)</span>
+      <span id="restorePayloadName" class="file-name">未選択(B形式なら不要)</span>
     </section>
     <section class="block">
       <label for="restoreKey">解除キー</label>
