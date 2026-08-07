@@ -22,6 +22,9 @@ export function createMuxer({ width, height, fps, audio = null }) {
   return {
     addVideoChunk: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
     addAudioChunk: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+    // パススルー用: デマルチプレクサで取り出した生サンプルをそのまま追加する
+    addAudioChunkRaw: (data, type, timestamp, duration, meta) =>
+      muxer.addAudioChunkRaw(data, type, timestamp, duration, meta),
     finalize: () => {
       muxer.finalize();
       return new Uint8Array(target.buffer);

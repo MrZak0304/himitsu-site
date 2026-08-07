@@ -9,6 +9,7 @@ import { buildRestorePayload, parseRestorePayload } from '../core/keyformat.js';
 import { applyBeeps, normalizeBeepRanges } from '../core/beep.js';
 import { applyFilters, composeRestore } from './filters.js';
 import { createMuxer, avcCodecString, embedPayload, extractPayload } from './mux.js';
+import { extractAudioTrack } from './demux.js';
 
 const FPS = 30;
 
@@ -84,29 +85,50 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
     const resCanvas = makeCanvas(restoreW, restoreH);
     const resCtx = resCanvas.getContext('2d');
 
-    // 音声: 元音声を取り出し、ピー音があれば共有用コピーの範囲を置き換える。
-    // ピー音の復元用に、元音声は復元動画(restore mp4)の音声トラックへ入れる。
+    // 音声方針:
+    //  - ピー音なし → 元動画のAAC音声をそのままコピー(パススルー)。再エンコード不要で
+    //    AudioEncoder 非対応環境(iPhone Safari 等)でも音声が残り、音質劣化もない
+    //  - ピー音あり → 再エンコード必須(WebCodecs AudioEncoder)。非対応端末は明確にエラー
+    //  - 復元用の元音声はパススルー抽出を優先し、できなければ再エンコード
     const validBeeps = normalizeBeepRanges(beeps, duration);
-    const origBuf = await decodeAudioFile(file).catch(() => null);
-    const sampleRate = origBuf?.sampleRate ?? 48000;
-    let sharedChannels = origBuf ? channelsOf(origBuf) : null;
-    if (validBeeps.length > 0) {
-      sharedChannels = sharedChannels
-        ? sharedChannels.map((c) => c.slice()) // 元音声を復元用に保全
-        : [new Float32Array(Math.ceil(duration * sampleRate))]; // 無音動画にもピー音を入れられる
-      const customBuf = beepFile ? await decodeAudioFile(beepFile).catch(() => null) : null;
-      applyBeeps(sharedChannels, sampleRate, validBeeps, customBuf ? { channelData: channelsOf(customBuf) } : null);
+    const sourceBytes = new Uint8Array(await file.arrayBuffer());
+    let passthrough = null;
+    let audio = null;
+    let restorePass = null;
+    let restoreAudio = null;
+    if (validBeeps.length === 0) {
+      passthrough = await extractAudioTrack(sourceBytes).catch(() => null);
     }
-    const audio = sharedChannels
-      ? await encodeAudioChannels(sharedChannels, sampleRate, duration).catch(() => null)
-      : null;
-    const restoreAudio = validBeeps.length > 0 && origBuf
-      ? await encodeAudioChannels(channelsOf(origBuf), sampleRate, duration).catch(() => null)
-      : null;
+    if (!passthrough) {
+      const origBuf = await decodeAudioFile(file).catch(() => null);
+      const sampleRate = origBuf?.sampleRate ?? 48000;
+      let sharedChannels = origBuf ? channelsOf(origBuf) : null;
+      if (validBeeps.length > 0) {
+        sharedChannels = sharedChannels
+          ? sharedChannels.map((c) => c.slice()) // 元音声を復元用に保全
+          : [new Float32Array(Math.ceil(duration * sampleRate))]; // 無音動画にもピー音を入れられる
+        const customBuf = beepFile ? await decodeAudioFile(beepFile).catch(() => null) : null;
+        applyBeeps(sharedChannels, sampleRate, validBeeps, customBuf ? { channelData: channelsOf(customBuf) } : null);
+      }
+      audio = sharedChannels
+        ? await encodeAudioChannels(sharedChannels, sampleRate, duration).catch(() => null)
+        : null;
+      if (validBeeps.length > 0) {
+        if (!audio) {
+          throw new Error('この端末のブラウザは音声の加工(ピー音)に対応していません。ピー音を外して書き出すか、Chrome をお使いください。');
+        }
+        if (origBuf) {
+          restorePass = await extractAudioTrack(sourceBytes).catch(() => null);
+          if (!restorePass) {
+            restoreAudio = await encodeAudioChannels(channelsOf(origBuf), sampleRate, duration).catch(() => null);
+          }
+        }
+      }
+    }
 
-    const mainMux = createMuxer({ width, height, fps, audio: audio?.config ?? null });
+    const mainMux = createMuxer({ width, height, fps, audio: passthrough?.config ?? audio?.config ?? null });
     const mainEnc = await makeVideoEncoder({ width, height, fps, muxer: mainMux });
-    const resMux = createMuxer({ width: restoreW, height: restoreH, fps, audio: restoreAudio?.config ?? null });
+    const resMux = createMuxer({ width: restoreW, height: restoreH, fps, audio: restorePass?.config ?? restoreAudio?.config ?? null });
     const resEnc = await makeVideoEncoder({ width: restoreW, height: restoreH, fps, muxer: resMux, quality: 'high' });
 
     for (let i = 0; i < frames; i++) {
@@ -136,10 +158,14 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
 
     await mainEnc.flush();
     await resEnc.flush();
-    if (audio) {
+    if (passthrough) {
+      addRawAudio(mainMux, passthrough);
+    } else if (audio) {
       for (const { chunk, meta } of audio.chunks) mainMux.addAudioChunk(chunk, meta);
     }
-    if (restoreAudio) {
+    if (restorePass) {
+      addRawAudio(resMux, restorePass);
+    } else if (restoreAudio) {
       for (const { chunk, meta } of restoreAudio.chunks) resMux.addAudioChunk(chunk, meta);
     }
     let sharedBytes = mainMux.finalize();
@@ -164,11 +190,11 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
       restoreW,
       restoreH,
       beeps: validBeeps.map((b) => ({ start: round3(b.start), end: round3(b.end) })),
-      hasOriginalAudio: !!restoreAudio,
+      hasOriginalAudio: !!(restorePass || restoreAudio),
     };
     const payload = await buildRestorePayload(keyString, meta, restoreMp4);
     if (format === 'B') sharedBytes = embedPayload(sharedBytes, payload);
-    return { sharedBytes, payload, hasAudio: !!audio, meta };
+    return { sharedBytes, payload, hasAudio: !!(passthrough || audio), meta };
   } finally {
     src.dispose();
   }
@@ -191,18 +217,23 @@ export async function processRestore({ videoFile, payloadBytes, keyString, onPro
     const outCanvas = makeCanvas(width, height);
     const ctx = outCanvas.getContext('2d');
 
-    // 音声: ピー音入りで作られた場合は復元動画側の元音声を使い、
-    // それ以外は共有動画の音声をそのまま引き継ぐ
+    // 音声: ピー音入りで作られた場合は復元動画側の元音声を、それ以外は共有動画の音声を使う。
+    // どちらもパススルー(再エンコードなし)を優先し、だめなら再エンコードに落とす
+    let pass = null;
     let audio = null;
-    if (meta.hasOriginalAudio) {
-      const buf = await decodeAudioFile(new Blob([mp4Bytes], { type: 'video/mp4' })).catch(() => null);
-      if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
+    if (meta.hasOriginalAudio) pass = await extractAudioTrack(mp4Bytes).catch(() => null);
+    if (!pass) pass = await extractAudioTrack(videoBytes).catch(() => null);
+    if (!pass) {
+      if (meta.hasOriginalAudio) {
+        const buf = await decodeAudioFile(new Blob([mp4Bytes], { type: 'video/mp4' })).catch(() => null);
+        if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
+      }
+      if (!audio) {
+        const buf = await decodeAudioFile(videoFile).catch(() => null);
+        if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
+      }
     }
-    if (!audio) {
-      const buf = await decodeAudioFile(videoFile).catch(() => null);
-      if (buf) audio = await encodeAudioChannels(channelsOf(buf), buf.sampleRate, shared.duration).catch(() => null);
-    }
-    const mux = createMuxer({ width, height, fps, audio: audio?.config ?? null });
+    const mux = createMuxer({ width, height, fps, audio: pass?.config ?? audio?.config ?? null });
     const enc = await makeVideoEncoder({ width, height, fps, muxer: mux });
 
     for (let i = 0; i < frames; i++) {
@@ -218,7 +249,9 @@ export async function processRestore({ videoFile, payloadBytes, keyString, onPro
       onProgress?.((i + 1) / frames);
     }
     await enc.flush();
-    if (audio) {
+    if (pass) {
+      addRawAudio(mux, pass);
+    } else if (audio) {
       for (const { chunk, meta: m } of audio.chunks) mux.addAudioChunk(chunk, m);
     }
     return { restoredBytes: mux.finalize(), meta };
@@ -276,6 +309,25 @@ async function encodeFrame(encoder, canvas, index, fps) {
   encoder.encode(frame, { keyFrame: index % (fps * 2) === 0 });
   frame.close();
   while (encoder.encodeQueueSize > 4) await sleep(1);
+}
+
+/** パススルー抽出した音声サンプルをミュクサへそのまま流し込む */
+function addRawAudio(mux, track) {
+  let first = true;
+  for (const s of track.samples) {
+    const meta = first
+      ? {
+          decoderConfig: {
+            codec: 'mp4a.40.2',
+            sampleRate: track.config.sampleRate,
+            numberOfChannels: track.config.numberOfChannels,
+            description: track.description,
+          },
+        }
+      : undefined;
+    mux.addAudioChunkRaw(s.data, s.type, s.timestamp, s.duration, meta);
+    first = false;
+  }
 }
 
 /** File/Blob の音声をデコードして AudioBuffer を返す。音声なし・非対応は null */
