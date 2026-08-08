@@ -10,6 +10,9 @@ import { applyBeeps, normalizeBeepRanges } from '../core/beep.js';
 import { applyFilters, composeRestore } from './filters.js';
 import { createMuxer, avcCodecString, embedPayload, extractPayload } from './mux.js';
 import { extractAudioTrack } from './demux.js';
+import { spliceBeepFrames, buildBeepOnlyTrack } from '../core/beepsplice.js';
+import { base64ToBytes } from '../core/crypto.js';
+import { BEEP_BANK } from '../assets/beep-bank.js';
 
 const FPS = 30;
 
@@ -85,28 +88,48 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
     const resCanvas = makeCanvas(restoreW, restoreH);
     const resCtx = resCanvas.getContext('2d');
 
-    // 音声方針:
-    //  - ピー音なし → 元動画のAAC音声をそのままコピー(パススルー)。再エンコード不要で
-    //    AudioEncoder 非対応環境(iPhone Safari 等)でも音声が残り、音質劣化もない
-    //  - ピー音あり → 再エンコード必須(WebCodecs AudioEncoder)。非対応端末は明確にエラー
-    //  - 復元用の元音声はパススルー抽出を優先し、できなければ再エンコード
+    // 音声方針(不変条件11: 加工しないものは再エンコードしない):
+    //  - ピー音なし → 元動画のAAC音声をそのままコピー(パススルー)
+    //  - 標準ピー音 → 事前エンコード済みフレームの差し替え(スプライス)。どちらも
+    //    エンコーダ不要で AudioEncoder 非対応環境(iPhone Safari 等)でも動く
+    //  - 「音の変更」使用時のみ再エンコード(WebCodecs AudioEncoder)。非対応は明確にエラー
+    //  - 復元用の元音声は常にパススルー抽出を優先
     const validBeeps = normalizeBeepRanges(beeps, duration);
     const sourceBytes = new Uint8Array(await file.arrayBuffer());
-    let passthrough = null;
-    let audio = null;
+    const sourceAudio = await extractAudioTrack(sourceBytes).catch(() => null);
+    let mainRaw = null; // 生サンプル出力(パススルー or スプライス)
+    let audio = null; // 再エンコード出力
     let restorePass = null;
     let restoreAudio = null;
+
     if (validBeeps.length === 0) {
-      passthrough = await extractAudioTrack(sourceBytes).catch(() => null);
+      mainRaw = sourceAudio;
+    } else if (!beepFile) {
+      if (sourceAudio) {
+        const bank = beepBankFor(sourceAudio.config.sampleRate, sourceAudio.config.numberOfChannels);
+        if (bank) {
+          mainRaw = { ...sourceAudio, samples: spliceBeepFrames(sourceAudio.samples, validBeeps, bank.beepFrames) };
+          restorePass = sourceAudio;
+        }
+      } else {
+        const bank = beepBankFor(48000, 1);
+        mainRaw = {
+          config: { codec: 'aac', numberOfChannels: 1, sampleRate: 48000 },
+          description: bank.asc,
+          samples: buildBeepOnlyTrack(duration, validBeeps, bank),
+        };
+      }
     }
-    if (!passthrough) {
+
+    if (!mainRaw) {
+      // 再エンコード経路: 音の変更を使う場合、またはスプライス非対応の音声形式
       const origBuf = await decodeAudioFile(file).catch(() => null);
       const sampleRate = origBuf?.sampleRate ?? 48000;
       let sharedChannels = origBuf ? channelsOf(origBuf) : null;
       if (validBeeps.length > 0) {
         sharedChannels = sharedChannels
           ? sharedChannels.map((c) => c.slice()) // 元音声を復元用に保全
-          : [new Float32Array(Math.ceil(duration * sampleRate))]; // 無音動画にもピー音を入れられる
+          : [new Float32Array(Math.ceil(duration * sampleRate))];
         const customBuf = beepFile ? await decodeAudioFile(beepFile).catch(() => null) : null;
         applyBeeps(sharedChannels, sampleRate, validBeeps, customBuf ? { channelData: channelsOf(customBuf) } : null);
       }
@@ -115,18 +138,18 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
         : null;
       if (validBeeps.length > 0) {
         if (!audio) {
-          throw new Error('この端末のブラウザは音声の加工(ピー音)に対応していません。ピー音を外して書き出すか、Chrome をお使いください。');
+          throw new Error(beepFile
+            ? 'この端末のブラウザは「音の変更」に対応していません。標準のピー音をお使いください。'
+            : 'この動画の音声形式にはピー音を入れられませんでした。');
         }
-        if (origBuf) {
-          restorePass = await extractAudioTrack(sourceBytes).catch(() => null);
-          if (!restorePass) {
-            restoreAudio = await encodeAudioChannels(channelsOf(origBuf), sampleRate, duration).catch(() => null);
-          }
+        restorePass = sourceAudio;
+        if (!restorePass && origBuf) {
+          restoreAudio = await encodeAudioChannels(channelsOf(origBuf), sampleRate, duration).catch(() => null);
         }
       }
     }
 
-    const mainMux = createMuxer({ width, height, fps, audio: passthrough?.config ?? audio?.config ?? null });
+    const mainMux = createMuxer({ width, height, fps, audio: mainRaw?.config ?? audio?.config ?? null });
     const mainEnc = await makeVideoEncoder({ width, height, fps, muxer: mainMux });
     const resMux = createMuxer({ width: restoreW, height: restoreH, fps, audio: restorePass?.config ?? restoreAudio?.config ?? null });
     const resEnc = await makeVideoEncoder({ width: restoreW, height: restoreH, fps, muxer: resMux, quality: 'high' });
@@ -158,8 +181,8 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
 
     await mainEnc.flush();
     await resEnc.flush();
-    if (passthrough) {
-      addRawAudio(mainMux, passthrough);
+    if (mainRaw) {
+      addRawAudio(mainMux, mainRaw);
     } else if (audio) {
       for (const { chunk, meta } of audio.chunks) mainMux.addAudioChunk(chunk, meta);
     }
@@ -194,7 +217,7 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
     };
     const payload = await buildRestorePayload(keyString, meta, restoreMp4);
     if (format === 'B') sharedBytes = embedPayload(sharedBytes, payload);
-    return { sharedBytes, payload, hasAudio: !!(passthrough || audio), meta };
+    return { sharedBytes, payload, hasAudio: !!(mainRaw || audio), meta };
   } finally {
     src.dispose();
   }
@@ -311,6 +334,24 @@ async function encodeFrame(encoder, canvas, index, fps) {
   while (encoder.encodeQueueSize > 4) await sleep(1);
 }
 
+// ピー音フレームバンク(base64)を必要時にデコードしてキャッシュする
+const beepBankCache = new Map();
+function beepBankFor(sampleRate, numberOfChannels) {
+  const key = `${sampleRate}_${numberOfChannels}`;
+  if (!BEEP_BANK[key]) return null;
+  if (!beepBankCache.has(key)) {
+    const v = BEEP_BANK[key];
+    beepBankCache.set(key, {
+      sampleRate,
+      numberOfChannels,
+      asc: base64ToBytes(v.asc),
+      beepFrames: v.beep.map(base64ToBytes),
+      silenceFrames: v.silence.map(base64ToBytes),
+    });
+  }
+  return beepBankCache.get(key);
+}
+
 /** パススルー抽出した音声サンプルをミュクサへそのまま流し込む */
 function addRawAudio(mux, track) {
   let first = true;
@@ -387,6 +428,9 @@ async function encodeAudioChannels(channelData, sampleRate, duration) {
   }
   await encoder.flush();
   if (audioError || chunks.length === 0) return null;
+  // description(AudioSpecificConfig)が無いとMP4に正しく格納できず無音になる
+  // (一部Safariの既知の落とし穴)。その場合は失敗扱いにして呼び出し側で対処する
+  if (!chunks.some(({ meta }) => meta?.decoderConfig?.description)) return null;
   return { config: { codec: 'aac', numberOfChannels, sampleRate }, chunks };
 }
 
