@@ -242,6 +242,12 @@ export function initHabits(ctx) {
     els.figure.innerHTML = c.svg;
   }
 
+  // タップでリアクション(2026-08-09 PD FB)
+  const TAP_MESSAGES = ['やっほー!', '今日もおつかれさま!', 'いっしょにがんばろう!', 'えへへ', 'きょうも書いてえらい!'];
+  els.figure.onclick = () => {
+    reactCharacter(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)]);
+  };
+
   function reactCharacter(message) {
     els.figure.classList.remove('react');
     // 再アニメーションのためリフローを挟む(transform/opacityのみのアニメ)
