@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<!-- 差し替えポイント: アプリ名は <title> と #app-title の2箇所(正式名称の決定=SPEC §9-5 で置換) -->
+<title>日記アプリ(仮)</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="global-error" hidden></div>
+<div id="ad-banner" hidden></div>
+
+<header class="app-header">
+  <h1 id="app-title">日記アプリ(仮)</h1>
+  <span class="proto-badge">PROTOTYPE</span>
+</header>
+
+<main>
+  <!-- きょう -->
+  <section class="panel" id="panel-today">
+    <h2 class="panel-title" id="today-date"></h2>
+    <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
+    <div class="tag-stamps" id="today-tags"></div>
+    <div class="note" id="tag-slot-note" hidden></div>
+    <div class="tag-add-row">
+      <input id="new-tag-input" type="text" placeholder="#あたらしいタグ" maxlength="30">
+      <button id="new-tag-add" class="btn">追加</button>
+    </div>
+    <button id="watch-ad-btn" class="btn sub" hidden>広告を見て枠を+1する</button>
+
+    <label class="field-label" for="today-text">きょうのできごと(任意)</label>
+    <textarea id="today-text" rows="4" placeholder="詳しく書きたいときはこちらへ"></textarea>
+
+    <div class="images-head">
+      <span class="field-label">写真(1日10枚まで・一押しに★)</span>
+      <button id="image-add-btn" class="btn sub">写真を追加</button>
+    </div>
+    <input id="image-input" type="file" accept="image/*" multiple hidden>
+    <div class="note" id="image-note" hidden></div>
+    <div id="today-images" class="image-grid"></div>
+
+    <h3 class="section-title">きょうの日課</h3>
+    <ul id="today-habits" class="habit-checklist"></ul>
+    <p class="note" id="today-habit-note" hidden></p>
+  </section>
+
+  <!-- 日課 -->
+  <section class="panel" id="panel-habits" hidden>
+    <h2 class="panel-title">日課</h2>
+    <p class="diary-streak">日記の連続記録: <strong id="diary-streak-days">0</strong>日</p>
+    <ul id="habit-list" class="habit-manage-list"></ul>
+    <div class="habit-add">
+      <h3 class="section-title">日課を追加</h3>
+      <input id="habit-name-input" type="text" placeholder="日課の名前(例: 運動)" maxlength="20">
+      <div class="icon-tabs">
+        <button class="icon-tab active" data-icon-tab="builtin">アイコン</button>
+        <button class="icon-tab" data-icon-tab="emoji">絵文字</button>
+        <button class="icon-tab" data-icon-tab="image">画像</button>
+      </div>
+      <div id="icon-pane-builtin" class="icon-pane"></div>
+      <div id="icon-pane-emoji" class="icon-pane" hidden>
+        <input id="habit-emoji-input" type="text" placeholder="絵文字を1つ(例: 📚)" maxlength="4">
+      </div>
+      <div id="icon-pane-image" class="icon-pane" hidden>
+        <button id="habit-image-btn" class="btn sub">画像を選ぶ</button>
+        <input id="habit-image-input" type="file" accept="image/*" hidden>
+        <span id="habit-image-chosen" class="note-inline"></span>
+      </div>
+      <div class="note" id="habit-note" hidden></div>
+      <button id="habit-add-btn" class="btn">日課を追加する</button>
+    </div>
+  </section>
+
+  <!-- ふりかえり -->
+  <section class="panel" id="panel-calendar" hidden>
+    <div class="cal-header">
+      <button id="cal-prev" class="icon-btn" aria-label="前の月"><span data-ui-icon="left"></span></button>
+      <h2 class="panel-title" id="cal-title"></h2>
+      <button id="cal-next" class="icon-btn" aria-label="次の月"><span data-ui-icon="right"></span></button>
+    </div>
+    <div class="cal-dow"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+    <div id="cal-grid" class="cal-grid"></div>
+
+    <div id="day-detail" hidden>
+      <div class="detail-head">
+        <h3 id="detail-title"></h3>
+        <button id="detail-close" class="icon-btn" aria-label="閉じる"><span data-ui-icon="close"></span></button>
+      </div>
+      <div id="detail-tags" class="detail-tags"></div>
+      <p id="detail-text" class="detail-text"></p>
+      <div id="detail-images" class="image-grid"></div>
+      <h4 class="section-title">日課の達成</h4>
+      <ul id="detail-habits" class="habit-checklist readonly"></ul>
+      <p class="note" id="detail-empty" hidden>この日の記録はありません。</p>
+    </div>
+  </section>
+
+  <!-- 設定 -->
+  <section class="panel" id="panel-settings" hidden>
+    <h2 class="panel-title">設定</h2>
+
+    <details class="settings-group" open>
+      <summary>タグの管理</summary>
+      <ul id="tag-manage-list" class="manage-list"></ul>
+      <p class="note" id="tag-manage-note" hidden></p>
+    </details>
+
+    <details class="settings-group">
+      <summary>リマインダー</summary>
+      <label class="row"><input type="checkbox" id="reminder-enabled"> 毎日通知する</label>
+      <label class="row">時刻 <input type="time" id="reminder-time" value="21:00"></label>
+      <p class="note-inline">通知はアプリ版(iPhone/Android)で有効になります。</p>
+    </details>
+
+    <details class="settings-group">
+      <summary>ロック(ふりかえりの保護)</summary>
+      <p class="note-inline">ふりかえり(過去の記録)を開くときにパスコードを求めます。きょうの記録はロックされません。</p>
+      <label class="row"><input type="checkbox" id="lock-enabled"> ロックを使う</label>
+      <button id="lock-setup-btn" class="btn sub" hidden>パスコードと合言葉を設定</button>
+      <div id="lock-setup" hidden>
+        <input id="lock-pass1" type="password" inputmode="numeric" placeholder="パスコード(4桁以上)" maxlength="10">
+        <input id="lock-pass2" type="password" inputmode="numeric" placeholder="パスコード(確認)" maxlength="10">
+        <input id="lock-question" type="text" placeholder="秘密の合言葉の質問(例: 出身の学校は?)" maxlength="50">
+        <input id="lock-answer" type="text" placeholder="合言葉の答え" maxlength="50">
+        <p class="note-inline">パスコードを忘れたら合言葉で再設定できます。合言葉も忘れると、ふりかえりは開けなくなります。</p>
+        <div class="note" id="lock-setup-note" hidden></div>
+        <button id="lock-save-btn" class="btn">保存する</button>
+      </div>
+    </details>
+
+    <details class="settings-group">
+      <summary>キャラクター</summary>
+      <div id="character-grid" class="choice-grid"></div>
+      <button id="character-add-btn" class="btn sub">画像からキャラクターを追加</button>
+      <input id="character-image-input" type="file" accept="image/*" hidden>
+      <div class="row">表示位置:
+        <label><input type="radio" name="char-pos" value="right"> 右下</label>
+        <label><input type="radio" name="char-pos" value="left"> 左下</label>
+      </div>
+      <div class="note" id="character-note" hidden></div>
+    </details>
+
+    <details class="settings-group">
+      <summary>テーマ</summary>
+      <div id="theme-grid" class="choice-grid themes"></div>
+      <div id="custom-theme-editor" hidden>
+        <h4 class="section-title">カスタムテーマ</h4>
+        <label class="row">背景色 <input type="color" id="custom-bg" value="#22243a"></label>
+        <label class="row">アクセント色 <input type="color" id="custom-accent" value="#f5a623"></label>
+        <button id="custom-theme-save" class="btn sub">カスタムテーマを保存して使う</button>
+      </div>
+      <div class="note" id="theme-note" hidden></div>
+    </details>
+
+    <details class="settings-group">
+      <summary>バックアップ(機種変更・引っ越し)</summary>
+      <p class="note-inline">記録・タグ・日課・設定・画像を1つのファイルに書き出します。このファイルは暗号化されていません。保管・共有にはご注意ください。</p>
+      <button id="backup-export-btn" class="btn">書き出す</button>
+      <button id="backup-import-btn" class="btn sub">取り込む(すべて置き換え)</button>
+      <input id="backup-import-input" type="file" accept=".diarybak,application/json" hidden>
+      <div class="note" id="backup-note" hidden></div>
+    </details>
+
+    <details class="settings-group" id="purchase-group" hidden>
+      <summary>有料版のご案内</summary>
+      <p class="note-inline">有料版(300円・買い切り)なら、タグ登録が無制限・広告なし・テーマ15種+カスタムテーマが使えます。</p>
+    </details>
+
+    <details class="settings-group">
+      <summary>このアプリについて</summary>
+      <p class="note-inline" id="about-build"></p>
+      <p class="note-inline">日記の本文・写真・タグ・日課はすべてこの端末の中だけに保存され、外部に送信されません(無料版の広告表示に伴う通信を除きます)。</p>
+    </details>
+  </section>
+</main>
+
+<!-- キャラクター表示(きょう・日課タブ) -->
+<div id="character-layer" hidden>
+  <div id="character-balloon" hidden></div>
+  <div id="character-figure"></div>
+</div>
+
+<nav class="bottom-nav" role="tablist">
+  <button class="nav-item active" data-tab="today" role="tab"><span class="nav-icon" data-nav-icon="today"></span>きょう</button>
+  <button class="nav-item" data-tab="habits" role="tab"><span class="nav-icon" data-nav-icon="habits"></span>日課</button>
+  <button class="nav-item" data-tab="calendar" role="tab"><span class="nav-icon" data-nav-icon="calendar"></span>ふりかえり</button>
+  <button class="nav-item" data-tab="settings" role="tab"><span class="nav-icon" data-nav-icon="settings"></span>設定</button>
+</nav>
+
+<!-- ロック画面 -->
+<div id="lock-screen" hidden>
+  <div class="lock-card">
+    <span class="lock-icon" data-ui-icon="lock"></span>
+    <h2>ふりかえりはロックされています</h2>
+    <div id="lock-enter">
+      <input id="lock-input" type="password" inputmode="numeric" placeholder="パスコード" maxlength="10">
+      <div class="note" id="lock-error" hidden></div>
+      <button id="lock-unlock-btn" class="btn">解除する</button>
+      <button id="lock-forgot-btn" class="btn ghost">パスコードを忘れた場合</button>
+    </div>
+    <div id="lock-recover" hidden>
+      <p id="lock-recover-question" class="note-inline"></p>
+      <input id="lock-recover-answer" type="text" placeholder="合言葉の答え">
+      <input id="lock-recover-pass1" type="password" inputmode="numeric" placeholder="新しいパスコード" maxlength="10">
+      <input id="lock-recover-pass2" type="password" inputmode="numeric" placeholder="新しいパスコード(確認)" maxlength="10">
+      <div class="note" id="lock-recover-error" hidden></div>
+      <button id="lock-recover-btn" class="btn">再設定して解除する</button>
+      <button id="lock-recover-back" class="btn ghost">戻る</button>
+    </div>
+    <button id="lock-cancel-btn" class="btn ghost">きょうの記録にもどる</button>
+  </div>
+</div>
+
+<!-- 画面内確認ポップアップ(window.confirm は使わない) -->
+<div id="confirm-popup" hidden>
+  <div class="popup-card">
+    <p id="confirm-message"></p>
+    <div class="popup-actions">
+      <button id="confirm-cancel" class="btn ghost">やめる</button>
+      <button id="confirm-ok" class="btn danger">実行する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 処理中オーバーレイ(position:fixed 全画面) -->
+<div id="loading-overlay" hidden>
+  <div class="spinner"></div>
+  <p id="loading-text">処理中…</p>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
