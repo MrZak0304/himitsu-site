@@ -242,13 +242,39 @@ export function initHabits(ctx) {
     els.figure.innerHTML = c.svg;
   }
 
-  // タップでリアクション(2026-08-09 PD FB)
+  // 選択中のユーザー保存キャラ(表情差分の参照用)
+  async function currentCustomChar() {
+    const s = await ctx.stores.settings.get();
+    if (s.character.type !== 'custom') return null;
+    return s.customCharacters.find((c) => c.id === s.character.value) ?? null;
+  }
+
+  // リアクション中だけ表情差分(登録があれば)へ切り替え、少ししてニュートラルへ戻す
+  let exprTimer = null;
+  async function swapExpression(key) {
+    const char = await currentCustomChar();
+    const imgId = char?.expressions?.[key];
+    if (!imgId) return;
+    const rec = await ctx.pipeline.store.get(imgId);
+    if (!rec?.blob) return;
+    if (charUrl) URL.revokeObjectURL(charUrl);
+    charUrl = URL.createObjectURL(rec.blob);
+    els.figure.innerHTML = `<img src="${charUrl}" alt="">`;
+    clearTimeout(exprTimer);
+    exprTimer = setTimeout(() => renderCharacter(), 2200);
+  }
+
+  // タップでリアクション(2026-08-09 PD FB)。表情は登録済みの中からランダム
   const TAP_MESSAGES = ['やっほー!', '今日もおつかれさま!', 'いっしょにがんばろう!', 'えへへ', 'きょうも書いてえらい!'];
-  els.figure.onclick = () => {
-    reactCharacter(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)]);
+  els.figure.onclick = async () => {
+    const char = await currentCustomChar();
+    const keys = char ? Object.keys(char.expressions) : [];
+    const key = keys.length > 0 ? keys[Math.floor(Math.random() * keys.length)] : 'joy';
+    reactCharacter(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)], key);
   };
 
-  function reactCharacter(message) {
+  function reactCharacter(message, expressionKey = 'joy') {
+    swapExpression(expressionKey);
     els.figure.classList.remove('react');
     // 再アニメーションのためリフローを挟む(transform/opacityのみのアニメ)
     void els.figure.offsetWidth;

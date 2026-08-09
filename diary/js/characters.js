@@ -73,3 +73,6 @@ export const CHARACTERS = {
 };
 
 export const CHARACTER_IDS = Object.keys(CHARACTERS);
+
+// ユーザー保存キャラの表情差分ラベル(ニュートラル+喜怒哀楽。登録は任意)
+export const EXPRESSION_LABELS = { joy: '喜', anger: '怒', sorrow: '哀', fun: '楽' };

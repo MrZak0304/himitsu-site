@@ -3,7 +3,7 @@
 import { hashValue, hashAnswer, makeSalt } from '../core/lock.js';
 import { availableThemes, canUseCustomTheme, CUSTOM_THEME_ID } from '../core/themes.js';
 import { applyTheme } from './theme.js';
-import { CHARACTERS } from '../characters.js';
+import { CHARACTERS, EXPRESSION_LABELS } from '../characters.js';
 import { UI_ICONS } from '../icons.js';
 import { buildLabel } from '../ads.js';
 import { downloadBackup } from '../backup-io.js';
@@ -28,6 +28,7 @@ export function initSettings(ctx) {
     charGrid: $('character-grid'),
     charAddBtn: $('character-add-btn'),
     charImageInput: $('character-image-input'),
+    exprImageInput: $('expression-image-input'),
     charNote: $('character-note'),
     themeGrid: $('theme-grid'),
     customEditor: $('custom-theme-editor'),
@@ -244,10 +245,12 @@ export function initSettings(ctx) {
       items.push(b);
     }
 
-    for (const imageId of s.customCharacters) {
-      const rec = await ctx.pipeline.store.get(imageId);
+    for (const char of s.customCharacters) {
+      const rec = await ctx.pipeline.store.get(char.id);
+      const item = document.createElement('div');
+      item.className = 'char-item';
       const b = document.createElement('button');
-      const on = s.character.type === 'custom' && s.character.value === imageId;
+      const on = s.character.type === 'custom' && s.character.value === char.id;
       b.className = `choice-item${on ? ' on' : ''}`;
       const thumb = document.createElement('span');
       thumb.className = 'char-thumb';
@@ -260,32 +263,61 @@ export function initSettings(ctx) {
       label.textContent = 'マイキャラ';
       b.append(thumb, label);
       b.onclick = async () => {
-        await ctx.stores.settings.merge({ character: { ...s.character, type: 'custom', value: imageId } });
+        await ctx.stores.settings.merge({ character: { ...s.character, type: 'custom', value: char.id } });
         refreshCharacters();
         ctx.renderCharacter?.();
       };
+
+      // 表情差分スロット(喜怒哀楽。登録は任意。ふだんはニュートラル=基準画像)
+      const exprRow = document.createElement('div');
+      exprRow.className = 'expr-row';
+      for (const [key, exprLabel] of Object.entries(EXPRESSION_LABELS)) {
+        const slot = document.createElement('button');
+        slot.className = `expr-slot${char.expressions[key] ? ' set' : ''}`;
+        slot.dataset.expr = key;
+        slot.dataset.charId = char.id;
+        slot.title = `表情「${exprLabel}」の画像を登録`;
+        if (char.expressions[key]) {
+          const exprRec = await ctx.pipeline.store.get(char.expressions[key]);
+          if (exprRec?.thumbBlob) {
+            const url = URL.createObjectURL(exprRec.thumbBlob);
+            charUrls.push(url);
+            slot.innerHTML = `<img src="${url}" alt="${exprLabel}">`;
+          } else {
+            slot.textContent = exprLabel;
+          }
+        } else {
+          slot.textContent = exprLabel;
+        }
+        slot.onclick = () => {
+          pendingExpr = { charId: char.id, key };
+          els.exprImageInput.click();
+        };
+        exprRow.append(slot);
+      }
+
       const delBtn = document.createElement('button');
       delBtn.className = 'mini-btn danger';
       delBtn.textContent = '削除';
-      delBtn.onclick = async (e) => {
-        e.stopPropagation();
-        if (!(await ctx.confirm('このキャラクターを削除しますか?'))) return;
+      delBtn.onclick = async () => {
+        if (!(await ctx.confirm('このキャラクターを削除しますか?(表情差分も削除されます)'))) return;
         const cur = await ctx.stores.settings.get();
-        const rest = cur.customCharacters.filter((x) => x !== imageId);
+        const target = cur.customCharacters.find((c) => c.id === char.id);
+        const rest = cur.customCharacters.filter((c) => c.id !== char.id);
         const character =
-          cur.character.type === 'custom' && cur.character.value === imageId
+          cur.character.type === 'custom' && cur.character.value === char.id
             ? { ...cur.character, type: 'builtin', value: 'cat' }
             : cur.character;
         await ctx.stores.settings.merge({ customCharacters: rest, character });
-        await ctx.pipeline.store.remove(imageId).catch(() => {});
+        for (const imgId of [char.id, ...Object.values(target?.expressions ?? {})]) {
+          await ctx.pipeline.store.remove(imgId).catch(() => {});
+        }
         refreshCharacters();
         ctx.renderCharacter?.();
       };
-      const wrap = document.createElement('span');
-      wrap.className = 'choice-item';
-      wrap.style.gap = '2px';
-      wrap.append(b, delBtn);
-      items.push(wrap);
+
+      item.append(b, exprRow, delBtn);
+      items.push(item);
     }
     els.charGrid.replaceChildren(...items);
 
@@ -299,6 +331,32 @@ export function initSettings(ctx) {
     }
   }
 
+  let pendingExpr = null;
+  els.exprImageInput.onchange = async () => {
+    const file = els.exprImageInput.files[0];
+    els.exprImageInput.value = '';
+    if (!file || !pendingExpr) return;
+    const { charId, key } = pendingExpr;
+    pendingExpr = null;
+    ctx.showLoading('画像を保存中…');
+    try {
+      const { id } = await ctx.pipeline.saveImage(file, 'character');
+      const cur = await ctx.stores.settings.get();
+      const old = cur.customCharacters.find((c) => c.id === charId)?.expressions?.[key];
+      const list = cur.customCharacters.map((c) =>
+        c.id === charId ? { ...c, expressions: { ...c.expressions, [key]: id } } : c,
+      );
+      await ctx.stores.settings.merge({ customCharacters: list });
+      if (old) await ctx.pipeline.store.remove(old).catch(() => {});
+      note(els.charNote, null);
+      refreshCharacters();
+    } catch (err) {
+      note(els.charNote, err.message);
+    } finally {
+      ctx.hideLoading();
+    }
+  };
+
   els.charAddBtn.onclick = () => els.charImageInput.click();
   els.charImageInput.onchange = async () => {
     const file = els.charImageInput.files[0];
@@ -309,7 +367,7 @@ export function initSettings(ctx) {
       const { id } = await ctx.pipeline.saveImage(file, 'character');
       const s = await ctx.stores.settings.get();
       await ctx.stores.settings.merge({
-        customCharacters: [...s.customCharacters, id],
+        customCharacters: [...s.customCharacters, { id, expressions: {} }],
         character: { ...s.character, type: 'custom', value: id },
       });
       note(els.charNote, null);

@@ -25,6 +25,21 @@ export const DEFAULT_SETTINGS = {
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+// ユーザー保存キャラの表情差分キー(ニュートラルは id の画像そのもの)
+export const EXPRESSION_KEYS = ['joy', 'anger', 'sorrow', 'fun'];
+
+// 旧形式(画像IDの文字列)は {id, expressions:{}} へ移行して読む
+function normalizeCustomCharacter(raw) {
+  if (typeof raw === 'string') return { id: raw, expressions: {} };
+  if (typeof raw !== 'object' || raw === null || typeof raw.id !== 'string') return null;
+  const src = typeof raw.expressions === 'object' && raw.expressions !== null ? raw.expressions : {};
+  const expressions = {};
+  for (const k of EXPRESSION_KEYS) {
+    if (typeof src[k] === 'string') expressions[k] = src[k];
+  }
+  return { id: raw.id, expressions };
+}
+
 function normalizeSettings(raw) {
   if (typeof raw !== 'object' || raw === null) raw = {};
   const d = structuredClone(DEFAULT_SETTINGS);
@@ -53,7 +68,7 @@ function normalizeSettings(raw) {
       position: character.position === 'left' ? 'left' : 'right',
     },
     customCharacters: Array.isArray(raw.customCharacters)
-      ? raw.customCharacters.filter((v) => typeof v === 'string')
+      ? raw.customCharacters.map(normalizeCustomCharacter).filter(Boolean)
       : [],
     customTheme:
       typeof raw.customTheme === 'object' && raw.customTheme !== null
