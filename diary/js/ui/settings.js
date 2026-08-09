@@ -236,7 +236,7 @@ export function initSettings(ctx) {
       const b = document.createElement('button');
       const on = s.character.type === 'builtin' && s.character.value === id;
       b.className = `choice-item${on ? ' on' : ''}`;
-      b.innerHTML = `<span class="char-thumb">${c.svg}</span><span>${c.name}</span>`;
+      b.innerHTML = `<span class="char-thumb">${c.svg()}</span><span>${c.name}</span>`;
       b.onclick = async () => {
         await ctx.stores.settings.merge({ character: { ...s.character, type: 'builtin', value: id } });
         refreshCharacters();

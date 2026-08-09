@@ -239,7 +239,7 @@ export function initHabits(ctx) {
       }
     }
     const c = CHARACTERS[settings.character.value] ?? CHARACTERS.cat;
-    els.figure.innerHTML = c.svg;
+    els.figure.innerHTML = c.svg('neutral');
   }
 
   // 選択中のユーザー保存キャラ(表情差分の参照用)
@@ -249,28 +249,47 @@ export function initHabits(ctx) {
     return s.customCharacters.find((c) => c.id === s.character.value) ?? null;
   }
 
-  // リアクション中だけ表情差分(登録があれば)へ切り替え、少ししてニュートラルへ戻す
+  // リアクション中だけ表情差分へ切り替え、少ししてニュートラルへ戻す。
+  // 内蔵キャラはSVGの表情差分、ユーザー保存キャラは登録済みの表情画像を使う。
   let exprTimer = null;
   async function swapExpression(key) {
-    const char = await currentCustomChar();
-    const imgId = char?.expressions?.[key];
-    if (!imgId) return;
-    const rec = await ctx.pipeline.store.get(imgId);
-    if (!rec?.blob) return;
-    if (charUrl) URL.revokeObjectURL(charUrl);
-    charUrl = URL.createObjectURL(rec.blob);
-    els.figure.innerHTML = `<img src="${charUrl}" alt="">`;
+    const s = await ctx.stores.settings.get();
+    if (s.character.type === 'custom') {
+      const char = s.customCharacters.find((c) => c.id === s.character.value);
+      const imgId = char?.expressions?.[key];
+      if (!imgId) return; // 差分未登録ならニュートラルのままジャンプのみ
+      const rec = await ctx.pipeline.store.get(imgId);
+      if (!rec?.blob) return;
+      if (charUrl) URL.revokeObjectURL(charUrl);
+      charUrl = URL.createObjectURL(rec.blob);
+      els.figure.innerHTML = `<img src="${charUrl}" alt="">`;
+    } else {
+      const c = CHARACTERS[s.character.value] ?? CHARACTERS.cat;
+      els.figure.innerHTML = c.svg(key);
+    }
     clearTimeout(exprTimer);
     exprTimer = setTimeout(() => renderCharacter(), 2200);
   }
 
-  // タップでリアクション(2026-08-09 PD FB)。表情は登録済みの中からランダム
-  const TAP_MESSAGES = ['やっほー!', '今日もおつかれさま!', 'いっしょにがんばろう!', 'えへへ', 'きょうも書いてえらい!'];
+  // タップでリアクション(2026-08-09 PD FB)。表情に合ったセリフを出す
+  const TAP_MESSAGES = {
+    joy: ['やっほー!', 'えへへ', 'きょうも書いてえらい!'],
+    anger: ['むぅ!', 'ぷんぷん!'],
+    sorrow: ['しょんぼり…', 'よしよしして…'],
+    fun: ['るんるん♪', 'たのしい〜!', 'いっしょにがんばろう!'],
+  };
   els.figure.onclick = async () => {
-    const char = await currentCustomChar();
-    const keys = char ? Object.keys(char.expressions) : [];
-    const key = keys.length > 0 ? keys[Math.floor(Math.random() * keys.length)] : 'joy';
-    reactCharacter(TAP_MESSAGES[Math.floor(Math.random() * TAP_MESSAGES.length)], key);
+    const s = await ctx.stores.settings.get();
+    let keys = ['joy', 'anger', 'sorrow', 'fun'];
+    if (s.character.type === 'custom') {
+      const char = s.customCharacters.find((c) => c.id === s.character.value);
+      const registered = Object.keys(char?.expressions ?? {});
+      if (registered.length > 0) keys = registered;
+      else keys = ['joy'];
+    }
+    const key = keys[Math.floor(Math.random() * keys.length)];
+    const messages = TAP_MESSAGES[key] ?? TAP_MESSAGES.joy;
+    reactCharacter(messages[Math.floor(Math.random() * messages.length)], key);
   };
 
   function reactCharacter(message, expressionKey = 'joy') {
