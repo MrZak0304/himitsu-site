@@ -8,6 +8,7 @@ const KEY = 'diary-settings-v1';
 export const DEFAULT_SETTINGS = {
   lock: {
     enabled: false,
+    prompted: false, // 初回ふりかえり時の「ロックしますか?」確認を済ませたか
     passcodeHash: null,
     salt: null,
     secretQuestion: '',
@@ -15,7 +16,7 @@ export const DEFAULT_SETTINGS = {
     answerSalt: null,
   },
   reminder: { enabled: false, time: '21:00' },
-  theme: 'yoru',
+  theme: 'shiro',
   character: { type: 'builtin', value: 'cat', position: 'right' },
   customCharacters: [],
   customTheme: null,
@@ -34,6 +35,7 @@ function normalizeSettings(raw) {
   return {
     lock: {
       enabled: lock.enabled === true,
+      prompted: lock.prompted === true,
       passcodeHash: typeof lock.passcodeHash === 'string' ? lock.passcodeHash : null,
       salt: typeof lock.salt === 'string' ? lock.salt : null,
       secretQuestion: typeof lock.secretQuestion === 'string' ? lock.secretQuestion : '',

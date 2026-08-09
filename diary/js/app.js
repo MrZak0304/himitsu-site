@@ -60,9 +60,11 @@ async function main() {
   const popupMsg = document.getElementById('confirm-message');
   const popupOk = document.getElementById('confirm-ok');
   const popupCancel = document.getElementById('confirm-cancel');
-  function confirmPopup(message) {
+  function confirmPopup(message, { okLabel = '実行する', cancelLabel = 'やめる' } = {}) {
     return new Promise((resolve) => {
       popupMsg.textContent = message;
+      popupOk.textContent = okLabel;
+      popupCancel.textContent = cancelLabel;
       popup.hidden = false;
       popupOk.onclick = () => {
         popup.hidden = true;
@@ -145,8 +147,24 @@ async function main() {
   let currentTab = 'today';
 
   async function selectTab(name) {
-    if (name === 'calendar' && !(await lock.requestUnlock())) {
-      return selectTab('today');
+    if (name === 'calendar') {
+      // 初回のふりかえり進入時に一度だけロック設定を確認する(2026-08-09 PD FB)
+      const s = await stores.settings.get();
+      if (!s.lock.enabled && !s.lock.prompted) {
+        await stores.settings.merge({ lock: { ...s.lock, prompted: true } });
+        const wants = await confirmPopup(
+          'ふりかえり(過去の記録)を開くときにロックをかけますか?あとから設定タブでいつでも変更できます。',
+          { okLabel: 'ロックを設定する', cancelLabel: '今はしない' },
+        );
+        if (wants) {
+          await selectTab('settings');
+          settingsUI.openLockSetup();
+          return;
+        }
+      }
+      if (!(await lock.requestUnlock())) {
+        return selectTab('today');
+      }
     }
     currentTab = name;
     for (const btn of navButtons) btn.classList.toggle('active', btn.dataset.tab === name);

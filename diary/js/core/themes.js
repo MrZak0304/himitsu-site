@@ -2,13 +2,13 @@
 // テーマ追加 = ここに1行+CSSに変数セット1ブロック(不変条件7)。
 // 無料5種 / 有料15種 + カスタム(有料のみ)。web はPD確認用に全テーマ利用可。
 
-export const DEFAULT_THEME = 'yoru';
+export const DEFAULT_THEME = 'shiro'; // 既定は白基調(2026-08-09 PD FB)
 export const CUSTOM_THEME_ID = 'custom';
 
 export const THEMES = [
   // 無料5種
-  { id: 'yoru', name: 'よる', tier: 'free', dark: true },
   { id: 'shiro', name: 'しろ', tier: 'free', dark: false },
+  { id: 'yoru', name: 'よる', tier: 'free', dark: true },
   { id: 'sakura', name: 'さくら', tier: 'free', dark: false },
   { id: 'mori', name: 'もり', tier: 'free', dark: false },
   { id: 'umi', name: 'うみ', tier: 'free', dark: true },

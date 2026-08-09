@@ -6,22 +6,22 @@
 [hidden] { display: none !important; }
 
 :root {
-  /* 既定テーマ = よる(yoru) */
-  --bg: #1d2033;
-  --panel: #262a42;
-  --panel-edge: #3a3f61;
-  --text: #eef0fa;
-  --text-dim: #9aa0c0;
-  --accent: #8f9bff;
-  --accent-contrast: #16182a;
-  --danger: #ff7a70;
-  --ok: #6fd39a;
+  /* 既定テーマ = しろ(shiro・白基調。2026-08-09 PD FB) */
+  --bg: #f7f6f2;
+  --panel: #ffffff;
+  --panel-edge: #e3e0d8;
+  --text: #2b2925;
+  --text-dim: #8a867d;
+  --accent: #4a7dbd;
+  --accent-contrast: #ffffff;
+  --danger: #c62f2f;
+  --ok: #1f8a4c;
   --ad-inset: 0px;
   --nav-height: 64px;
 }
 
 /* --- 無料テーマ --- */
-[data-theme="shiro"]  { --bg:#f7f6f2; --panel:#ffffff; --panel-edge:#e3e0d8; --text:#2b2925; --text-dim:#8a867d; --accent:#4a7dbd; --accent-contrast:#ffffff; --danger:#c62f2f; --ok:#1f8a4c; }
+[data-theme="yoru"]   { --bg:#1d2033; --panel:#262a42; --panel-edge:#3a3f61; --text:#eef0fa; --text-dim:#9aa0c0; --accent:#8f9bff; --accent-contrast:#16182a; --danger:#ff7a70; --ok:#6fd39a; }
 [data-theme="sakura"] { --bg:#fdf3f5; --panel:#ffffff; --panel-edge:#f2d7dd; --text:#4a3238; --text-dim:#a3868d; --accent:#e37b95; --accent-contrast:#ffffff; --danger:#c62f2f; --ok:#1f8a4c; }
 [data-theme="mori"]   { --bg:#f1f5ee; --panel:#ffffff; --panel-edge:#d8e2d2; --text:#2c352a; --text-dim:#7f8b7a; --accent:#4e8a56; --accent-contrast:#ffffff; --danger:#c62f2f; --ok:#1f8a4c; }
 [data-theme="umi"]    { --bg:#14212e; --panel:#1c2c3d; --panel-edge:#2d4257; --text:#e8f0f7; --text-dim:#8fa5b8; --accent:#4aa3d8; --accent-contrast:#08131c; --danger:#ff7a70; --ok:#6fd39a; }
@@ -343,9 +343,17 @@ input[type="time"], input[type="color"] { width: auto; }
   gap: 4px;
 }
 #character-layer.pos-left { right: auto; left: 10px; }
-#character-figure { width: 84px; height: 84px; }
+#character-figure { width: 116px; height: 116px; animation: char-idle 3.6s ease-in-out infinite; }
 #character-figure svg { width: 100%; height: 100%; }
 #character-figure img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; border: 2px solid var(--panel-edge); }
+
+/* 常時表示のアイドルアクション(2026-08-09 PD FB。transform/opacityのみ) */
+@keyframes char-idle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-4px) rotate(-2deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(-3px) rotate(2deg); }
+}
 
 #character-balloon {
   background: var(--panel);

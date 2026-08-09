@@ -159,6 +159,7 @@ export function initSettings(ctx) {
     const s = await ctx.stores.settings.get();
     els.lockEnabled.checked = s.lock.enabled;
     els.lockSetupBtn.hidden = !s.lock.enabled || !s.lock.passcodeHash;
+    els.lockSetupBtn.textContent = 'パスコードと合言葉を変更';
     if (!s.lock.enabled) els.lockSetup.hidden = true;
   }
 
@@ -183,7 +184,9 @@ export function initSettings(ctx) {
     refreshLock();
   };
 
-  els.lockSetupBtn.onclick = () => {
+  // パスコード変更(2026-08-09 PD FB): 現在のパスコードで解除してから新しい値を設定する
+  els.lockSetupBtn.onclick = async () => {
+    if (!(await ctx.lock.requestUnlock())) return;
     els.lockSetup.hidden = false;
   };
 
@@ -205,6 +208,7 @@ export function initSettings(ctx) {
     await ctx.stores.settings.merge({
       lock: {
         enabled: true,
+        prompted: true,
         passcodeHash: await hashValue(p1, salt),
         salt,
         secretQuestion: q,
@@ -431,5 +435,12 @@ export function initSettings(ctx) {
     await Promise.all([refreshTags(), refreshLock(), refreshCharacters(), refreshThemes()]);
   }
 
-  return { refresh };
+  // 初回ふりかえり時の「ロックを設定する」誘導から呼ばれる
+  function openLockSetup() {
+    document.getElementById('lock-group').open = true;
+    els.lockSetup.hidden = false;
+    els.lockSetup.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  return { refresh, openLockSetup };
 }
