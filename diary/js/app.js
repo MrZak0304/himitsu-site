@@ -127,6 +127,18 @@ async function main() {
   ctx.renderCharacter = habitsUI.renderCharacter;
   ctx.reactCharacter = habitsUI.reactCharacter;
   ctx.reactAllDone = habitsUI.reactAllDone;
+
+  // 保存確認(2026-08-10 PD FB): トースト+キャラの一言で「記録できた」を明示する
+  const saveToast = document.getElementById('save-toast');
+  let saveToastTimer = null;
+  ctx.notifySaved = async () => {
+    saveToast.classList.add('show');
+    clearTimeout(saveToastTimer);
+    saveToastTimer = setTimeout(() => saveToast.classList.remove('show'), 1500);
+    const s = await stores.settings.get();
+    const lines = s.characterLines.saved ?? [];
+    if (lines.length > 0) habitsUI.sayLine(lines[Math.floor(Math.random() * lines.length)]);
+  };
   ctx.refreshHabits = habitsUI.refresh;
   const todayUI = initToday(ctx);
   ctx.refreshToday = todayUI.refresh;

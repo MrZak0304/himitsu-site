@@ -147,6 +147,7 @@
       <label class="line-label">哀のセリフ<textarea id="line-sorrow" rows="2"></textarea></label>
       <label class="line-label">楽のセリフ<textarea id="line-fun" rows="2"></textarea></label>
       <label class="line-label">日課を全部達成したとき<textarea id="line-alldone" rows="2"></textarea></label>
+      <label class="line-label">記録できたとき<textarea id="line-saved" rows="2"></textarea></label>
       <div class="note" id="character-note" hidden></div>
     </details>
 
@@ -189,6 +190,9 @@
   <div id="character-balloon" hidden></div>
   <div id="character-figure"></div>
 </div>
+
+<!-- 保存確認トースト(記録操作のたびに表示: 2026-08-10 PD FB) -->
+<div id="save-toast" role="status">記録しました</div>
 
 <nav class="bottom-nav" role="tablist">
   <button class="nav-item active" data-tab="today" role="tab"><span class="nav-icon" data-nav-icon="today"></span>きょう</button>

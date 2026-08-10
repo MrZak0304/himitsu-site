@@ -12,6 +12,7 @@ export const DEFAULT_LINES = {
   sorrow: ['しょんぼり…', 'よしよしして…'],
   fun: ['るんるん♪', 'たのしい〜!', 'いっしょにがんばろう!'],
   allDone: ['全部達成!えらい!', 'ぜんぶできた!すごい!'],
+  saved: ['記録できたよ!', 'きょうのこと、残したよ!'],
 };
 
 export const DEFAULT_SETTINGS = {

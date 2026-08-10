@@ -358,7 +358,7 @@ export function initSettings(ctx) {
   };
 
   // セリフの編集(1行1セリフ。空にすると normalize が既定セリフへ戻す)
-  const LINE_FIELDS = { joy: 'line-joy', anger: 'line-anger', sorrow: 'line-sorrow', fun: 'line-fun', allDone: 'line-alldone' };
+  const LINE_FIELDS = { joy: 'line-joy', anger: 'line-anger', sorrow: 'line-sorrow', fun: 'line-fun', allDone: 'line-alldone', saved: 'line-saved' };
   async function refreshLines() {
     const s = await ctx.stores.settings.get();
     for (const [key, id] of Object.entries(LINE_FIELDS)) {

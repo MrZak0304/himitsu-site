@@ -296,6 +296,16 @@ export function initHabits(ctx) {
     reactCharacter(pick(s.characterLines.allDone), 'joy');
   }
 
+  // 吹き出しだけ出す(ジャンプなし。保存確認などの控えめな一言用)
+  function sayLine(message) {
+    els.balloon.textContent = message;
+    els.balloon.hidden = false;
+    clearTimeout(balloonTimer);
+    balloonTimer = setTimeout(() => {
+      els.balloon.hidden = true;
+    }, 2600);
+  }
+
   function reactCharacter(message, expressionKey = 'joy') {
     swapExpression(expressionKey);
     els.figure.classList.remove('react');
@@ -304,15 +314,8 @@ export function initHabits(ctx) {
     els.figure.classList.add('react');
     clearTimeout(reactTimer);
     reactTimer = setTimeout(() => els.figure.classList.remove('react'), 2000);
-    if (message) {
-      els.balloon.textContent = message;
-      els.balloon.hidden = false;
-      clearTimeout(balloonTimer);
-      balloonTimer = setTimeout(() => {
-        els.balloon.hidden = true;
-      }, 2600);
-    }
+    if (message) sayLine(message);
   }
 
-  return { refresh, renderCharacter, reactCharacter, reactAllDone };
+  return { refresh, renderCharacter, reactCharacter, reactAllDone, sayLine };
 }

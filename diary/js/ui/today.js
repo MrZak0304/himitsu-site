@@ -66,6 +66,7 @@ export function initToday(ctx) {
           const cur = (await ctx.stores.entries.get(today))?.tags ?? [];
           const next = cur.includes(tag.id) ? cur.filter((id) => id !== tag.id) : [...cur, tag.id];
           await ctx.stores.entries.upsert(today, { tags: next });
+          ctx.notifySaved?.();
           refresh();
         };
         return b;
@@ -103,6 +104,7 @@ export function initToday(ctx) {
         push.innerHTML = idx === pushIdx ? UI_ICONS.starFill : UI_ICONS.star;
         push.onclick = async () => {
           await ctx.stores.entries.upsert(today, { pushImageIndex: idx });
+          ctx.notifySaved?.();
           refresh();
         };
         const del = document.createElement('button');
@@ -185,6 +187,7 @@ export function initToday(ctx) {
       const cur = (await ctx.stores.entries.get(today))?.tags ?? [];
       await ctx.stores.entries.upsert(today, { tags: [...cur, tag.id] });
       els.tagInput.value = '';
+      ctx.notifySaved?.();
       refresh();
     } catch (err) {
       note(els.slotNote, err.message);
@@ -214,6 +217,7 @@ export function initToday(ctx) {
 
   els.text.onchange = async () => {
     await ctx.stores.entries.upsert(ctx.todayKey(), { text: els.text.value });
+    ctx.notifySaved?.();
   };
 
   // 画像添付
@@ -239,6 +243,7 @@ export function initToday(ctx) {
           pushImageIndex: normalizePushIndex(images, cur?.pushImageIndex ?? null),
         });
       }
+      ctx.notifySaved?.();
     } catch (err) {
       note(els.imageNote, err.message);
     } finally {

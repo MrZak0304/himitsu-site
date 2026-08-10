@@ -389,6 +389,24 @@ input[type="time"], input[type="color"] { width: auto; }
 }
 #character-figure.react { animation: char-hop .9s ease 2; }
 
+/* --- 保存確認トースト(opacity/transformのみで表示) --- */
+#save-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-height) + 18px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%) translateY(8px);
+  background: var(--ok);
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  z-index: 80;
+  opacity: 0;
+  transition: opacity .25s ease, transform .25s ease;
+  pointer-events: none;
+}
+#save-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
 /* --- 下部タブ --- */
 .bottom-nav {
   position: fixed;
