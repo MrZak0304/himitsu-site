@@ -271,13 +271,12 @@ export function initHabits(ctx) {
     exprTimer = setTimeout(() => renderCharacter(), 2200);
   }
 
-  // タップでリアクション(2026-08-09 PD FB)。表情に合ったセリフを出す
-  const TAP_MESSAGES = {
-    joy: ['やっほー!', 'えへへ', 'きょうも書いてえらい!'],
-    anger: ['むぅ!', 'ぷんぷん!'],
-    sorrow: ['しょんぼり…', 'よしよしして…'],
-    fun: ['るんるん♪', 'たのしい〜!', 'いっしょにがんばろう!'],
-  };
+  // タップでリアクション(2026-08-09 PD FB)。表情に合ったセリフを出す。
+  // セリフは設定(settings.characterLines)から編集できる(2026-08-10 PD FB)
+  function pick(list) {
+    return list[Math.floor(Math.random() * list.length)];
+  }
+
   els.figure.onclick = async () => {
     const s = await ctx.stores.settings.get();
     let keys = ['joy', 'anger', 'sorrow', 'fun'];
@@ -287,10 +286,15 @@ export function initHabits(ctx) {
       if (registered.length > 0) keys = registered;
       else keys = ['joy'];
     }
-    const key = keys[Math.floor(Math.random() * keys.length)];
-    const messages = TAP_MESSAGES[key] ?? TAP_MESSAGES.joy;
-    reactCharacter(messages[Math.floor(Math.random() * messages.length)], key);
+    const key = pick(keys);
+    reactCharacter(pick(s.characterLines[key] ?? s.characterLines.joy), key);
   };
+
+  // 日課の全達成リアクション(セリフは設定から編集可)
+  async function reactAllDone() {
+    const s = await ctx.stores.settings.get();
+    reactCharacter(pick(s.characterLines.allDone), 'joy');
+  }
 
   function reactCharacter(message, expressionKey = 'joy') {
     swapExpression(expressionKey);
@@ -310,5 +314,5 @@ export function initHabits(ctx) {
     }
   }
 
-  return { refresh, renderCharacter, reactCharacter };
+  return { refresh, renderCharacter, reactCharacter, reactAllDone };
 }

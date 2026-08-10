@@ -357,6 +357,26 @@ export function initSettings(ctx) {
     }
   };
 
+  // セリフの編集(1行1セリフ。空にすると normalize が既定セリフへ戻す)
+  const LINE_FIELDS = { joy: 'line-joy', anger: 'line-anger', sorrow: 'line-sorrow', fun: 'line-fun', allDone: 'line-alldone' };
+  async function refreshLines() {
+    const s = await ctx.stores.settings.get();
+    for (const [key, id] of Object.entries(LINE_FIELDS)) {
+      const el = $(id);
+      if (document.activeElement !== el) el.value = s.characterLines[key].join('\n');
+    }
+  }
+  for (const id of Object.values(LINE_FIELDS)) {
+    $(id).onchange = async () => {
+      const characterLines = {};
+      for (const [key, fieldId] of Object.entries(LINE_FIELDS)) {
+        characterLines[key] = $(fieldId).value.split('\n').map((t) => t.trim()).filter(Boolean);
+      }
+      await ctx.stores.settings.merge({ characterLines });
+      refreshLines();
+    };
+  }
+
   els.charAddBtn.onclick = () => els.charImageInput.click();
   els.charImageInput.onchange = async () => {
     const file = els.charImageInput.files[0];
@@ -490,7 +510,7 @@ export function initSettings(ctx) {
     const s = await ctx.stores.settings.get();
     els.reminderEnabled.checked = s.reminder.enabled;
     els.reminderTime.value = s.reminder.time;
-    await Promise.all([refreshTags(), refreshLock(), refreshCharacters(), refreshThemes()]);
+    await Promise.all([refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
   }
 
   // 初回ふりかえり時の「ロックを設定する」誘導から呼ばれる

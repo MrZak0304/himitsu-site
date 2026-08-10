@@ -5,6 +5,15 @@ import { createKvStore } from './kv.js';
 
 const KEY = 'diary-settings-v1';
 
+// キャラクターのセリフ既定値(設定から編集可。空にすると既定に戻る)
+export const DEFAULT_LINES = {
+  joy: ['やっほー!', 'えへへ', 'きょうも書いてえらい!'],
+  anger: ['むぅ!', 'ぷんぷん!'],
+  sorrow: ['しょんぼり…', 'よしよしして…'],
+  fun: ['るんるん♪', 'たのしい〜!', 'いっしょにがんばろう!'],
+  allDone: ['全部達成!えらい!', 'ぜんぶできた!すごい!'],
+};
+
 export const DEFAULT_SETTINGS = {
   lock: {
     enabled: false,
@@ -19,6 +28,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'shiro',
   character: { type: 'builtin', value: 'cat', position: 'right' },
   customCharacters: [],
+  characterLines: DEFAULT_LINES,
   customTheme: null,
   tagSlots: { base: 10, earned: 0 },
 };
@@ -27,6 +37,15 @@ const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
 // ユーザー保存キャラの表情差分キー(ニュートラルは id の画像そのもの)
 export const EXPRESSION_KEYS = ['joy', 'anger', 'sorrow', 'fun'];
+
+function normalizeLines(raw) {
+  const out = {};
+  for (const k of Object.keys(DEFAULT_LINES)) {
+    const src = Array.isArray(raw?.[k]) ? raw[k].filter((v) => typeof v === 'string' && v.trim() !== '') : [];
+    out[k] = src.length > 0 ? src : [...DEFAULT_LINES[k]];
+  }
+  return out;
+}
 
 // 旧形式(画像IDの文字列)は {id, expressions:{}} へ移行して読む
 function normalizeCustomCharacter(raw) {
@@ -70,6 +89,7 @@ function normalizeSettings(raw) {
     customCharacters: Array.isArray(raw.customCharacters)
       ? raw.customCharacters.map(normalizeCustomCharacter).filter(Boolean)
       : [],
+    characterLines: normalizeLines(raw.characterLines),
     customTheme:
       typeof raw.customTheme === 'object' && raw.customTheme !== null
         && HEX_RE.test(raw.customTheme.bg) && HEX_RE.test(raw.customTheme.accent)

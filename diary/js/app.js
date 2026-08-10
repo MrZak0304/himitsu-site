@@ -126,6 +126,7 @@ async function main() {
   const habitsUI = initHabits(ctx);
   ctx.renderCharacter = habitsUI.renderCharacter;
   ctx.reactCharacter = habitsUI.reactCharacter;
+  ctx.reactAllDone = habitsUI.reactAllDone;
   ctx.refreshHabits = habitsUI.refresh;
   const todayUI = initToday(ctx);
   ctx.refreshToday = todayUI.refresh;

@@ -152,7 +152,7 @@ export function initToday(ctx) {
             if (cb.checked) {
               const after = await ctx.stores.habitLogs.forDate(today);
               const allDone = habits.every((h) => after[h.id] === true);
-              if (allDone) ctx.reactCharacter('全部達成!えらい!');
+              if (allDone) ctx.reactAllDone?.();
             }
             ctx.refreshHabits?.();
           };
