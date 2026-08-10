@@ -199,7 +199,8 @@ export function initToday(ctx) {
 
   // リワード(Webはダミー視聴)→枠+1(恒久)
   els.watchAd.onclick = async () => {
-    ctx.showLoading('広告(ダミー)を視聴中…');
+    const isNative = window.Capacitor?.isNativePlatform?.();
+    ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
     try {
       const r = await requestRewarded();
       if (r.ok) {

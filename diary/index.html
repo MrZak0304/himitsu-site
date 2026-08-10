@@ -14,7 +14,7 @@
 
 <header class="app-header">
   <h1 id="app-title">ポンとにっき</h1>
-  <span class="proto-badge">PROTOTYPE</span>
+  <span class="proto-badge" id="proto-badge" hidden>PROTOTYPE</span>
 </header>
 
 <main>
@@ -111,7 +111,8 @@
       <summary>リマインダー</summary>
       <label class="row"><input type="checkbox" id="reminder-enabled"> 毎日通知する</label>
       <label class="row">時刻 <input type="time" id="reminder-time" value="21:00"></label>
-      <p class="note-inline">通知はアプリ版(iPhone/Android)で有効になります。</p>
+      <div class="note" id="reminder-note" hidden></div>
+      <p class="note-inline" id="reminder-web-note">通知はアプリ版(iPhone/Android)で有効になります。</p>
     </details>
 
     <details class="settings-group" id="lock-group">
@@ -181,6 +182,7 @@
       <summary>このアプリについて</summary>
       <p class="note-inline" id="about-build"></p>
       <p class="note-inline">日記の本文・写真・タグ・日課はすべてこの端末の中だけに保存され、外部に送信されません(無料版の広告表示に伴う通信を除きます)。</p>
+      <p class="note-inline"><a href="https://mrzak0304.github.io/himitsu-site/diary-privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></p>
     </details>
   </section>
 </main>

@@ -1,6 +1,6 @@
 // UI配線のみ。ロジックは js/core/(ピュア)と js/store/(永続化)に置く(CLAUDE.md)。
 
-import { BUILD, applyDevOverrides } from './build-flags.js';
+import { BUILD, BASE_VARIANT, applyDevOverrides } from './build-flags.js';
 import { injectIcons, HABIT_ICONS } from './icons.js';
 import { initAds } from './ads.js';
 import { todayKey } from './core/dates.js';
@@ -10,7 +10,9 @@ import { createHabitsStore } from './store/habits.js';
 import { createHabitLogsStore } from './store/habit-logs.js';
 import { createSettingsStore } from './store/settings.js';
 import { createImagePipeline } from './images.js';
-import { createBackupIO } from './backup-io.js';
+import { createImageStore } from './store/images.js';
+import { createBackupIO, cleanupBackupCache } from './backup-io.js';
+import { syncReminder } from './notifications.js';
 import { applyTheme } from './ui/theme.js';
 import { initToday } from './ui/today.js';
 import { initCalendar } from './ui/calendar.js';
@@ -29,8 +31,49 @@ window.addEventListener('unhandledrejection', (e) => showGlobalError(e.reason?.m
 
 const dev = applyDevOverrides(window.location);
 
+// ネイティブ(Capacitor)ではマイグレーション→bootstrap→store生成の順を固定する(プランKTD2/KTD3)。
+// 移行失敗時はWebViewストレージのまま通常起動を継続し、次回起動で自動再試行する。
+async function initNativeStorage() {
+  if (!window.Capacitor?.isNativePlatform?.()) return null;
+  const overlay = document.getElementById('loading-overlay');
+  const overlayText = document.getElementById('loading-text');
+  overlayText.textContent = 'データを準備しています…';
+  overlay.hidden = false;
+  try {
+    const native = await import('./store/native-adapter.js');
+    const backend = native.capacitorBackend();
+    const webIdb = createImageStore(); // 移行元(WebViewのIndexedDB)
+    const migration = await native.runMigration({
+      backend,
+      webStorage: window.localStorage,
+      idbStore: webIdb,
+    });
+    const storage = native.createNativeStorage({ backend, onError: showGlobalError });
+    await storage.bootstrap();
+    const imageStore = createImageStore(native.createFilesystemImageBackend({ backend }));
+    if (migration.migrated && (migration.missing?.length ?? 0) > 0) {
+      showGlobalError(native.MESSAGES.missingImages(migration.missing.length));
+    }
+    // pause時に未書き込みをflush(@capacitor/app)。visibilitychangeも保険で使う
+    const App = window.Capacitor.Plugins?.App;
+    App?.addListener?.('appStateChange', ({ isActive }) => {
+      if (!isActive) storage.flush();
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) storage.flush();
+    });
+    return { storage, imageStore };
+  } catch (err) {
+    showGlobalError('データの引っ越しに失敗しました。空き容量を確認してください(次回起動時に自動で再試行します)。');
+    return null; // 今回はWebViewストレージで続行
+  } finally {
+    overlay.hidden = true;
+  }
+}
+
 async function main() {
-  const pipeline = createImagePipeline();
+  const nativeInit = await initNativeStorage();
+  const pipeline = createImagePipeline(nativeInit?.imageStore);
 
   // 開発用リセットフック(localhost限定。build-flags.js 側でガード済み)
   if (dev.reset) {
@@ -46,12 +89,17 @@ async function main() {
 
   injectIcons();
 
+  // PROTOTYPEバッジはWebプロトタイプ(PD確認用デモ)だけの表示。
+  // free/paid の配布ビルドはストアに出る本番なので出さない。
+  if (BASE_VARIANT === 'web') document.getElementById('proto-badge').hidden = false;
+
+  const nativeStorage = nativeInit?.storage ?? undefined;
   const stores = {
-    entries: createEntriesStore(),
-    tags: createTagsStore(),
-    habits: createHabitsStore(),
-    habitLogs: createHabitLogsStore(),
-    settings: createSettingsStore(),
+    entries: createEntriesStore(nativeStorage),
+    tags: createTagsStore(nativeStorage),
+    habits: createHabitsStore(nativeStorage),
+    habitLogs: createHabitLogsStore(nativeStorage),
+    settings: createSettingsStore(nativeStorage),
   };
   const backupIO = createBackupIO();
 
@@ -145,8 +193,12 @@ async function main() {
   const calendarUI = initCalendar(ctx);
   const settingsUI = initSettings(ctx);
 
-  applyTheme(await stores.settings.get(), BUILD.variant);
+  const initialSettings = await stores.settings.get();
+  applyTheme(initialSettings, BUILD.variant);
   initAds();
+  // ネイティブ: 通知スケジュールの再同期と、共有後に残ったバックアップ平文コピーの掃除
+  syncReminder(initialSettings.reminder).catch(() => {});
+  cleanupBackupCache().catch(() => {});
 
   // --- タブ切替(hidden属性で統一: KTD1)。ふりかえりは進入ガード(R10) ---
   const panels = {
@@ -217,17 +269,20 @@ async function main() {
 
   await selectTab('today');
 
-  // スモークテスト用フック
-  window.appState = {
-    BUILD,
-    stores,
-    pipeline,
-    ctx,
-    selectTab,
-    get currentTab() {
-      return currentTab;
-    },
-  };
+  // スモークテスト用フック。ストアに出る free/paid ビルドには入れない
+  // (日記データを触れるAPIを配布物へ露出させない。PROTOTYPEバッジと同じ扱い)
+  if (BASE_VARIANT === 'web') {
+    window.appState = {
+      BUILD,
+      stores,
+      pipeline,
+      ctx,
+      selectTab,
+      get currentTab() {
+        return currentTab;
+      },
+    };
+  }
 }
 
 main().catch((e) => showGlobalError(e?.message ?? String(e)));

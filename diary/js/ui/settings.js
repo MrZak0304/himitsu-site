@@ -6,7 +6,8 @@ import { applyTheme } from './theme.js';
 import { CHARACTERS, EXPRESSION_LABELS } from '../characters.js';
 import { UI_ICONS } from '../icons.js';
 import { buildLabel } from '../ads.js';
-import { downloadBackup } from '../backup-io.js';
+import { deliverBackup } from '../backup-io.js';
+import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
 
 export function initSettings(ctx) {
@@ -16,6 +17,7 @@ export function initSettings(ctx) {
     tagNote: $('tag-manage-note'),
     reminderEnabled: $('reminder-enabled'),
     reminderTime: $('reminder-time'),
+    reminderNote: $('reminder-note'),
     lockEnabled: $('lock-enabled'),
     lockSetupBtn: $('lock-setup-btn'),
     lockSetup: $('lock-setup'),
@@ -146,14 +148,20 @@ export function initSettings(ctx) {
     );
   }
 
-  // --- リマインダー(設定の保存のみ。実通知はCapacitor段階) ---
+  // --- リマインダー(保存+ネイティブでは実通知のスケジュール同期) ---
   async function saveReminder() {
-    await ctx.stores.settings.merge({
+    const next = await ctx.stores.settings.merge({
       reminder: { enabled: els.reminderEnabled.checked, time: els.reminderTime.value || '21:00' },
     });
+    const r = await syncReminder(next.reminder);
+    note(els.reminderNote, r.ok ? null : r.reason);
   }
   els.reminderEnabled.onchange = saveReminder;
   els.reminderTime.onchange = saveReminder;
+  // ネイティブでは通知が実際に届くため、Web向けの注記は隠す
+  if (window.Capacitor?.isNativePlatform?.()) {
+    document.getElementById('reminder-web-note')?.setAttribute('hidden', '');
+  }
 
   // --- ロック設定 ---
   async function refreshLock() {
@@ -460,7 +468,7 @@ export function initSettings(ctx) {
         ctx.pipeline.store.list(),
       ]);
       const json = await ctx.backupIO.exportBackup({ entries, tags, habits, habitLogs, settings }, imageRecords);
-      downloadBackup(json, `diary-${todayKey().replaceAll('-', '')}.diarybak`);
+      await deliverBackup(json, `diary-${todayKey().replaceAll('-', '')}.diarybak`);
       note(els.backupNote, '書き出しました。ファイルは大切に保管してください。', true);
     } catch (err) {
       note(els.backupNote, err.message);

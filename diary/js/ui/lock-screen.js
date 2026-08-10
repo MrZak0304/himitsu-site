@@ -10,9 +10,25 @@ export const MESSAGES = {
   badNewPasscode: '新しいパスコードは4文字以上で、2回同じものを入力してください。',
 };
 
-// 差し替えポイント(フェーズ3): Capacitor の生体認証プラグインを呼ぶ
+// 生体認証(@aparajita/capacitor-biometric-auth)。ネイティブのみ有効、Webは常に未対応→パスコードへ。
+// プラグイン名はビルド後のシミュレータ疎通スパイクで確認する(BiometricAuthNative が本命、BiometricAuth は保険)。
 async function biometricAuth() {
-  return { supported: false };
+  const plugins = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins : null;
+  const plugin = plugins?.BiometricAuthNative ?? plugins?.BiometricAuth;
+  if (!plugin) return { supported: false };
+  try {
+    const check = await plugin.checkBiometry();
+    if (!check?.isAvailable) return { supported: false };
+    await plugin.authenticate({
+      reason: 'ふりかえりのロックを解除します',
+      cancelTitle: 'パスコードを使う',
+      allowDeviceCredential: false,
+    });
+    return { supported: true, ok: true };
+  } catch {
+    // 失敗・キャンセル・エラーはすべてパスコードへフォールバック(閲覧ガードの本線はパスコード)
+    return { supported: true, ok: false };
+  }
 }
 
 export function createLockGuard(ctx) {
