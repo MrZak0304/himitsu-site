@@ -479,7 +479,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .nav-item.active { color: var(--accent); }
 
 /* --- ロック画面・ポップアップ・オーバーレイ(すべて position:fixed 全画面) --- */
-#lock-screen, #confirm-popup, #loading-overlay {
+#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -512,10 +512,16 @@ input[type="time"], input[type="color"] { width: auto; }
 .manage-list li.hidden-tag { opacity: 0.55; }
 .manage-list li.hidden-tag .name::after { content: '(非表示)'; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 .section-hint { font-size: 13px; color: var(--text-dim); margin: 12px 0 6px; }
+/* 「よく使うタグ」を枠で囲って一覧と視覚的に分ける(2026-08-11 PD FB) */
+.frequent-box { background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
+.frequent-box .section-hint { margin-top: 2px; color: var(--accent); font-weight: bold; }
 #tag-slot-note { display: block; font-size: 13px; color: var(--text-dim); margin: 2px 0 6px; }
 #tag-slot-note.slot-full { color: var(--danger); font-weight: bold; }
 .tag-stamps.frequent { margin-bottom: 6px; }
 .folder-select { font-size: 12px; border: 1px solid var(--panel-edge); border-radius: 8px; padding: 2px 4px; background: var(--panel); color: var(--text); max-width: 96px; }
+/* カスタムテーマの色ボタンを大きく・選んだ色がはっきり分かるように(2026-08-11 PD FB) */
+#custom-bg, #custom-accent { width: 56px; height: 40px; border: 2px solid var(--panel-edge); border-radius: 10px; padding: 0; cursor: pointer; vertical-align: middle; margin-left: 8px; }
+#custom-theme-editor .row { align-items: center; margin: 8px 0; }
 .folder-manage { margin-bottom: 12px; }
 .ranking-list { list-style: none; counter-reset: rank; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .ranking-list li { counter-increment: rank; display: flex; align-items: center; gap: 8px; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 10px; }

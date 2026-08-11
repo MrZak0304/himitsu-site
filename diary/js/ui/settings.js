@@ -10,6 +10,7 @@ import { deliverBackup, BACKUP_EXT, BACKUP_PREFIX } from '../backup-io.js';
 import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
 import { tagUsage } from '../core/tags-usage.js';
+import { tagSlotInfo } from '../core/tag-slots.js';
 
 export function initSettings(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -20,6 +21,8 @@ export function initSettings(ctx) {
     folderInput: $('new-folder-input'),
     folderAdd: $('new-folder-add'),
     folderNote: $('folder-manage-note'),
+    tagInput: $('settings-new-tag-input'),
+    tagAdd: $('settings-new-tag-add'),
     reminderEnabled: $('reminder-enabled'),
     reminderTime: $('reminder-time'),
     reminderNote: $('reminder-note'),
@@ -86,7 +89,7 @@ export function initSettings(ctx) {
     const entries = await ctx.stores.entries.all();
     const { dates, count } = tagUsage(entries, tag.id);
     if (count === 0) {
-      if (!(await confirmPopup(`「${tag.name}」を削除しますか?`))) return;
+      if (!(await ctx.confirm(`「${tag.name}」を削除しますか?`))) return;
       await ctx.stores.tags.remove(tag.id, new Set());
       note(els.tagNote, null);
       refreshTags();
@@ -105,7 +108,7 @@ export function initSettings(ctx) {
       ctx.goToDate?.(dates[0]); // 最初の使用日へ(ふりかえり=ロックの内側)
     } else if (choice === 'delete') {
       if (
-        !(await confirmPopup(
+        !(await ctx.confirm(
           `本当に「${tag.name}」を完全に削除しますか?過去の記録 ${count}日 からもこのタグが外れます(元に戻せません)。`,
           { okLabel: '完全に削除', cancelLabel: 'やめる' },
         ))
@@ -162,6 +165,32 @@ export function initSettings(ctx) {
   };
   els.folderInput.onkeydown = (e) => {
     if (e.key === 'Enter') els.folderAdd.click();
+  };
+
+  // 設定からもタグを追加できる(2026-08-11 PD FB)。無料版は枠上限を尊重する。
+  els.tagAdd.onclick = async () => {
+    let name = els.tagInput.value.trim();
+    if (!name) return;
+    if (!name.startsWith('#')) name = `#${name}`;
+    const settings = await ctx.stores.settings.get();
+    const count = await ctx.stores.tags.userTagCount();
+    const slots = tagSlotInfo(settings.tagSlots, ctx.variant, count);
+    if (!slots.canAdd) {
+      note(els.tagNote, slots.reason);
+      return;
+    }
+    try {
+      await ctx.stores.tags.add(name);
+      els.tagInput.value = '';
+      note(els.tagNote, null);
+      refreshTags();
+      ctx.refreshToday?.();
+    } catch (err) {
+      note(els.tagNote, err.message);
+    }
+  };
+  els.tagInput.onkeydown = (e) => {
+    if (e.key === 'Enter') els.tagAdd.click();
   };
 
   async function refreshTags() {

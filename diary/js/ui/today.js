@@ -14,6 +14,7 @@ export function initToday(ctx) {
     date: $('today-date'),
     frequentWrap: $('today-frequent-wrap'),
     frequent: $('today-frequent'),
+    allTagsHint: $('today-alltags-hint'),
     tags: $('today-tags'),
     slotNote: $('tag-slot-note'),
     tagInput: $('new-tag-input'),
@@ -84,9 +85,11 @@ export function initToday(ctx) {
       .filter((id) => byId.has(id));
     if (freqIds.length > 0) {
       els.frequentWrap.hidden = false;
+      els.allTagsHint.hidden = false; // 頻出と一覧を見出しで分ける(2026-08-11 PD FB)
       els.frequent.replaceChildren(...freqIds.map((id) => makeStamp(byId.get(id))));
     } else {
       els.frequentWrap.hidden = true;
+      els.allTagsHint.hidden = true;
       els.frequent.replaceChildren();
     }
 

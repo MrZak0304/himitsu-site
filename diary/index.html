@@ -22,10 +22,11 @@
   <section class="panel" id="panel-today">
     <h2 class="panel-title" id="today-date"></h2>
     <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
-    <div id="today-frequent-wrap" hidden>
-      <p class="section-hint">よく使うタグ</p>
+    <div id="today-frequent-wrap" class="frequent-box" hidden>
+      <p class="section-hint">⭐ よく使うタグ</p>
       <div class="tag-stamps frequent" id="today-frequent"></div>
     </div>
+    <p class="section-hint" id="today-alltags-hint" hidden>すべてのタグ</p>
     <div class="tag-stamps" id="today-tags"></div>
     <div class="note" id="tag-slot-note" hidden></div>
     <div class="tag-add-row">
@@ -147,6 +148,10 @@
         <p class="note" id="folder-manage-note" hidden></p>
       </div>
       <p class="section-hint">タグ</p>
+      <div class="tag-add-row">
+        <input id="settings-new-tag-input" type="text" placeholder="#あたらしいタグ" maxlength="30">
+        <button id="settings-new-tag-add" class="btn sub">タグを追加</button>
+      </div>
       <ul id="tag-manage-list" class="manage-list"></ul>
       <p class="note" id="tag-manage-note" hidden></p>
     </details>
