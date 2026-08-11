@@ -6,6 +6,7 @@ import { initAds } from './ads.js';
 import { todayKey } from './core/dates.js';
 import { createEntriesStore } from './store/entries.js';
 import { createTagsStore } from './store/tags.js';
+import { createTagFoldersStore } from './store/tag-folders.js';
 import { createHabitsStore } from './store/habits.js';
 import { createHabitLogsStore } from './store/habit-logs.js';
 import { createSettingsStore } from './store/settings.js';
@@ -13,7 +14,7 @@ import { createImagePipeline } from './images.js';
 import { createImageStore } from './store/images.js';
 import { createBackupIO, cleanupBackupCache } from './backup-io.js';
 import { syncReminder } from './notifications.js';
-import { applyTheme } from './ui/theme.js';
+import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
 import { initCalendar } from './ui/calendar.js';
 import { initHabits } from './ui/habits.js';
@@ -97,6 +98,7 @@ async function main() {
   const stores = {
     entries: createEntriesStore(nativeStorage),
     tags: createTagsStore(nativeStorage),
+    tagFolders: createTagFoldersStore(nativeStorage),
     habits: createHabitsStore(nativeStorage),
     habitLogs: createHabitLogsStore(nativeStorage),
     settings: createSettingsStore(nativeStorage),
@@ -195,6 +197,7 @@ async function main() {
 
   const initialSettings = await stores.settings.get();
   applyTheme(initialSettings, BUILD.variant);
+  applyBackgroundImage(initialSettings, BUILD.variant, pipeline.store).catch(() => {});
   initAds();
   // ネイティブ: 通知スケジュールの再同期と、共有後に残ったバックアップ平文コピーの掃除
   syncReminder(initialSettings.reminder).catch(() => {});
@@ -231,6 +234,8 @@ async function main() {
         return selectTab('today');
       }
     }
+    // 設定タブを離れるときはパスコード変更フォームを閉じる(開きっぱなしにしない)
+    if (currentTab === 'settings' && name !== 'settings') settingsUI.collapseSections();
     currentTab = name;
     for (const btn of navButtons) btn.classList.toggle('active', btn.dataset.tab === name);
     for (const [key, panel] of Object.entries(panels)) panel.hidden = key !== name;
@@ -251,18 +256,30 @@ async function main() {
     await habitsUI.renderCharacter();
   };
 
+  // タグの使用日ジャンプ(U4)。ふりかえり(ロックの内側)へ入り、対象日を開く。
+  // ロック解除に失敗したら selectTab が today へ戻すので、その場合は開かない。
+  ctx.goToDate = async (dateKey) => {
+    if (!dateKey) return;
+    await selectTab('calendar');
+    if (currentTab === 'calendar') await calendarUI.openAt(dateKey);
+  };
+
   // --- 再ロックと日跨ぎ(KTD7・R10) ---
   let lastDay = todayKey();
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       lock.relock();
+      settingsUI.collapseSections(); // 入力途中のパスコードを残したまま離席させない
+      // 別アプリへ移るときは「きょう」に戻す(2026-08-10 PD FB)。
+      // 戻るたびにロック解除を求められる煩わしさが消え、アプリスイッチャーの
+      // サムネイルに過去の記録が残らない副次効果もある(ロックの趣旨に沿う)
+      if (currentTab === 'calendar') selectTab('today');
     } else {
       const nowDay = todayKey();
       if (nowDay !== lastDay) {
         lastDay = nowDay;
         if (currentTab === 'today' || currentTab === 'habits') selectTab(currentTab);
       }
-      if (currentTab === 'calendar') selectTab('calendar'); // 再ロック後は解除を要求
     }
   });
   window.addEventListener('pagehide', () => lock.relock());

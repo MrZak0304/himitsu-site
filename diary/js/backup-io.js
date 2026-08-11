@@ -33,7 +33,23 @@ export function createBackupIO() {
   };
 }
 
-const BACKUP_EXT = '.diarybak';
+// 書き出しの拡張子は `.json`。中身は元からJSONで、`.diarybak` のような独自拡張子は
+// iOS が型を判定できず、ファイル選択画面で**保存したバックアップがグレーアウトして選べない**
+// (2026-08-10 PD実機報告の真因)。`public.json` は各OS・クラウドが認識できる。
+export const BACKUP_EXT = '.json';
+// ファイル名だけ見て「ポンとにっきのバックアップ」と分かるようにする(2026-08-11 PD FB)。
+// 半角英数にしているのは、共有先(メール・クラウド・PC)で文字化けや弾かれを避けるため
+export const BACKUP_PREFIX = 'pontonikki-backup-';
+const LEGACY_PREFIXES = ['diary-']; // 旧ビルドで書き出したファイルの後始末用
+const LEGACY_BACKUP_EXT = '.diarybak';
+
+// CACHEの掃除対象か(自分が書き出したバックアップだけを消す。無関係なjsonを巻き込まない)
+export function isBackupCacheFile(name) {
+  if (typeof name !== 'string') return false;
+  const known = [BACKUP_PREFIX, ...LEGACY_PREFIXES].some((p) => name.startsWith(p));
+  if (!known) return false;
+  return name.endsWith(BACKUP_EXT) || name.endsWith(LEGACY_BACKUP_EXT);
+}
 export const CHUNK_SIZE = 4 * 1024 * 1024; // 1チャンク数MB以下(プランU6)
 
 export function chunkString(s, size = CHUNK_SIZE) {
@@ -47,7 +63,10 @@ function nativeFs() {
   return window.Capacitor.Plugins ?? null;
 }
 
+export const SHARE_TITLE = 'ポンとにっきのバックアップ';
+
 // 書き出しの保存部。Web=<a download> / ネイティブ=CACHEへチャンク書き込み→共有シート→後始末。
+// 戻り値 {saved}: 共有シートをキャンセルしたら false(「書き出しました」と誤って伝えないため)
 export async function deliverBackup(json, filename) {
   const plugins = nativeFs();
   if (plugins?.Filesystem && plugins?.Share) {
@@ -57,16 +76,19 @@ export async function deliverBackup(json, filename) {
     for (const chunk of chunks.slice(1)) {
       await Filesystem.appendFile({ path: filename, directory: 'CACHE', data: chunk, encoding: 'utf8' });
     }
+    let saved = false;
     try {
       const { uri } = await Filesystem.getUri({ path: filename, directory: 'CACHE' });
-      await Share.share({ title: filename, files: [uri] });
+      // iOSの共有シートはキャンセルすると reject する。保存できたときだけ成功として扱う
+      await Share.share({ title: SHARE_TITLE, text: SHARE_TITLE, files: [uri] });
+      saved = true;
     } catch {
-      // 共有シートのキャンセルはエラー扱いしない
+      saved = false; // キャンセル(エラー扱いはしないが「保存した」とも言わない)
     } finally {
       // ロックの外側に平文コピーを残さない(プランU6)
       await Filesystem.deleteFile({ path: filename, directory: 'CACHE' }).catch(() => {});
     }
-    return;
+    return { saved };
   }
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -75,6 +97,7 @@ export async function deliverBackup(json, filename) {
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return { saved: true };
 }
 
 // 起動時の後始末: 共有後に残ったバックアップの平文コピーをCACHEから削除する
@@ -85,7 +108,7 @@ export async function cleanupBackupCache() {
     const { files } = await plugins.Filesystem.readdir({ path: '', directory: 'CACHE' });
     for (const f of files ?? []) {
       const name = typeof f === 'string' ? f : f.name;
-      if (name.endsWith(BACKUP_EXT)) {
+      if (isBackupCacheFile(name)) {
         await plugins.Filesystem.deleteFile({ path: name, directory: 'CACHE' }).catch(() => {});
       }
     }

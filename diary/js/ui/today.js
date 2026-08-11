@@ -1,7 +1,8 @@
 // きょうタブ。当日の記録(タグ・本文・画像・日課チェック)をロックなしで登録・編集(R1)。
 
-import { tagSlotInfo } from '../core/tag-slots.js';
+import { tagSlotInfo, slotStatusText } from '../core/tag-slots.js';
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
+import { frequentTagIds } from '../core/tag-stats.js';
 import { UI_ICONS } from '../icons.js';
 import { requestRewarded } from '../ads.js';
 
@@ -11,6 +12,8 @@ export function initToday(ctx) {
   const $ = (id) => document.getElementById(id);
   const els = {
     date: $('today-date'),
+    frequentWrap: $('today-frequent-wrap'),
+    frequent: $('today-frequent'),
     tags: $('today-tags'),
     slotNote: $('tag-slot-note'),
     tagInput: $('new-tag-input'),
@@ -47,7 +50,7 @@ export function initToday(ctx) {
 
     const [entry, tags, habits, checks, slots] = await Promise.all([
       ctx.stores.entries.get(today),
-      ctx.stores.tags.list(),
+      ctx.stores.tags.list({ includeHidden: false }), // 隠したタグは入力候補に出さない
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.forDate(today),
       slotState(),
@@ -56,26 +59,44 @@ export function initToday(ctx) {
 
     // タグスタンプ
     const on = new Set(entry?.tags ?? []);
-    els.tags.replaceChildren(
-      ...tags.map((tag) => {
-        const b = document.createElement('button');
-        b.className = `tag-stamp${on.has(tag.id) ? ' on' : ''}`;
-        b.dataset.tagId = tag.id;
-        b.textContent = tag.name;
-        b.onclick = async () => {
-          const cur = (await ctx.stores.entries.get(today))?.tags ?? [];
-          const next = cur.includes(tag.id) ? cur.filter((id) => id !== tag.id) : [...cur, tag.id];
-          await ctx.stores.entries.upsert(today, { tags: next });
-          ctx.notifySaved?.();
-          refresh();
-        };
-        return b;
-      }),
-    );
+    const byId = new Map(tags.map((t) => [t.id, t]));
+    const toggleTag = async (tagId) => {
+      const cur = (await ctx.stores.entries.get(today))?.tags ?? [];
+      const next = cur.includes(tagId) ? cur.filter((id) => id !== tagId) : [...cur, tagId];
+      await ctx.stores.entries.upsert(today, { tags: next });
+      ctx.notifySaved?.();
+      refresh();
+    };
+    const makeStamp = (tag) => {
+      const b = document.createElement('button');
+      b.className = `tag-stamp${on.has(tag.id) ? ' on' : ''}`;
+      b.dataset.tagId = tag.id;
+      b.textContent = tag.name;
+      b.onclick = () => toggleTag(tag.id);
+      return b;
+    };
+    els.tags.replaceChildren(...tags.map(makeStamp));
 
-    // タグ枠(無料版)
-    note(els.slotNote, slots.canAdd ? null : slots.reason);
-    els.watchAd.hidden = !(ctx.variant === 'free' && !slots.canAdd);
+    // よく使うタグ(直近30日の頻出。hidden除外・すぐ押せる)。候補一覧に載っているものだけ。
+    const allEntries = await ctx.stores.entries.all();
+    const hiddenIds = new Set(); // 候補一覧(tags)は既に hidden 除外済みなので byId に無いものを弾く
+    const freqIds = frequentTagIds(allEntries, today, { days: 30, limit: 6, hiddenTagIds: hiddenIds })
+      .filter((id) => byId.has(id));
+    if (freqIds.length > 0) {
+      els.frequentWrap.hidden = false;
+      els.frequent.replaceChildren(...freqIds.map((id) => makeStamp(byId.get(id))));
+    } else {
+      els.frequentWrap.hidden = true;
+      els.frequent.replaceChildren();
+    }
+
+    // タグ枠(無料版): 残数と導線を常時表示する(2026-08-11 PD FB)。
+    // いっぱいの時だけ隠す旧挙動をやめ、残りがある時も「あと〇個」を見せる。
+    note(els.slotNote, slotStatusText(slots));
+    if (slots.reason === null && slots.remaining !== 0) els.slotNote.classList.remove('slot-full');
+    else els.slotNote.classList.toggle('slot-full', !slots.canAdd);
+    // free では枠に余裕があっても「広告を見て+1」を出す(いっぱいになる前から導線が見える)
+    els.watchAd.hidden = ctx.variant !== 'free';
     els.tagAdd.disabled = !slots.canAdd;
 
     // 本文
@@ -107,12 +128,31 @@ export function initToday(ctx) {
           ctx.notifySaved?.();
           refresh();
         };
+        // 写真の削除は全画面ポップアップを出さず、セル内の2段階タップで確認する
+        // (×→「削除」に変わる。塗りつぶしの確認は重いというPD FB 2026-08-10)
         const del = document.createElement('button');
         del.className = 'del-btn';
         del.title = '削除';
         del.innerHTML = UI_ICONS.close;
+        let confirming = false;
+        let confirmTimer = null;
+        const resetDel = () => {
+          confirming = false;
+          clearTimeout(confirmTimer);
+          del.classList.remove('confirm');
+          del.title = '削除';
+          del.innerHTML = UI_ICONS.close;
+        };
         del.onclick = async () => {
-          if (!(await ctx.confirm('この写真を削除しますか?'))) return;
+          if (!confirming) {
+            confirming = true;
+            del.classList.add('confirm');
+            del.title = 'もう一度タップで削除';
+            del.textContent = '削除';
+            confirmTimer = setTimeout(resetDel, 3000); // 触らなければ元に戻る
+            return;
+          }
+          resetDel();
           const cur = await ctx.stores.entries.get(today);
           const r = removeImageAt(cur.images, cur.pushImageIndex, idx);
           await ctx.stores.entries.upsert(today, { images: r.images, pushImageIndex: r.pushIndex });
@@ -201,18 +241,21 @@ export function initToday(ctx) {
   els.watchAd.onclick = async () => {
     const isNative = window.Capacitor?.isNativePlatform?.();
     ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
+    let failReason = null;
     try {
       const r = await requestRewarded();
       if (r.ok) {
         const s = await ctx.stores.settings.get();
         await ctx.stores.settings.merge({ tagSlots: { ...s.tagSlots, earned: s.tagSlots.earned + 1 } });
-        note(els.slotNote, null);
       } else {
-        note(els.slotNote, r.reason);
+        failReason = r.reason;
       }
     } finally {
       ctx.hideLoading();
-      refresh();
+      // refresh() が枠の状況メッセージ(枠がいっぱいです…)で slotNote を上書きするため、
+      // 「最後まで視聴すると増えます」等の理由はrefreshの後に出す(2026-08-10 PD実機報告)
+      await refresh();
+      if (failReason) note(els.slotNote, failReason);
     }
   };
 

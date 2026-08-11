@@ -22,6 +22,10 @@
   <section class="panel" id="panel-today">
     <h2 class="panel-title" id="today-date"></h2>
     <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
+    <div id="today-frequent-wrap" hidden>
+      <p class="section-hint">よく使うタグ</p>
+      <div class="tag-stamps frequent" id="today-frequent"></div>
+    </div>
     <div class="tag-stamps" id="today-tags"></div>
     <div class="note" id="tag-slot-note" hidden></div>
     <div class="tag-add-row">
@@ -86,14 +90,44 @@
     <div id="day-detail" hidden>
       <div class="detail-head">
         <h3 id="detail-title"></h3>
-        <button id="detail-close" class="icon-btn" aria-label="閉じる"><span data-ui-icon="close"></span></button>
+        <div class="detail-head-actions">
+          <button id="detail-edit" class="btn sub">編集</button>
+          <button id="detail-close" class="icon-btn" aria-label="閉じる"><span data-ui-icon="close"></span></button>
+        </div>
       </div>
-      <div id="detail-tags" class="detail-tags"></div>
-      <p id="detail-text" class="detail-text"></p>
-      <div id="detail-images" class="image-grid"></div>
-      <h4 class="section-title">日課の達成</h4>
-      <ul id="detail-habits" class="habit-checklist readonly"></ul>
-      <p class="note" id="detail-empty" hidden>この日の記録はありません。</p>
+
+      <!-- 閲覧ビュー -->
+      <div id="detail-view">
+        <div id="detail-tags" class="detail-tags"></div>
+        <p id="detail-text" class="detail-text"></p>
+        <div id="detail-images" class="image-grid"></div>
+        <h4 class="section-title">日課の達成</h4>
+        <ul id="detail-habits" class="habit-checklist readonly"></ul>
+        <p class="note" id="detail-empty" hidden>この日の記録はありません。</p>
+      </div>
+
+      <!-- 編集ビュー(ふりかえり=ロックの内側。過去日の編集はここでのみ行う) -->
+      <div id="detail-edit-view" hidden>
+        <p class="note-inline" id="edit-date-note"></p>
+        <p class="panel-lead">タグをタップしてスタンプ!</p>
+        <div id="edit-tags" class="tag-stamps"></div>
+        <label class="field-label">できごと(任意)</label>
+        <textarea id="edit-text" rows="4" placeholder="この日のできごと"></textarea>
+        <div class="images-head">
+          <span class="field-label">写真(1日10枚まで・一押しに★)</span>
+          <button id="edit-image-add" class="btn sub">写真を追加</button>
+        </div>
+        <input id="edit-image-input" type="file" accept="image/*" multiple hidden>
+        <p class="note" id="edit-image-note" hidden></p>
+        <div id="edit-images" class="image-grid"></div>
+        <button id="detail-edit-done" class="btn">編集を終える</button>
+      </div>
+    </div>
+
+    <!-- 月間タグランキング(この月によく使ったタグ) -->
+    <div id="month-ranking" hidden>
+      <h4 class="section-title">この月によく使ったタグ</h4>
+      <ol id="month-ranking-list" class="ranking-list"></ol>
     </div>
   </section>
 
@@ -103,6 +137,16 @@
 
     <details class="settings-group">
       <summary>タグの管理</summary>
+      <div class="folder-manage">
+        <p class="section-hint">フォルダ(タグを整理)</p>
+        <ul id="folder-manage-list" class="manage-list"></ul>
+        <div class="tag-add-row">
+          <input id="new-folder-input" type="text" placeholder="フォルダ名(例: しごと)" maxlength="20">
+          <button id="new-folder-add" class="btn sub">フォルダを追加</button>
+        </div>
+        <p class="note" id="folder-manage-note" hidden></p>
+      </div>
+      <p class="section-hint">タグ</p>
       <ul id="tag-manage-list" class="manage-list"></ul>
       <p class="note" id="tag-manage-note" hidden></p>
     </details>
@@ -160,6 +204,16 @@
         <label class="row">背景色 <input type="color" id="custom-bg" value="#22243a"></label>
         <label class="row">アクセント色 <input type="color" id="custom-accent" value="#f5a623"></label>
         <button id="custom-theme-save" class="btn sub">カスタムテーマを保存して使う</button>
+
+        <h4 class="section-title">背景に画像を使う(任意)</h4>
+        <p class="note-inline">写真やイラストを背景にできます。文字が読みやすいよう、上に半透明の膜を重ねます。</p>
+        <div class="images-head">
+          <button id="custom-bg-image-add" class="btn sub">背景画像を選ぶ</button>
+          <button id="custom-bg-image-clear" class="btn ghost" hidden>背景画像を外す</button>
+        </div>
+        <input id="custom-bg-image-input" type="file" accept="image/*" hidden>
+        <label class="row">膜の濃さ <input type="range" id="custom-overlay" min="0" max="90" step="5" value="45"></label>
+        <p class="note" id="custom-bg-note" hidden></p>
       </div>
       <div class="note" id="theme-note" hidden></div>
     </details>
@@ -169,7 +223,9 @@
       <p class="note-inline">記録・タグ・日課・設定・画像を1つのファイルに書き出します。このファイルは暗号化されていません。保管・共有にはご注意ください。</p>
       <button id="backup-export-btn" class="btn">書き出す</button>
       <button id="backup-import-btn" class="btn sub">取り込む(すべて置き換え)</button>
-      <input id="backup-import-input" type="file" accept=".diarybak,application/json" hidden>
+      <!-- accept に未知の拡張子(旧 .diarybak)だけを並べると iOS では型が解決できず
+           保存済みバックアップが選択できなくなる。application/json と .json を必ず含める -->
+      <input id="backup-import-input" type="file" accept="application/json,.json,.diarybak" hidden>
       <div class="note" id="backup-note" hidden></div>
     </details>
 
@@ -234,6 +290,19 @@
     <div class="popup-actions">
       <button id="confirm-cancel" class="btn ghost">やめる</button>
       <button id="confirm-ok" class="btn danger">実行する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 使用中タグの整理(C案): 隠す / 使用日を見る / 完全に削除 -->
+<div id="tag-action-popup" hidden>
+  <div class="popup-card">
+    <p id="tag-action-message"></p>
+    <div class="popup-actions vertical">
+      <button id="tag-action-hide" class="btn">一覧から隠す(記録は残す)</button>
+      <button id="tag-action-jump" class="btn sub">使用した日を見る</button>
+      <button id="tag-action-delete" class="btn danger">完全に削除する</button>
+      <button id="tag-action-cancel" class="btn ghost">やめる</button>
     </div>
   </div>
 </div>

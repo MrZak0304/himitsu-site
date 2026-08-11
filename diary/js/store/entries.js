@@ -2,6 +2,7 @@
 // モバイル化時に SQLite 等へ実装だけ差し替えられるようにする(プランKTD2)。
 
 import { isValidKey } from '../core/dates.js';
+import { removeTagFromEntries } from '../core/tags-usage.js';
 import { createKvStore } from './kv.js';
 
 const KEY = 'diary-entries-v1';
@@ -53,6 +54,13 @@ export function createEntriesStore(storage) {
     },
     async replaceAll(map) {
       kv.save(normalizeAll(map));
+    },
+    // タグの完全削除時に、全記録からそのタグIDを取り除く(記録が変わる=C案の完全削除)。
+    // 変更のあった日付数を返す。
+    async removeTagEverywhere(tagId) {
+      const { entries, changed } = removeTagFromEntries(kv.load(), tagId);
+      if (changed.length > 0) kv.save(entries);
+      return changed.length;
     },
   };
 }

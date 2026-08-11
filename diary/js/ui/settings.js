@@ -2,19 +2,24 @@
 
 import { hashValue, hashAnswer, makeSalt } from '../core/lock.js';
 import { availableThemes, canUseCustomTheme, CUSTOM_THEME_ID } from '../core/themes.js';
-import { applyTheme } from './theme.js';
+import { applyTheme, applyBackgroundImage } from './theme.js';
 import { CHARACTERS, EXPRESSION_LABELS } from '../characters.js';
 import { UI_ICONS } from '../icons.js';
 import { buildLabel } from '../ads.js';
-import { deliverBackup } from '../backup-io.js';
+import { deliverBackup, BACKUP_EXT, BACKUP_PREFIX } from '../backup-io.js';
 import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
+import { tagUsage } from '../core/tags-usage.js';
 
 export function initSettings(ctx) {
   const $ = (id) => document.getElementById(id);
   const els = {
     tagList: $('tag-manage-list'),
     tagNote: $('tag-manage-note'),
+    folderList: $('folder-manage-list'),
+    folderInput: $('new-folder-input'),
+    folderAdd: $('new-folder-add'),
+    folderNote: $('folder-manage-note'),
     reminderEnabled: $('reminder-enabled'),
     reminderTime: $('reminder-time'),
     reminderNote: $('reminder-note'),
@@ -37,6 +42,11 @@ export function initSettings(ctx) {
     customBg: $('custom-bg'),
     customAccent: $('custom-accent'),
     customSave: $('custom-theme-save'),
+    customBgImageAdd: $('custom-bg-image-add'),
+    customBgImageClear: $('custom-bg-image-clear'),
+    customBgImageInput: $('custom-bg-image-input'),
+    customOverlay: $('custom-overlay'),
+    customBgNote: $('custom-bg-note'),
     themeNote: $('theme-note'),
     exportBtn: $('backup-export-btn'),
     importBtn: $('backup-import-btn'),
@@ -54,18 +64,112 @@ export function initSettings(ctx) {
   }
 
   // --- タグ管理 ---
-  async function usedTagIds() {
-    const entries = await ctx.stores.entries.all();
-    const used = new Set();
-    for (const entry of Object.values(entries)) for (const id of entry.tags) used.add(id);
-    return used;
+  // 使用中タグの整理ダイアログ(C案)。'hide' | 'jump' | 'delete' | null(やめる)を返す
+  const tagActionPopup = document.getElementById('tag-action-popup');
+  function askTagAction(message) {
+    return new Promise((resolve) => {
+      document.getElementById('tag-action-message').textContent = message;
+      tagActionPopup.hidden = false;
+      const done = (v) => {
+        tagActionPopup.hidden = true;
+        resolve(v);
+      };
+      document.getElementById('tag-action-hide').onclick = () => done('hide');
+      document.getElementById('tag-action-jump').onclick = () => done('jump');
+      document.getElementById('tag-action-delete').onclick = () => done('delete');
+      document.getElementById('tag-action-cancel').onclick = () => done(null);
+    });
   }
 
+  // タグ削除フロー(C案): 未使用は即削除。使用中は 隠す/使用日へ移動/完全削除 を選ばせる。
+  async function handleTagDelete(tag) {
+    const entries = await ctx.stores.entries.all();
+    const { dates, count } = tagUsage(entries, tag.id);
+    if (count === 0) {
+      if (!(await confirmPopup(`「${tag.name}」を削除しますか?`))) return;
+      await ctx.stores.tags.remove(tag.id, new Set());
+      note(els.tagNote, null);
+      refreshTags();
+      ctx.refreshToday?.();
+      return;
+    }
+    const choice = await askTagAction(
+      `「${tag.name}」は過去の記録の ${count}日 で使われています。どうしますか?`,
+    );
+    if (choice === 'hide') {
+      await ctx.stores.tags.setHidden(tag.id, true);
+      note(els.tagNote, `「${tag.name}」を一覧から隠しました(過去の記録は残っています)。`, true);
+      refreshTags();
+      ctx.refreshToday?.();
+    } else if (choice === 'jump') {
+      ctx.goToDate?.(dates[0]); // 最初の使用日へ(ふりかえり=ロックの内側)
+    } else if (choice === 'delete') {
+      if (
+        !(await confirmPopup(
+          `本当に「${tag.name}」を完全に削除しますか?過去の記録 ${count}日 からもこのタグが外れます(元に戻せません)。`,
+          { okLabel: '完全に削除', cancelLabel: 'やめる' },
+        ))
+      ) {
+        return;
+      }
+      await ctx.stores.entries.removeTagEverywhere(tag.id);
+      await ctx.stores.tags.forceRemove(tag.id);
+      note(els.tagNote, `「${tag.name}」を完全に削除しました。`, true);
+      refreshTags();
+      ctx.refreshToday?.();
+    }
+  }
+
+  // --- フォルダ管理 ---
+  async function refreshFolders() {
+    const folders = await ctx.stores.tagFolders.list();
+    els.folderList.replaceChildren(
+      ...folders.map((folder) => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'name';
+        name.textContent = folder.name;
+        const del = document.createElement('button');
+        del.className = 'mini-btn danger';
+        del.textContent = '削除';
+        del.onclick = async () => {
+          // フォルダを消してもタグは消えない(未分類へ戻す)
+          await ctx.stores.tagFolders.remove(folder.id);
+          await ctx.stores.tags.clearFolder(folder.id);
+          note(els.folderNote, null);
+          refreshFolders();
+          refreshTags();
+        };
+        li.append(name, del);
+        return li;
+      }),
+    );
+    els.folderList.hidden = folders.length === 0;
+  }
+
+  els.folderAdd.onclick = async () => {
+    const name = els.folderInput.value.trim();
+    if (!name) return;
+    try {
+      await ctx.stores.tagFolders.add(name);
+      els.folderInput.value = '';
+      note(els.folderNote, null);
+      refreshFolders();
+      refreshTags();
+    } catch (err) {
+      note(els.folderNote, err.message);
+    }
+  };
+  els.folderInput.onkeydown = (e) => {
+    if (e.key === 'Enter') els.folderAdd.click();
+  };
+
   async function refreshTags() {
-    const tags = await ctx.stores.tags.list();
+    const [tags, folders] = await Promise.all([ctx.stores.tags.list(), ctx.stores.tagFolders.list()]);
     els.tagList.replaceChildren(
       ...tags.map((tag, i) => {
         const li = document.createElement('li');
+        if (tag.hidden) li.className = 'hidden-tag';
         const name = document.createElement('span');
         name.className = 'name';
         name.textContent = tag.name;
@@ -75,6 +179,19 @@ export function initSettings(ctx) {
           badge.className = 'badge';
           badge.textContent = '定番';
           li.append(badge);
+        }
+        // 隠したタグは「表示に戻す」ボタンを出す
+        if (tag.hidden) {
+          const show = document.createElement('button');
+          show.className = 'mini-btn';
+          show.textContent = '表示に戻す';
+          show.onclick = async () => {
+            await ctx.stores.tags.setHidden(tag.id, false);
+            note(els.tagNote, null);
+            refreshTags();
+            ctx.refreshToday?.();
+          };
+          li.append(show);
         }
         const rename = document.createElement('button');
         rename.className = 'mini-btn';
@@ -133,16 +250,29 @@ export function initSettings(ctx) {
         del.textContent = '削除';
         del.onclick = async () => {
           try {
-            // 過去の記録で使用中のタグは削除不可(未使用のみ削除可。扱いはPD確認で再検討)
-            await ctx.stores.tags.remove(tag.id, await usedTagIds());
-            note(els.tagNote, null);
-            refreshTags();
-            ctx.refreshToday?.();
+            await handleTagDelete(tag); // C案: 未使用は即削除、使用中は 隠す/使用日/完全削除
           } catch (err) {
             note(els.tagNote, err.message);
           }
         };
-        li.append(rename, up, down, del);
+        // フォルダ割り当て(D&Dの代わりにプルダウン。Execution note のフォールバック)
+        const folderSel = document.createElement('select');
+        folderSel.className = 'folder-select';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '未分類';
+        folderSel.append(none);
+        for (const f of folders) {
+          const opt = document.createElement('option');
+          opt.value = f.id;
+          opt.textContent = f.name;
+          if (tag.folderId === f.id) opt.selected = true;
+          folderSel.append(opt);
+        }
+        folderSel.onchange = async () => {
+          await ctx.stores.tags.setFolder(tag.id, folderSel.value || null);
+        };
+        li.append(rename, folderSel, up, down, del);
         return li;
       }),
     );
@@ -437,21 +567,63 @@ export function initSettings(ctx) {
     if (s.customTheme) {
       els.customBg.value = s.customTheme.bg;
       els.customAccent.value = s.customTheme.accent;
+      els.customOverlay.value = String(Math.round((s.customTheme.overlay ?? 0.45) * 100));
+      els.customBgImageClear.hidden = !s.customTheme.bgImage;
+    } else {
+      els.customBgImageClear.hidden = true;
     }
+  }
+
+  // 現在のカスタム設定に部分パッチを当てて保存・適用(bg/accent が無ければ既定値で補う)
+  async function saveCustomTheme(patch) {
+    const cur = (await ctx.stores.settings.get()).customTheme;
+    const base = cur ?? { bg: els.customBg.value, accent: els.customAccent.value, bgImage: null, overlay: 0.45 };
+    const next = await ctx.stores.settings.merge({
+      theme: CUSTOM_THEME_ID,
+      customTheme: { ...base, ...patch },
+    });
+    applyTheme(next, ctx.variant);
+    await applyBackgroundImage(next, ctx.variant, ctx.pipeline.store);
+    refreshThemes();
+    return next;
   }
 
   els.customSave.onclick = async () => {
     try {
-      const next = await ctx.stores.settings.merge({
-        theme: CUSTOM_THEME_ID,
-        customTheme: { bg: els.customBg.value, accent: els.customAccent.value },
-      });
-      applyTheme(next, ctx.variant);
+      await saveCustomTheme({ bg: els.customBg.value, accent: els.customAccent.value });
       note(els.themeNote, 'カスタムテーマを適用しました。', true);
-      refreshThemes();
     } catch (err) {
       note(els.themeNote, err.message);
     }
+  };
+
+  // 背景画像(有料版): リサイズ保存(不変条件5)→ customTheme.bgImage に画像IDを保持
+  els.customBgImageAdd.onclick = () => els.customBgImageInput.click();
+  els.customBgImageInput.onchange = async () => {
+    const file = els.customBgImageInput.files[0];
+    els.customBgImageInput.value = '';
+    if (!file) return;
+    ctx.showLoading('背景画像を保存中…');
+    try {
+      const { id } = await ctx.pipeline.saveImage(file, 'background');
+      const prev = (await ctx.stores.settings.get()).customTheme?.bgImage;
+      await saveCustomTheme({ bgImage: id });
+      if (prev && prev !== id) await ctx.pipeline.store.remove(prev).catch(() => {}); // 旧背景を掃除
+      note(els.customBgNote, '背景画像を設定しました。', true);
+    } catch (err) {
+      note(els.customBgNote, err.message);
+    } finally {
+      ctx.hideLoading();
+    }
+  };
+  els.customBgImageClear.onclick = async () => {
+    const prev = (await ctx.stores.settings.get()).customTheme?.bgImage;
+    await saveCustomTheme({ bgImage: null });
+    if (prev) await ctx.pipeline.store.remove(prev).catch(() => {});
+    note(els.customBgNote, '背景画像を外しました。', true);
+  };
+  els.customOverlay.onchange = async () => {
+    await saveCustomTheme({ overlay: Number(els.customOverlay.value) / 100 });
   };
 
   // --- バックアップ(書き出し・取り込みともロック解除の内側: R13) ---
@@ -459,17 +631,20 @@ export function initSettings(ctx) {
     if (!(await ctx.lock.requestUnlock())) return;
     ctx.showLoading('バックアップを作成中…');
     try {
-      const [entries, tags, habits, habitLogs, settings, imageRecords] = await Promise.all([
+      const [entries, tags, folders, habits, habitLogs, settings, imageRecords] = await Promise.all([
         ctx.stores.entries.all(),
         ctx.stores.tags.list(),
+        ctx.stores.tagFolders.list(),
         ctx.stores.habits.list(),
         ctx.stores.habitLogs.all(),
         ctx.stores.settings.get(),
         ctx.pipeline.store.list(),
       ]);
-      const json = await ctx.backupIO.exportBackup({ entries, tags, habits, habitLogs, settings }, imageRecords);
-      await deliverBackup(json, `diary-${todayKey().replaceAll('-', '')}.diarybak`);
-      note(els.backupNote, '書き出しました。ファイルは大切に保管してください。', true);
+      const json = await ctx.backupIO.exportBackup({ entries, tags, folders, habits, habitLogs, settings }, imageRecords);
+      const r = await deliverBackup(json, `${BACKUP_PREFIX}${todayKey().replaceAll('-', '')}${BACKUP_EXT}`);
+      // 保存せずに共有シートを閉じたときに「書き出しました」と言わない(2026-08-11 PD FB)
+      if (r?.saved) note(els.backupNote, '書き出しました。ファイルは大切に保管してください。', true);
+      else note(els.backupNote, '書き出しをやめました(保存されていません)。');
     } catch (err) {
       note(els.backupNote, err.message);
     } finally {
@@ -496,11 +671,13 @@ export function initSettings(ctx) {
       for (const rec of imageRecords) await ctx.pipeline.store.put(rec);
       await ctx.stores.entries.replaceAll(parsed.entries);
       await ctx.stores.tags.replaceAll(parsed.tags);
+      await ctx.stores.tagFolders.replaceAll(parsed.folders ?? []);
       await ctx.stores.habits.replaceAll(parsed.habits);
       await ctx.stores.habitLogs.replaceAll(parsed.habitLogs);
       await ctx.stores.settings.replaceAll(parsed.settings);
       const s = await ctx.stores.settings.get();
       applyTheme(s, ctx.variant);
+      await applyBackgroundImage(s, ctx.variant, ctx.pipeline.store);
       note(els.backupNote, '取り込みが完了しました。', true);
       ctx.refreshAll?.();
     } catch (err) {
@@ -518,7 +695,7 @@ export function initSettings(ctx) {
     const s = await ctx.stores.settings.get();
     els.reminderEnabled.checked = s.reminder.enabled;
     els.reminderTime.value = s.reminder.time;
-    await Promise.all([refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
+    await Promise.all([refreshFolders(), refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
   }
 
   // 初回ふりかえり時の「ロックを設定する」誘導から呼ばれる
@@ -528,5 +705,23 @@ export function initSettings(ctx) {
     els.lockSetup.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  return { refresh, openLockSetup };
+  // 設定タブから離れる・別アプリへ移るときにパスコード変更フォームを閉じる(2026-08-10 PD FB)。
+  // 開いたまま放置されると、次に開いた人がパスコード再設定の画面に立てるように見えて不安になる
+  function closeLockSetup() {
+    els.lockPass1.value = '';
+    els.lockPass2.value = '';
+    els.lockQuestion.value = '';
+    els.lockAnswer.value = '';
+    note(els.lockSetupNote, null);
+    els.lockSetup.hidden = true;
+  }
+
+  // 設定タブを離れたら開いていた項目もすべて畳む(2026-08-11 PD FB)。
+  // 戻ってきたときに前回の展開状態が残っていると、目的の項目を探しにくい
+  function collapseSections() {
+    closeLockSetup();
+    for (const d of document.querySelectorAll('#panel-settings details.settings-group')) d.open = false;
+  }
+
+  return { refresh, openLockSetup, closeLockSetup, collapseSections };
 }

@@ -94,7 +94,17 @@ function normalizeSettings(raw) {
     customTheme:
       typeof raw.customTheme === 'object' && raw.customTheme !== null
         && HEX_RE.test(raw.customTheme.bg) && HEX_RE.test(raw.customTheme.accent)
-        ? { bg: raw.customTheme.bg, accent: raw.customTheme.accent }
+        ? {
+            bg: raw.customTheme.bg,
+            accent: raw.customTheme.accent,
+            // 背景画像(画像ストアのID)。有料版のみUIから設定。未設定は null
+            bgImage: typeof raw.customTheme.bgImage === 'string' ? raw.customTheme.bgImage : null,
+            // 膜の濃さ 0〜1(可読性用スクリム)。範囲外は 0.45 に丸める
+            overlay:
+              Number.isFinite(raw.customTheme.overlay)
+                ? Math.max(0, Math.min(1, raw.customTheme.overlay))
+                : 0.45,
+          }
         : null,
     tagSlots: {
       base: Number.isInteger(tagSlots.base) && tagSlots.base >= 0 ? tagSlots.base : d.tagSlots.base,

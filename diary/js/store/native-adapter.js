@@ -14,7 +14,7 @@ export const IMAGE_DIR = 'images';
 export const STAGING_DIR = 'migrating';
 export const MARKER_PATH = `${DATA_DIR}/migrated.json`;
 export const SETTINGS_KEY = 'diary-settings-v1';
-export const COLLECTION_KEYS = ['diary-entries-v1', 'diary-tags-v1', 'diary-habits-v1', 'diary-habitlogs-v1'];
+export const COLLECTION_KEYS = ['diary-entries-v1', 'diary-tags-v1', 'diary-tag-folders-v1', 'diary-habits-v1', 'diary-habitlogs-v1'];
 export const PREFERENCES_MAX = 100_000; // Preferencesは小さな設定のみ(プランKTD2)
 
 export const MESSAGES = {

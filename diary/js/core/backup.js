@@ -1,9 +1,10 @@
-// バックアップ形式 v1 の build / parse(ピュア)。
+// バックアップ形式の build / parse(ピュア)。
 // 形式は v フィールドでバージョン管理し、旧形式の取り込み互換を壊さない(不変条件2)。
-// 生成は新形式のみ・解釈は全形式(現時点で v1 のみ)。
-// images[] には記録の添付画像に加え、日課アイコン用・ユーザー保存キャラ用の画像も含める。
+// 生成は最新形式のみ・解釈は全形式(v1 と v2)。
+// v2(2026-08-11): タグ整理フォルダ `folders` を追加。v1 は folders 無し=[] として取り込む。
+// images[] には記録の添付画像に加え、日課アイコン用・ユーザー保存キャラ用・カスタム背景用の画像も含める。
 
-export const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 2;
 // v1 の想定上限(画像総量の目安)。超過時は書き出しを日本語エラーで中断する。
 // 大容量対応はフェーズ3で v2 形式(分割・zip等)を検討。
 export const MAX_IMAGE_BYTES = 200 * 1024 * 1024;
@@ -34,6 +35,7 @@ export function buildBackup(data, { exportedAt = Date.now() } = {}) {
     exportedAt,
     entries: data.entries ?? {},
     tags: data.tags ?? [],
+    folders: data.folders ?? [], // v2: タグ整理フォルダ
     habits: data.habits ?? [],
     habitLogs: data.habitLogs ?? {},
     settings: data.settings ?? {},
@@ -53,7 +55,7 @@ export function parseBackup(json) {
   if (!Number.isInteger(raw.v)) throw err(MESSAGES.broken, 'broken');
   if (raw.v > BACKUP_VERSION) throw err(MESSAGES.unknownVersion, 'unknown-version');
 
-  // v1 スキーマ: 必須キー・型・配列健全性
+  // スキーマ: 必須キー・型・配列健全性(v1/v2共通)
   const objectFields = ['entries', 'habitLogs', 'settings'];
   const arrayFields = ['tags', 'habits', 'images'];
   for (const f of objectFields) {
@@ -66,11 +68,14 @@ export function parseBackup(json) {
     if (typeof img !== 'object' || img === null) throw err(MESSAGES.invalid, 'invalid');
     if (typeof img.id !== 'string' || typeof img.data !== 'string') throw err(MESSAGES.invalid, 'invalid');
   }
+  // v2 の folders は任意。v1(欠落)は [] として取り込む。存在するなら配列であること。
+  if ('folders' in raw && !Array.isArray(raw.folders)) throw err(MESSAGES.invalid, 'invalid');
   return {
     v: raw.v,
     exportedAt: raw.exportedAt ?? null,
     entries: raw.entries,
     tags: raw.tags,
+    folders: Array.isArray(raw.folders) ? raw.folders : [],
     habits: raw.habits,
     habitLogs: raw.habitLogs,
     settings: raw.settings,

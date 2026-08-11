@@ -11,23 +11,41 @@ export const MESSAGES = {
 };
 
 // 生体認証(@aparajita/capacitor-biometric-auth)。ネイティブのみ有効、Webは常に未対応→パスコードへ。
-// プラグイン名はビルド後のシミュレータ疎通スパイクで確認する(BiometricAuthNative が本命、BiometricAuth は保険)。
+// ⚠ ブリッジに露出しているネイティブ実装は `internalAuthenticate`。公開APIの `authenticate()` は
+//   プラグインのJSラッパー側にしか無いので、バンドラなしで Plugins 直参照する本構成では呼べない
+//   (呼ぶと「未実装」で拒否され、Face IDが起動しないまま黙ってパスコードに落ちる。2026-08-10 PD実機報告の真因)。
+const BIOMETRY_MESSAGES = {
+  biometryNotEnrolled: 'この端末にFace ID・指紋が登録されていません。パスコードで解除してください。',
+  biometryNotAvailable: '生体認証が使えません(端末の設定でこのアプリの許可をご確認ください)。パスコードで解除できます。',
+  biometryLockout: '生体認証が一時的にロックされています。パスコードで解除してください。',
+  passcodeNotSet: '端末にパスコードが設定されていないため生体認証が使えません。',
+  authenticationFailed: '生体認証に失敗しました。もう一度試すか、パスコードで解除してください。',
+};
+
 async function biometricAuth() {
   const plugins = window.Capacitor?.isNativePlatform?.() ? window.Capacitor.Plugins : null;
   const plugin = plugins?.BiometricAuthNative ?? plugins?.BiometricAuth;
   if (!plugin) return { supported: false };
   try {
     const check = await plugin.checkBiometry();
-    if (!check?.isAvailable) return { supported: false };
-    await plugin.authenticate({
+    if (!check?.isAvailable) {
+      return { supported: false, reason: BIOMETRY_MESSAGES[check?.code] ?? null };
+    }
+    const options = {
       reason: 'ふりかえりのロックを解除します',
       cancelTitle: 'パスコードを使う',
       allowDeviceCredential: false,
-    });
+    };
+    // 実装名は internalAuthenticate。将来ネイティブ側に authenticate が生えても動くよう両対応にする
+    if (typeof plugin.internalAuthenticate === 'function') await plugin.internalAuthenticate(options);
+    else await plugin.authenticate(options);
     return { supported: true, ok: true };
-  } catch {
-    // 失敗・キャンセル・エラーはすべてパスコードへフォールバック(閲覧ガードの本線はパスコード)
-    return { supported: true, ok: false };
+  } catch (err) {
+    // 失敗・キャンセルはパスコードへフォールバック(閲覧ガードの本線はパスコード)。
+    // ただし理由は握りつぶさない — 黙って落ちると「生体認証が壊れている」ことに誰も気づけない
+    const code = err?.code ?? '';
+    const silent = code === 'userCancel' || code === 'userFallback' || code === 'systemCancel' || code === 'appCancel';
+    return { supported: true, ok: false, reason: silent ? null : BIOMETRY_MESSAGES[code] ?? null };
   }
 }
 
@@ -83,7 +101,8 @@ export function createLockGuard(ctx) {
       return true;
     }
     els.input.value = '';
-    note(els.error, null);
+    // 生体認証が使えなかった理由があれば伝える(キャンセル時は出さない)
+    note(els.error, bio.reason ?? null);
     note(els.recoverError, null);
     els.enter.hidden = false;
     els.recover.hidden = true;

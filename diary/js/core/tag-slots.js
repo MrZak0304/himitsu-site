@@ -18,3 +18,11 @@ export function tagSlotInfo(tagSlots, variant, userTagCount) {
     reason: remaining > 0 ? null : NO_SLOT_MESSAGE,
   };
 }
+
+// 無料版の枠状況を常時見せる表示文(2026-08-11 PD FB: 枠上限時の導線を分かりやすく)。
+// paid/web(無制限)は null。いっぱいなら案内、残ありなら残数を返す。
+export function slotStatusText(info) {
+  if (!Number.isFinite(info?.remaining)) return null; // 無制限
+  if (info.remaining <= 0) return 'タグの登録枠がいっぱいです。広告を見ると1つ増やせます。';
+  return `自分のタグはあと${info.remaining}個ふやせます。`;
+}

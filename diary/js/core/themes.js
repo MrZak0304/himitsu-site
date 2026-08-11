@@ -77,6 +77,50 @@ function luminance({ r, g, b }) {
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
+// WCAGの相対輝度(コントラスト比の計算用。上の luminance() は明暗の二択判定に使う簡易式)
+function relLuminance({ r, g, b }) {
+  const f = (v) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+
+// 2色のコントラスト比(1〜21)。4.5以上あれば本文サイズの文字が読める(WCAG AA)
+export function contrastRatio(hexA, hexB) {
+  const a = relLuminance(parse(hexA));
+  const b = relLuminance(parse(hexB));
+  const [hi, lo] = a >= b ? [a, b] : [b, a];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+export const READABLE_TARGET = 4.5;
+
+// 前景として使う色が背景に埋もれないよう、白か黒へ寄せて必要なコントラストを確保する。
+// カスタムテーマは配色をユーザーが自由に選べるため、「背景と同系色のアクセント」を選ばれると
+// 枠線ボタンや通知文が読めなくなる(2026-08-11 PD実機報告: 緑背景でボタンが消えた)。
+export function ensureReadable(hex, bgHex, target = READABLE_TARGET) {
+  if (!isValidHexColor(hex) || !isValidHexColor(bgHex)) return hex;
+  if (contrastRatio(hex, bgHex) >= target) return hex;
+  const base = parse(hex);
+  // 白方向・黒方向の両方を試す。中間の明るさの背景(例: 鮮やかな緑)はどちらへ寄せても
+  // 4.5に届かないことがあるため、届かない場合は「よりマシな方」を選ぶ
+  let best = hex;
+  let bestRatio = contrastRatio(hex, bgHex);
+  for (const towards of [{ r: 255, g: 255, b: 255 }, { r: 20, g: 18, b: 24 }]) {
+    for (let t = 0.1; t <= 1.0001; t += 0.1) {
+      const candidate = mix(base, towards, Math.min(t, 1));
+      const ratio = contrastRatio(candidate, bgHex);
+      if (ratio >= target) return candidate;
+      if (ratio > bestRatio) {
+        bestRatio = ratio;
+        best = candidate;
+      }
+    }
+  }
+  return best;
+}
+
 // 入力は色形式のみ許可(検証必須)。CSS変数は url() を解釈しないプロパティでのみ使うこと。
 export function deriveCustomTheme({ bg, accent }) {
   if (!isValidHexColor(bg) || !isValidHexColor(accent)) {
@@ -85,24 +129,32 @@ export function deriveCustomTheme({ bg, accent }) {
     throw e;
   }
   const bgC = parse(bg);
-  const accentC = parse(accent);
   const dark = luminance(bgC) < 0.5;
   const white = { r: 255, g: 255, b: 255 };
   const black = { r: 20, g: 18, b: 24 };
   const text = dark ? '#f2f1ee' : '#26232b';
   const textC = parse(text);
+  // アクセント・通知色は「塗り」だけでなく「文字色・枠線」にも使うため、背景に対する
+  // 可読性を必ず確保する(ユーザーが背景と同系色を選んでもボタンが消えないように)
+  const accentSafe = ensureReadable(accent, bg);
+  const okSafe = ensureReadable(dark ? '#6fd39a' : '#1f8a4c', bg);
+  const dangerSafe = ensureReadable(dark ? '#ff7a70' : '#c62f2f', bg);
   return {
     dark,
+    accentAdjusted: accentSafe !== accent, // UIで「見やすさのため調整した」と伝えるため
     vars: {
       '--bg': bg,
       '--panel': mix(bgC, dark ? white : black, 0.07),
       '--panel-edge': mix(bgC, dark ? white : black, 0.18),
       '--text': text,
       '--text-dim': mix(textC, bgC, 0.42),
-      '--accent': accent,
-      '--accent-contrast': luminance(accentC) < 0.55 ? '#ffffff' : '#26232b',
-      '--danger': dark ? '#ff7a70' : '#c62f2f',
-      '--ok': dark ? '#6fd39a' : '#1f8a4c',
+      '--accent': accentSafe,
+      // 塗りボタンの文字色は実際のコントラストで白/黒を選ぶ(明るさのしきい値だと
+      // 中間の明るさのアクセントで読みにくい組み合わせが残る)
+      '--accent-contrast':
+        contrastRatio('#ffffff', accentSafe) >= contrastRatio('#26232b', accentSafe) ? '#ffffff' : '#26232b',
+      '--danger': dangerSafe,
+      '--ok': okSafe,
     },
   };
 }

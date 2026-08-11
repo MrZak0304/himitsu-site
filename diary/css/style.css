@@ -62,6 +62,32 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* カスタム背景画像(有料版)。画像を全面に敷き、可読性のため上に半透明の膜を重ねる。
+   膜の濃さは --bg-overlay(0〜1)。パネルは半透明にして、膜越しの画像がうっすら透ける。 */
+:root.has-bg-image body {
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+:root.has-bg-image body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  opacity: var(--bg-overlay, 0.45);
+  pointer-events: none;
+  z-index: 0;
+}
+:root.has-bg-image #app, :root.has-bg-image main, :root.has-bg-image .app-header, :root.has-bg-image .bottom-nav {
+  position: relative;
+  z-index: 1;
+}
+/* パネルは膜の上でほぼ不透明に保ち、本文・ボタンの可読性を確保する(画像はうっすら透ける) */
+:root.has-bg-image .panel {
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
 /* --- グローバルエラー赤帯(実機報告のスクショに写るように) --- */
 #global-error {
   position: fixed;
@@ -226,6 +252,14 @@ input[type="time"], input[type="color"] { width: auto; }
 .image-cell .del-btn { right: 4px; top: 4px; }
 .image-cell .push-btn.on { color: #ffd34d; }
 .image-cell .push-btn svg, .image-cell .del-btn svg { width: 18px; height: 18px; }
+/* 削除の確認中(2段階タップ)。全画面ポップアップを出さずセル内で完結させる */
+.image-cell .del-btn.confirm {
+  width: auto;
+  padding: 0 8px;
+  background: var(--danger);
+  font-size: 12px;
+  font-weight: bold;
+}
 
 /* --- 日課 --- */
 .habit-checklist { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
@@ -302,6 +336,11 @@ input[type="time"], input[type="color"] { width: auto; }
 #day-detail { margin-top: 16px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 12px; }
 .detail-head { display: flex; align-items: center; justify-content: space-between; }
 .detail-head h3 { margin: 4px 0; }
+.detail-head-actions { display: flex; align-items: center; gap: 8px; }
+#detail-edit-view .field-label { display: block; margin: 12px 0 4px; color: var(--text-dim); font-size: 13px; }
+#detail-edit-view textarea { width: 100%; box-sizing: border-box; }
+#detail-edit-done { margin-top: 12px; }
+#edit-date-note { font-weight: bold; color: var(--accent); }
 .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .detail-tag { border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 13px; padding: 4px 12px; }
 .detail-text { white-space: pre-wrap; }
@@ -469,6 +508,20 @@ input[type="time"], input[type="color"] { width: auto; }
 #lock-enter, #lock-recover { display: flex; flex-direction: column; gap: 4px; }
 
 .popup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
+.popup-actions.vertical { flex-direction: column; align-items: stretch; }
+.manage-list li.hidden-tag { opacity: 0.55; }
+.manage-list li.hidden-tag .name::after { content: '(非表示)'; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.section-hint { font-size: 13px; color: var(--text-dim); margin: 12px 0 6px; }
+#tag-slot-note { display: block; font-size: 13px; color: var(--text-dim); margin: 2px 0 6px; }
+#tag-slot-note.slot-full { color: var(--danger); font-weight: bold; }
+.tag-stamps.frequent { margin-bottom: 6px; }
+.folder-select { font-size: 12px; border: 1px solid var(--panel-edge); border-radius: 8px; padding: 2px 4px; background: var(--panel); color: var(--text); max-width: 96px; }
+.folder-manage { margin-bottom: 12px; }
+.ranking-list { list-style: none; counter-reset: rank; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
+.ranking-list li { counter-increment: rank; display: flex; align-items: center; gap: 8px; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 10px; }
+.ranking-list li::before { content: counter(rank); width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-contrast); border-radius: 999px; font-size: 12px; font-weight: bold; }
+.ranking-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-count { color: var(--text-dim); font-size: 13px; }
 
 #loading-overlay { flex-direction: column; gap: 14px; color: var(--text); z-index: 300; }
 .spinner {

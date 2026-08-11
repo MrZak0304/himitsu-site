@@ -8,10 +8,18 @@ import { BUILD } from './build-flags.js';
 
 const BANNER_PLACEHOLDER_HEIGHT = 52; // Webプレビュー用プレースホルダのみ。ネイティブは実高さを使う
 
-// 本番ユニットID(AdMob登録後に記入。差し替えポイント)
+// 本番ユニットID(2026-08-10 AdMob登録・受領)。
+// アプリID: iOS ca-app-pub-2706003706222990~4873371507 / Android ca-app-pub-2706003706222990~9244841297
+// ⚠ 姉妹アプリのIDと混ぜない(暗号 ~3973373320 / ~4702767530・占い ~4320185236)
 export const AD_UNITS = {
-  android: { banner: null, rewarded: null },
-  ios: { banner: null, rewarded: null },
+  android: {
+    banner: 'ca-app-pub-2706003706222990/1881356596',
+    rewarded: 'ca-app-pub-2706003706222990/5629029914',
+  },
+  ios: {
+    banner: 'ca-app-pub-2706003706222990/4462307963',
+    rewarded: 'ca-app-pub-2706003706222990/6924819774',
+  },
 };
 
 // Google公式テストID(不変)。バナーはADAPTIVE_BANNERで要求するため
@@ -41,9 +49,9 @@ export const MESSAGES = {
 };
 
 // ユニット選択(ピュア・テスト対象)。prod でIDが未記入なら fail-fast(不変条件9)
-export function selectUnits(adMode, platform) {
+export function selectUnits(adMode, platform, prodUnits = AD_UNITS) {
   if (adMode === 'prod') {
-    const units = AD_UNITS[platform];
+    const units = prodUnits[platform];
     if (!units?.banner || !units?.rewarded) throw new Error(MESSAGES.prodUnitsMissing);
     return units;
   }
