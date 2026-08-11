@@ -27,34 +27,45 @@ export function applyTheme(settings, variant) {
 let bgUrl = null;
 export async function applyBackgroundImage(settings, variant, imageStore) {
   const root = document.documentElement;
-  const clear = () => {
+  // 背景画像だけを外す(パネル透過はカスタムテーマなら画像が無くても効くので別管理)
+  const clearImage = () => {
     if (bgUrl) URL.revokeObjectURL(bgUrl);
     bgUrl = null;
     root.classList.remove('has-bg-image');
     document.body.style.removeProperty('background-image');
     root.style.removeProperty('--bg-overlay');
-    root.style.removeProperty('--panel-alpha');
   };
   const ct = settings.customTheme;
-  const isCustom = resolveTheme(settings.theme, variant) === CUSTOM_THEME_ID;
-  if (!isCustom || !canUseCustomTheme(variant) || !ct?.bgImage || !imageStore) {
-    clear();
+  const isCustom = resolveTheme(settings.theme, variant) === CUSTOM_THEME_ID && canUseCustomTheme(variant);
+
+  // パネルの透け具合はカスタムテーマなら画像の有無に関わらず適用(2026-08-11 PD FB:
+  // 背景色だけのカスタムテーマでも透過を効かせたい)。
+  if (isCustom && ct) {
+    root.style.setProperty('--panel-alpha', String(ct.panelAlpha ?? 0.88));
+    root.classList.add('has-panel-alpha');
+  } else {
+    root.style.removeProperty('--panel-alpha');
+    root.classList.remove('has-panel-alpha');
+  }
+
+  // 背景画像は bgImage があるときだけ
+  if (!isCustom || !ct?.bgImage || !imageStore) {
+    clearImage();
     return;
   }
   try {
     const rec = await imageStore.get(ct.bgImage);
     const blob = rec?.blob ?? rec?.thumbBlob;
     if (!blob) {
-      clear();
+      clearImage();
       return;
     }
     if (bgUrl) URL.revokeObjectURL(bgUrl);
     bgUrl = URL.createObjectURL(blob);
     document.body.style.backgroundImage = `url(${bgUrl})`;
     root.style.setProperty('--bg-overlay', String(ct.overlay ?? 0.45));
-    root.style.setProperty('--panel-alpha', String(ct.panelAlpha ?? 0.88));
     root.classList.add('has-bg-image');
   } catch {
-    clear();
+    clearImage();
   }
 }

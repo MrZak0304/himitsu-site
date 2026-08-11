@@ -208,6 +208,8 @@
         <h4 class="section-title">カスタムテーマ</h4>
         <label class="row">背景色 <input type="color" id="custom-bg" value="#22243a"></label>
         <label class="row">アクセント色 <input type="color" id="custom-accent" value="#f5a623"></label>
+        <label class="row">背景の透け具合 <input type="range" id="custom-panel-transparency" min="0" max="45" step="5" value="12"></label>
+        <p class="note-inline">背景(画像・背景色)をどれだけ透かして見せるかを調整できます。</p>
         <button id="custom-theme-save" class="btn sub">カスタムテーマを保存して使う</button>
 
         <h4 class="section-title">背景に画像を使う(任意)</h4>
@@ -218,7 +220,6 @@
         </div>
         <input id="custom-bg-image-input" type="file" accept="image/*" hidden>
         <label class="row">膜の濃さ(暗くする) <input type="range" id="custom-overlay" min="0" max="90" step="5" value="45"></label>
-        <label class="row">背景の透け具合 <input type="range" id="custom-panel-transparency" min="0" max="45" step="5" value="12"></label>
         <p class="note" id="custom-bg-note" hidden></p>
       </div>
       <div class="note" id="theme-note" hidden></div>

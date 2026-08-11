@@ -90,8 +90,9 @@ body {
   z-index: 1;
 }
 /* パネルの不透明度は --panel-alpha でユーザーが調整できる(2026-08-11 PD FB)。
-   小さいほど背景がよく透ける。既定 0.88 は本文・ボタンの可読性を優先した値。 */
-:root.has-bg-image .panel {
+   小さいほど背景(画像 or 背景色)がよく透ける。既定 0.88 は本文・ボタンの可読性を優先した値。
+   カスタムテーマなら背景画像が無く背景色だけでも効く(has-panel-alpha)。 */
+:root.has-panel-alpha .panel {
   background: color-mix(in srgb, var(--panel) calc(var(--panel-alpha, 0.88) * 100%), transparent);
 }
 
