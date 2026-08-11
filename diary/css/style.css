@@ -15,9 +15,12 @@
   --accent: #4a7dbd;
   --accent-contrast: #ffffff;
   --danger: #c62f2f;
+  --danger-contrast: #ffffff;
   --ok: #1f8a4c;
+  --ok-contrast: #ffffff;
   --ad-inset: 0px;
   --nav-height: 64px;
+  --panel-alpha: 0.88; /* 背景画像時のパネル不透明度(1=不透明・小さいほど背景が透ける) */
 }
 
 /* --- 無料テーマ --- */
@@ -79,13 +82,17 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-:root.has-bg-image #app, :root.has-bg-image main, :root.has-bg-image .app-header, :root.has-bg-image .bottom-nav {
+/* 背景画像の膜(z-index:0)より上にコンテンツを出す。
+   .bottom-nav は position:fixed;z-index:50 で既に膜より前なので含めない
+   (含めると fixed が relative に上書きされ、メニューが固定されなくなる=2026-08-11 PD FB) */
+:root.has-bg-image #app, :root.has-bg-image main, :root.has-bg-image .app-header {
   position: relative;
   z-index: 1;
 }
-/* パネルは膜の上でほぼ不透明に保ち、本文・ボタンの可読性を確保する(画像はうっすら透ける) */
+/* パネルの不透明度は --panel-alpha でユーザーが調整できる(2026-08-11 PD FB)。
+   小さいほど背景がよく透ける。既定 0.88 は本文・ボタンの可読性を優先した値。 */
 :root.has-bg-image .panel {
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  background: color-mix(in srgb, var(--panel) calc(var(--panel-alpha, 0.88) * 100%), transparent);
 }
 
 /* --- グローバルエラー赤帯(実機報告のスクショに写るように) --- */
@@ -166,7 +173,8 @@ main {
 
 .btn.sub { background: var(--panel); color: var(--accent); border: 1px solid var(--accent); }
 .btn.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--panel-edge); }
-.btn.danger { background: var(--danger); color: #fff; }
+.btn.danger { background: var(--danger); color: var(--danger-contrast, #fff); }
+.btn.ok { background: var(--ok); color: var(--ok-contrast, #fff); }
 .btn:active { transform: translateY(1px); }
 .btn:disabled { opacity: .45; cursor: default; }
 

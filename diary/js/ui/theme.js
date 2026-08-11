@@ -33,6 +33,7 @@ export async function applyBackgroundImage(settings, variant, imageStore) {
     root.classList.remove('has-bg-image');
     document.body.style.removeProperty('background-image');
     root.style.removeProperty('--bg-overlay');
+    root.style.removeProperty('--panel-alpha');
   };
   const ct = settings.customTheme;
   const isCustom = resolveTheme(settings.theme, variant) === CUSTOM_THEME_ID;
@@ -51,6 +52,7 @@ export async function applyBackgroundImage(settings, variant, imageStore) {
     bgUrl = URL.createObjectURL(blob);
     document.body.style.backgroundImage = `url(${bgUrl})`;
     root.style.setProperty('--bg-overlay', String(ct.overlay ?? 0.45));
+    root.style.setProperty('--panel-alpha', String(ct.panelAlpha ?? 0.88));
     root.classList.add('has-bg-image');
   } catch {
     clear();

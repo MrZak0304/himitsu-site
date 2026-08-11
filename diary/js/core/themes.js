@@ -121,6 +121,11 @@ export function ensureReadable(hex, bgHex, target = READABLE_TARGET) {
   return best;
 }
 
+// 塗りボタンの文字色: 塗り色に対してコントラストの高い白か黒を選ぶ。
+function fillTextColor(fillHex) {
+  return contrastRatio('#ffffff', fillHex) >= contrastRatio('#26232b', fillHex) ? '#ffffff' : '#26232b';
+}
+
 // 入力は色形式のみ許可(検証必須)。CSS変数は url() を解釈しないプロパティでのみ使うこと。
 export function deriveCustomTheme({ bg, accent }) {
   if (!isValidHexColor(bg) || !isValidHexColor(accent)) {
@@ -151,10 +156,14 @@ export function deriveCustomTheme({ bg, accent }) {
       '--accent': accentSafe,
       // 塗りボタンの文字色は実際のコントラストで白/黒を選ぶ(明るさのしきい値だと
       // 中間の明るさのアクセントで読みにくい組み合わせが残る)
-      '--accent-contrast':
-        contrastRatio('#ffffff', accentSafe) >= contrastRatio('#26232b', accentSafe) ? '#ffffff' : '#26232b',
+      '--accent-contrast': fillTextColor(accentSafe),
       '--danger': dangerSafe,
+      // danger/ok は「文字色・枠線」として bg に対して可読化する過程で明るくなることがあり、
+      // それを塗りボタンの背景に使うと固定の白文字が読めなくなる(2026-08-11 PD FB: 完全に削除ボタン)。
+      // 塗りの文字色も実際の塗り色に対して白/黒を選ぶ。
+      '--danger-contrast': fillTextColor(dangerSafe),
       '--ok': okSafe,
+      '--ok-contrast': fillTextColor(okSafe),
     },
   };
 }

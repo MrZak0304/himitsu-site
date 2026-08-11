@@ -49,6 +49,7 @@ export function initSettings(ctx) {
     customBgImageClear: $('custom-bg-image-clear'),
     customBgImageInput: $('custom-bg-image-input'),
     customOverlay: $('custom-overlay'),
+    customPanelTransparency: $('custom-panel-transparency'),
     customBgNote: $('custom-bg-note'),
     themeNote: $('theme-note'),
     exportBtn: $('backup-export-btn'),
@@ -597,6 +598,8 @@ export function initSettings(ctx) {
       els.customBg.value = s.customTheme.bg;
       els.customAccent.value = s.customTheme.accent;
       els.customOverlay.value = String(Math.round((s.customTheme.overlay ?? 0.45) * 100));
+      // 透け具合スライダー: 値=(1-不透明度)*100。大きいほど背景がよく透ける
+      els.customPanelTransparency.value = String(Math.round((1 - (s.customTheme.panelAlpha ?? 0.88)) * 100));
       els.customBgImageClear.hidden = !s.customTheme.bgImage;
     } else {
       els.customBgImageClear.hidden = true;
@@ -606,7 +609,7 @@ export function initSettings(ctx) {
   // 現在のカスタム設定に部分パッチを当てて保存・適用(bg/accent が無ければ既定値で補う)
   async function saveCustomTheme(patch) {
     const cur = (await ctx.stores.settings.get()).customTheme;
-    const base = cur ?? { bg: els.customBg.value, accent: els.customAccent.value, bgImage: null, overlay: 0.45 };
+    const base = cur ?? { bg: els.customBg.value, accent: els.customAccent.value, bgImage: null, overlay: 0.45, panelAlpha: 0.88 };
     const next = await ctx.stores.settings.merge({
       theme: CUSTOM_THEME_ID,
       customTheme: { ...base, ...patch },
@@ -650,6 +653,10 @@ export function initSettings(ctx) {
     await saveCustomTheme({ bgImage: null });
     if (prev) await ctx.pipeline.store.remove(prev).catch(() => {});
     note(els.customBgNote, '背景画像を外しました。', true);
+  };
+  els.customPanelTransparency.onchange = async () => {
+    // スライダー値=透け具合(%)。不透明度 = 1 - 値/100
+    await saveCustomTheme({ panelAlpha: 1 - Number(els.customPanelTransparency.value) / 100 });
   };
   els.customOverlay.onchange = async () => {
     await saveCustomTheme({ overlay: Number(els.customOverlay.value) / 100 });
