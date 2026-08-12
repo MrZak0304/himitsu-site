@@ -183,7 +183,9 @@ body {
   color: var(--text-dim);
 }
 .chip.selected { color: var(--accent); border-color: var(--accent-dark); }
+.chip.disabled { opacity: 0.45; text-decoration: line-through; }
 .chip .x { margin-left: 6px; color: var(--danger); }
+.toggle-label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-dim); }
 
 .hint { color: var(--text-dim); font-size: 12px; margin: 6px 0 0; }
 

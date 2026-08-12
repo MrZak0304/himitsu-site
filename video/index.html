@@ -47,6 +47,9 @@
         <fieldset class="control-group">
           <legend>領域</legend>
           <div class="row">
+            <button id="autoFace" class="btn btn-primary btn-small" type="button">顔を自動でさがす</button>
+          </div>
+          <div class="row">
             <button id="addCircle" class="btn" type="button">+ 円を追加</button>
             <button id="addEllipse" class="btn" type="button">+ 楕円を追加</button>
             <button id="addRect" class="btn" type="button">+ 四角を追加</button>
@@ -55,6 +58,7 @@
           <div class="row" id="regionNameRow" hidden>
             <label for="regionName">名前</label>
             <input type="text" id="regionName" class="name-input" maxlength="20" placeholder="例: 顔・ナンバー" autocomplete="off">
+            <label class="toggle-label"><input type="checkbox" id="regionEnabled" checked> モザイクをかける</label>
           </div>
           <div class="row">
             <button id="addKeyframe" class="btn btn-small" type="button">現在位置にキーフレーム追加</button>

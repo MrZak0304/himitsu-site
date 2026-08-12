@@ -3,6 +3,7 @@ import { interpolateTrack, upsertKeyframe, removeKeyframe } from './core/regions
 import { generateKeyString, isValidKeyString } from './core/crypto.js';
 import { applyFilters, regionPath } from './video/filters.js';
 import { loadVideo, processCreate, processRestore } from './video/pipeline.js';
+import { detectFaceTracks, faceDetectAvailable } from './video/facedetect.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -125,6 +126,7 @@ function addRegion(shape) {
     id,
     shape,
     name: `${shapeName}${id}`,
+    enabled: true,
     keyframes: [],
   };
   const geom = {
@@ -143,6 +145,58 @@ $('deleteRegion').addEventListener('click', () => {
   const c = state.create;
   c.tracks = c.tracks.filter((t) => t.id !== c.selectedId);
   c.selectedId = c.tracks.at(-1)?.id ?? null;
+  renderRegionUI();
+});
+
+// ---- 作成: 顔を自動でさがす ----
+$('autoFace').addEventListener('click', async () => {
+  const c = state.create;
+  if (c.busy || !c.file) {
+    if (!c.file) setStatus('createStatus', '先に動画を選んでください。', 'error');
+    return;
+  }
+  if (!faceDetectAvailable()) {
+    setStatus('createStatus', 'この環境では顔の自動検出を使えません。手動で領域を追加してください。', 'error');
+    return;
+  }
+  c.busy = true;
+  $('autoFace').disabled = true;
+  $('exportBtn').disabled = true;
+  c.src.video.pause();
+  $('playBtn').textContent = '▶';
+  $('createProgress').hidden = false;
+  setStatus('createStatus', '顔をさがしています… 画面はそのままお待ちください');
+  try {
+    const { tracks } = await detectFaceTracks(c.file, (p) => updateProgress('create', p));
+    if (tracks.length === 0) {
+      setStatus('createStatus', '顔が見つかりませんでした。手動で領域を追加してください。', 'error');
+      return;
+    }
+    // 検出トラックにIDを振って追加(既存領域は残す)
+    for (const tr of tracks) {
+      tr.id = c.nextId++;
+      c.tracks.push(tr);
+    }
+    c.selectedId = c.tracks.at(-1).id;
+    renderRegionUI();
+    setStatus('createStatus',
+      `${tracks.length}件の顔を検出しました。不要な顔は「モザイクをかける」のチェックを外してください。`, 'ok');
+  } catch (err) {
+    console.warn(err);
+    setStatus('createStatus', err.message ?? String(err), 'error');
+  } finally {
+    c.busy = false;
+    $('autoFace').disabled = false;
+    $('exportBtn').disabled = false;
+    $('createProgress').hidden = true;
+  }
+});
+
+// 選択中の領域のモザイクON/OFF(不要な顔の除外)
+$('regionEnabled').addEventListener('change', () => {
+  const track = selectedTrack();
+  if (!track) return;
+  track.enabled = $('regionEnabled').checked;
   renderRegionUI();
 });
 
@@ -168,7 +222,9 @@ function renderRegionUI() {
   for (const track of state.create.tracks) {
     const chip = document.createElement('button');
     chip.type = 'button';
-    chip.className = 'chip' + (track.id === state.create.selectedId ? ' selected' : '');
+    chip.className = 'chip'
+      + (track.id === state.create.selectedId ? ' selected' : '')
+      + (track.enabled === false ? ' disabled' : '');
     chip.textContent = track.name;
     chip.addEventListener('click', () => {
       state.create.selectedId = track.id;
@@ -178,13 +234,14 @@ function renderRegionUI() {
   }
   const track = selectedTrack();
 
-  // 名前編集欄(領域選択中のみ表示)
+  // 名前編集欄+モザイクON/OFF(領域選択中のみ表示)
   const nameRow = $('regionNameRow');
   const nameInput = $('regionName');
   nameRow.hidden = !track;
   if (track && document.activeElement !== nameInput) {
     nameInput.value = track.name;
   }
+  if (track) $('regionEnabled').checked = track.enabled !== false;
 
   const kfList = $('keyframeList');
   kfList.innerHTML = '';
@@ -446,14 +503,17 @@ function drawPreview() {
     const g0 = live && live.id === track.id ? live.geom : interpolateTrack(track, t);
     if (g0) geoms.push({ track, g: { ...g0, shape: track.shape } });
   }
-  applyFilters(ctx, canvas, geoms.map((x) => x.g), state.create.filter);
+  // モザイクは有効な領域のみ焼き込む(無効=不要な顔は除外)
+  applyFilters(ctx, canvas, geoms.filter((x) => x.track.enabled !== false).map((x) => x.g), state.create.filter);
 
-  // 領域の枠線(選択中はアクセント色)
+  // 領域の枠線(選択中=アクセント色、無効=赤の点線でスキップを明示)
   for (const { track, g } of geoms) {
     ctx.save();
     ctx.lineWidth = Math.max(1.5, canvas.width / 400);
     ctx.setLineDash([8, 6]);
-    ctx.strokeStyle = track.id === state.create.selectedId ? '#f0a935' : 'rgba(255,255,255,0.55)';
+    ctx.strokeStyle = track.enabled === false
+      ? 'rgba(224, 85, 85, 0.8)'
+      : (track.id === state.create.selectedId ? '#f0a935' : 'rgba(255,255,255,0.55)');
     regionPath(ctx, g);
     ctx.stroke();
     ctx.restore();
@@ -499,6 +559,9 @@ $('exportBtn').addEventListener('click', async () => {
   if (c.busy) return;
   if (!c.file || !c.src) return setStatus('createStatus', '先に動画を選んでください。', 'error');
   if (c.tracks.length === 0) return setStatus('createStatus', '隠したい領域を追加してください。', 'error');
+  // モザイクをかける(有効な)領域だけを書き出し対象にする
+  const activeTracks = c.tracks.filter((t) => t.enabled !== false);
+  if (activeTracks.length === 0) return setStatus('createStatus', 'モザイクをかける領域がありません(すべて除外されています)。', 'error');
 
   c.busy = true;
   c.src.video.pause();
@@ -511,7 +574,7 @@ $('exportBtn').addEventListener('click', async () => {
     const keyString = generateKeyString();
     const { sharedBytes, payload, hasAudio } = await processCreate({
       file: c.file,
-      tracks: c.tracks,
+      tracks: activeTracks,
       filter: c.filter,
       format: c.format,
       keyString,
@@ -622,7 +685,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '② 隠す場所に領域を置く',
-    body: '「+ 円を追加」で領域を追加。ドラッグで移動、縁をつまむと大きさを変えられます。複数置くときは名前を付けると分かりやすいです。',
+    body: '「顔を自動でさがす」で顔を自動検出できます(不要な顔はチェックを外して除外)。手動なら「+ 円を追加」でドラッグ移動・縁で大きさ変更。複数置くときは名前を付けると分かりやすいです。',
   },
   {
     title: '③ 動きに合わせる',
