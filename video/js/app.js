@@ -119,9 +119,12 @@ function addRegion(shape) {
   const src = state.create.src;
   if (!src) return;
   const r = Math.min(src.width, src.height) * 0.18;
+  const shapeName = { circle: '円', ellipse: '楕円', rect: '四角' }[shape];
+  const id = state.create.nextId++;
   const track = {
-    id: state.create.nextId++,
+    id,
     shape,
+    name: `${shapeName}${id}`,
     keyframes: [],
   };
   const geom = {
@@ -166,16 +169,25 @@ function renderRegionUI() {
     const chip = document.createElement('button');
     chip.type = 'button';
     chip.className = 'chip' + (track.id === state.create.selectedId ? ' selected' : '');
-    chip.textContent = `${{ circle: '円', ellipse: '楕円', rect: '四角' }[track.shape]} ${track.id}`;
+    chip.textContent = track.name;
     chip.addEventListener('click', () => {
       state.create.selectedId = track.id;
       renderRegionUI();
     });
     list.appendChild(chip);
   }
+  const track = selectedTrack();
+
+  // 名前編集欄(領域選択中のみ表示)
+  const nameRow = $('regionNameRow');
+  const nameInput = $('regionName');
+  nameRow.hidden = !track;
+  if (track && document.activeElement !== nameInput) {
+    nameInput.value = track.name;
+  }
+
   const kfList = $('keyframeList');
   kfList.innerHTML = '';
-  const track = selectedTrack();
   if (track) {
     for (const kf of track.keyframes) {
       const chip = document.createElement('button');
@@ -195,6 +207,93 @@ function renderRegionUI() {
       kfList.appendChild(chip);
     }
   }
+  renderTrackLanes();
+}
+
+$('regionName').addEventListener('input', () => {
+  const track = selectedTrack();
+  if (!track) return;
+  track.name = $('regionName').value;
+  // チップ表示だけ更新(入力欄のフォーカスは保つ)
+  const chips = $('regionList').children;
+  const idx = state.create.tracks.indexOf(track);
+  if (chips[idx]) chips[idx].textContent = track.name || '(名前なし)';
+  renderTrackLanes();
+});
+
+// ---- シークバー下の位置可視化(モザイク領域・ピー音の帯) ----
+function renderTrackLanes() {
+  const lanes = $('trackLanes');
+  const src = state.create.src;
+  if (!src) { lanes.innerHTML = ''; return; }
+  const dur = src.duration || 1;
+  lanes.innerHTML = '';
+
+  // 各モザイク領域を1レーンで表示(最初のキーフレーム〜最後のキーフレームを帯に)
+  for (const track of state.create.tracks) {
+    const lane = document.createElement('div');
+    lane.className = 'track-lane';
+    if (track.keyframes.length > 0) {
+      const t0 = track.keyframes[0].t;
+      const t1 = track.keyframes[track.keyframes.length - 1].t;
+      const seg = document.createElement('div');
+      seg.className = 'track-seg region' + (track.id === state.create.selectedId ? ' selected' : '');
+      seg.style.left = `${(t0 / dur) * 100}%`;
+      // 単一キーフレーム(=全編適用)は帯全体、複数なら区間
+      seg.style.width = track.keyframes.length === 1 ? '100%' : `${((t1 - t0) / dur) * 100}%`;
+      seg.title = track.name;
+      seg.addEventListener('click', () => {
+        state.create.selectedId = track.id;
+        seekTimeline(t0);
+        renderRegionUI();
+      });
+      lane.appendChild(seg);
+    }
+    const label = document.createElement('span');
+    label.className = 'lane-label';
+    label.textContent = track.name;
+    lane.appendChild(label);
+    lane.appendChild(makePlayhead(dur));
+    lanes.appendChild(lane);
+  }
+
+  // ピー音は1レーンにまとめて表示
+  if (state.create.beeps.length > 0) {
+    const lane = document.createElement('div');
+    lane.className = 'track-lane';
+    for (const beep of state.create.beeps) {
+      const seg = document.createElement('div');
+      seg.className = 'track-seg beep' + (beep.id === state.create.selectedBeepId ? ' selected' : '');
+      seg.style.left = `${(beep.start / dur) * 100}%`;
+      seg.style.width = `${Math.max(0.5, ((beep.end - beep.start) / dur) * 100)}%`;
+      seg.title = `ピー音 ${beep.start.toFixed(2)}〜${beep.end.toFixed(2)}s`;
+      seg.addEventListener('click', () => {
+        state.create.selectedBeepId = beep.id;
+        seekTimeline(beep.start);
+        renderBeepUI();
+      });
+      lane.appendChild(seg);
+    }
+    const label = document.createElement('span');
+    label.className = 'lane-label';
+    label.textContent = 'ピー音';
+    lane.appendChild(label);
+    lane.appendChild(makePlayhead(dur));
+    lanes.appendChild(lane);
+  }
+}
+
+function makePlayhead(dur) {
+  const ph = document.createElement('div');
+  ph.className = 'lane-playhead';
+  ph.style.left = `${(currentTime() / dur) * 100}%`;
+  return ph;
+}
+
+function seekTimeline(t) {
+  const v = state.create.src?.video;
+  if (v) v.currentTime = t;
+  $('timeline').value = t;
 }
 
 // ---- 作成: ピー音(音声を隠す時間範囲) ----
@@ -264,6 +363,7 @@ function renderBeepUI() {
     });
     list.appendChild(chip);
   }
+  renderTrackLanes();
 }
 
 // ---- 作成: キャンバス操作(ドラッグで移動・縁でサイズ変更) ----
@@ -363,6 +463,12 @@ function drawPreview() {
   if (!src.video.paused) $('timeline').value = t;
   $('timeLabel').textContent = `${t.toFixed(2)} / ${src.duration.toFixed(2)}`;
   if (src.video.ended) $('playBtn').textContent = '▶';
+
+  // レーンの再生ヘッド位置を更新(DOM再構築せず位置だけ)
+  const dur = src.duration || 1;
+  for (const ph of $('trackLanes').querySelectorAll('.lane-playhead')) {
+    ph.style.left = `${(t / dur) * 100}%`;
+  }
 }
 requestAnimationFrame(drawPreview);
 
@@ -516,7 +622,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '② 隠す場所に領域を置く',
-    body: '「+ 円を追加」で領域を追加。ドラッグで移動、縁をつまむと大きさを変えられます。',
+    body: '「+ 円を追加」で領域を追加。ドラッグで移動、縁をつまむと大きさを変えられます。複数置くときは名前を付けると分かりやすいです。',
   },
   {
     title: '③ 動きに合わせる',

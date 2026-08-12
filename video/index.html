@@ -41,6 +41,7 @@
         <input type="range" id="timeline" min="0" max="1" step="0.01" value="0">
         <span id="timeLabel" class="mono">0.00 / 0.00</span>
       </div>
+      <div id="trackLanes" class="track-lanes" aria-hidden="true"></div>
 
       <div class="controls-grid">
         <fieldset class="control-group">
@@ -51,6 +52,10 @@
             <button id="addRect" class="btn" type="button">+ 四角を追加</button>
           </div>
           <div id="regionList" class="chip-row"></div>
+          <div class="row" id="regionNameRow" hidden>
+            <label for="regionName">名前</label>
+            <input type="text" id="regionName" class="name-input" maxlength="20" placeholder="例: 顔・ナンバー" autocomplete="off">
+          </div>
           <div class="row">
             <button id="addKeyframe" class="btn btn-small" type="button">現在位置にキーフレーム追加</button>
             <button id="deleteRegion" class="btn btn-small btn-danger" type="button">選択中の領域を削除</button>

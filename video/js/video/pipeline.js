@@ -203,6 +203,7 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
       filter,
       tracks: layouts.map(({ track, crop, slotY }) => ({
         shape: track.shape,
+        name: track.name,
         keyframes: track.keyframes.map((kf) => ({
           t: round3(kf.t), cx: Math.round(kf.cx), cy: Math.round(kf.cy),
           rx: Math.round(kf.rx), ry: Math.round(kf.ry),
