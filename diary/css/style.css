@@ -54,6 +54,8 @@
 html, body {
   margin: 0;
   padding: 0;
+  /* ダブルタップでの拡大を無効化(ピンチによる拡大は残す)。2026-08-13 PD実機FB */
+  touch-action: manipulation;
 }
 
 body {
@@ -348,8 +350,25 @@ input[type="time"], input[type="color"] { width: auto; }
 .detail-head-actions { display: flex; align-items: center; gap: 8px; }
 #detail-edit-view .field-label { display: block; margin: 12px 0 4px; color: var(--text-dim); font-size: 13px; }
 #detail-edit-view textarea { width: 100%; box-sizing: border-box; }
+/* 過去日の編集中とひと目で分かるよう、今日の入力とは別の枠色で囲む(2026-08-13 PD実機FB) */
+#detail-edit-view {
+  border: 2px solid var(--ok);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 8px;
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
+}
 #detail-edit-done { margin-top: 12px; }
-#edit-date-note { font-weight: bold; color: var(--accent); }
+/* 対象日を目立つバッジで表示(どの日を編集しているか明確に) */
+#edit-date-note {
+  display: inline-block;
+  font-weight: bold;
+  color: var(--ok-contrast, #fff);
+  background: var(--ok);
+  padding: 4px 12px;
+  border-radius: 999px;
+  margin: 0 0 4px;
+}
 .detail-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .detail-tag { border-radius: 999px; background: var(--accent); color: var(--accent-contrast); font-size: 13px; padding: 4px 12px; }
 .detail-text { white-space: pre-wrap; }

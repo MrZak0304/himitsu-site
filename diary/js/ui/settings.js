@@ -153,7 +153,11 @@ export function initSettings(ctx) {
 
   els.folderAdd.onclick = async () => {
     const name = els.folderInput.value.trim();
-    if (!name) return;
+    if (!name) {
+      note(els.folderNote, 'フォルダの名前を入力してください。');
+      els.folderInput.focus();
+      return;
+    }
     try {
       await ctx.stores.tagFolders.add(name);
       els.folderInput.value = '';
