@@ -624,10 +624,26 @@ export function initSettings(ctx) {
     return next;
   }
 
+  // 色を選んだら即座に画面へ反映(ライブプレビュー。2026-08-13 PD FB)。
+  // 保存も同時に行うので「決定」を押さなくても選んだ色で使える。
+  els.customBg.onchange = async () => {
+    try {
+      await saveCustomTheme({ bg: els.customBg.value });
+    } catch (err) {
+      note(els.themeNote, err.message);
+    }
+  };
+  els.customAccent.onchange = async () => {
+    try {
+      await saveCustomTheme({ accent: els.customAccent.value });
+    } catch (err) {
+      note(els.themeNote, err.message);
+    }
+  };
   els.customSave.onclick = async () => {
     try {
       await saveCustomTheme({ bg: els.customBg.value, accent: els.customAccent.value });
-      note(els.themeNote, 'カスタムテーマを適用しました。', true);
+      note(els.themeNote, 'このテーマに決定しました。', true);
     } catch (err) {
       note(els.themeNote, err.message);
     }
@@ -658,9 +674,17 @@ export function initSettings(ctx) {
     if (prev) await ctx.pipeline.store.remove(prev).catch(() => {});
     note(els.customBgNote, '背景画像を外しました。', true);
   };
+  // スライダーはドラッグ中(oninput)に CSS変数だけを更新して滑らかにプレビューし、
+  // 離した時(onchange)に保存する。プレビューは画像を読み直さないので軽い。
+  els.customPanelTransparency.oninput = () => {
+    document.documentElement.style.setProperty('--panel-alpha', String(1 - Number(els.customPanelTransparency.value) / 100));
+  };
   els.customPanelTransparency.onchange = async () => {
     // スライダー値=透け具合(%)。不透明度 = 1 - 値/100
     await saveCustomTheme({ panelAlpha: 1 - Number(els.customPanelTransparency.value) / 100 });
+  };
+  els.customOverlay.oninput = () => {
+    document.documentElement.style.setProperty('--bg-overlay', String(Number(els.customOverlay.value) / 100));
   };
   els.customOverlay.onchange = async () => {
     await saveCustomTheme({ overlay: Number(els.customOverlay.value) / 100 });

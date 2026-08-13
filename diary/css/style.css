@@ -97,6 +97,12 @@ body {
 :root.has-panel-alpha .panel {
   background: color-mix(in srgb, var(--panel) calc(var(--panel-alpha, 0.88) * 100%), transparent);
 }
+/* メニュー(下タブ)も同じ透け具合で背景を透かす(2026-08-13 PD FB)。
+   固定は維持したまま背景がうっすら見える。 */
+:root.has-panel-alpha .bottom-nav {
+  background: color-mix(in srgb, var(--panel) calc(var(--panel-alpha, 0.88) * 100%), transparent);
+  backdrop-filter: blur(2px);
+}
 
 /* --- グローバルエラー赤帯(実機報告のスクショに写るように) --- */
 #global-error {
