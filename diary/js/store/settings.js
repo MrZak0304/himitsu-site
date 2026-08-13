@@ -104,10 +104,11 @@ function normalizeSettings(raw) {
               Number.isFinite(raw.customTheme.overlay)
                 ? Math.max(0, Math.min(1, raw.customTheme.overlay))
                 : 0.45,
-            // パネルの不透明度 0.5〜1(小さいほど背景が透ける)。範囲外は 0.88 に丸める
+            // パネルの不透明度 0.2〜1(小さいほど背景がよく透ける)。範囲外は 0.88 に丸める。
+            // 下限 0.2 まで下げられ、背景画像をしっかり見せられる(2026-08-11 PD FB)。
             panelAlpha:
               Number.isFinite(raw.customTheme.panelAlpha)
-                ? Math.max(0.5, Math.min(1, raw.customTheme.panelAlpha))
+                ? Math.max(0.2, Math.min(1, raw.customTheme.panelAlpha))
                 : 0.88,
           }
         : null,
