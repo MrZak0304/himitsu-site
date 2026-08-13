@@ -361,6 +361,32 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .hint { color: var(--text-dim); font-size: 12px; margin: 6px 0 0; }
 .export-row { margin-top: 16px; }
 
+/* 顔検出中インジケータ(ボタン隣) */
+.detecting {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.detecting-led {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe6b0, var(--accent) 55%, #7a4f12 100%);
+  box-shadow: 0 0 8px var(--accent);
+  animation: detect-blink 0.9s steps(1, end) infinite;
+}
+#autoFacePercent { color: var(--accent); text-shadow: 0 0 6px rgba(245, 178, 60, 0.5); }
+@keyframes detect-blink {
+  0% { opacity: 1; }
+  50% { opacity: 0.25; }
+  100% { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .detecting-led { animation: none; }
+}
+
 /* ===== 進捗 = メーター ===== */
 .progress-block { display: flex; align-items: center; gap: 10px; }
 .progress-track {

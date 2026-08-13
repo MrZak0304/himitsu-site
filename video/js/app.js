@@ -174,9 +174,14 @@ $('autoFace').addEventListener('click', async () => {
   c.src.video.pause();
   $('playBtn').textContent = '▶';
   $('createProgress').hidden = false;
+  $('autoFaceStatus').hidden = false; // ボタン隣の「検出中」表示
+  $('autoFacePercent').textContent = '0%';
   setStatus('createStatus', '顔をさがしています… 画面はそのままお待ちください');
   try {
-    const { tracks } = await detectFaceTracks(c.file, (p) => updateProgress('create', p));
+    const { tracks } = await detectFaceTracks(c.file, (p) => {
+      updateProgress('create', p);
+      $('autoFacePercent').textContent = `${Math.round(p * 100)}%`;
+    });
     if (tracks.length === 0) {
       setStatus('createStatus', '顔が見つかりませんでした。手動で領域を追加してください。', 'error');
       return;
@@ -198,6 +203,7 @@ $('autoFace').addEventListener('click', async () => {
     $('autoFace').disabled = false;
     $('exportBtn').disabled = false;
     $('createProgress').hidden = true;
+    $('autoFaceStatus').hidden = true;
   }
 });
 
