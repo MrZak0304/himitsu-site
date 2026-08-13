@@ -204,10 +204,13 @@ export async function processCreate({ file, tracks, filter, format, keyString, b
       tracks: layouts.map(({ track, crop, slotY }) => ({
         shape: track.shape,
         name: track.name,
-        keyframes: track.keyframes.map((kf) => ({
-          t: round3(kf.t), cx: Math.round(kf.cx), cy: Math.round(kf.cy),
-          rx: Math.round(kf.rx), ry: Math.round(kf.ry),
-        })),
+        // poly は基準輪郭 points と scale キーフレーム、それ以外は rx/ry キーフレーム
+        ...(track.shape === 'poly'
+          ? { points: track.points.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y) })) }
+          : {}),
+        keyframes: track.keyframes.map((kf) => (track.shape === 'poly'
+          ? { t: round3(kf.t), cx: Math.round(kf.cx), cy: Math.round(kf.cy), scale: round3(kf.scale ?? 1) }
+          : { t: round3(kf.t), cx: Math.round(kf.cx), cy: Math.round(kf.cy), rx: Math.round(kf.rx), ry: Math.round(kf.ry) })),
         crop,
         slotY,
       })),

@@ -83,6 +83,7 @@ body {
 }
 .btn:hover { border-color: var(--accent-dark); }
 .btn { touch-action: manipulation; } /* iOSのダブルタップ拡大を抑止 */
+.btn.active-draw { background: linear-gradient(180deg, var(--accent), var(--accent-dark)); color: #14171c; font-weight: 700; }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn-primary {
   background: linear-gradient(180deg, var(--accent), var(--accent-dark));

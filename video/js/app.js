@@ -1,5 +1,5 @@
 // UI配線のみ。暗号・動画処理のロジックはここに書かない(コアは js/core, js/video)。
-import { interpolateTrack, upsertKeyframe, removeKeyframe } from './core/regions.js';
+import { interpolateTrack, upsertKeyframe, removeKeyframe, buildPolyPoints, pointInPoly } from './core/regions.js';
 import { generateKeyString, isValidKeyString } from './core/crypto.js';
 import { applyFilters, regionPath } from './video/filters.js';
 import { loadVideo, processCreate, processRestore } from './video/pipeline.js';
@@ -19,6 +19,7 @@ const state = {
     selectedBeepId: null,
     nextBeepId: 1,
     beepFile: null,
+    drawingPoly: null, // なげなわ描画中の生点列 [{x,y}] または null
     filter: { type: 'mosaic', size: 16 },
     format: 'B',
     busy: false,
@@ -116,6 +117,14 @@ function stepFrame(dir) {
 $('addCircle').addEventListener('click', () => addRegion('circle'));
 $('addEllipse').addEventListener('click', () => addRegion('ellipse'));
 $('addRect').addEventListener('click', () => addRegion('rect'));
+$('addPoly').addEventListener('click', () => {
+  if (!state.create.src || state.create.busy) return;
+  // なげなわ描画モードに入る(次のプレビュー上のドラッグで輪郭を描く)
+  state.create.drawingPoly = [];
+  $('polyHint').hidden = false;
+  $('addPoly').classList.add('active-draw');
+  setStatus('createStatus', 'プレビュー上を指でなぞって形を囲んでください。');
+});
 function addRegion(shape) {
   const src = state.create.src;
   if (!src) return;
@@ -426,20 +435,33 @@ function renderBeepUI() {
 // ---- 作成: キャンバス操作(ドラッグで移動・縁でサイズ変更) ----
 const canvas = $('createCanvas');
 let drag = null;
+let polyDrawing = false; // なげなわを実際になぞっている最中か
 canvas.addEventListener('pointerdown', (e) => {
   const src = state.create.src;
   if (!src || state.create.busy) return;
   const p = canvasPoint(e);
+  // なげなわ描画モード: なぞり始め
+  if (state.create.drawingPoly) {
+    state.create.drawingPoly = [p];
+    polyDrawing = true;
+    try { canvas.setPointerCapture(e.pointerId); } catch { /* 合成イベント等では無視 */ }
+    return;
+  }
   const t = currentTime();
   // 上に描かれているもの(後に追加)を優先
   for (let i = state.create.tracks.length - 1; i >= 0; i--) {
     const track = state.create.tracks[i];
     const g = interpolateTrack(track, t);
     if (!g) continue;
-    // 領域内外の判定値(1.0 が境界)。矩形はチェビシェフ距離で判定
-    const q = track.shape === 'rect'
-      ? Math.max(Math.abs(p.x - g.cx) / g.rx, Math.abs(p.y - g.cy) / g.ry)
-      : Math.hypot((p.x - g.cx) / g.rx, (p.y - g.cy) / g.ry);
+    // 領域内外の判定値。poly は多角形の内外、矩形はチェビシェフ、他は楕円距離
+    let q;
+    if (track.shape === 'poly') {
+      q = pointInPoly(p.x, p.y, g.poly) ? 0 : 2;
+    } else if (track.shape === 'rect') {
+      q = Math.max(Math.abs(p.x - g.cx) / g.rx, Math.abs(p.y - g.cy) / g.ry);
+    } else {
+      q = Math.hypot((p.x - g.cx) / g.rx, (p.y - g.cy) / g.ry);
+    }
     if (q <= 1.2) {
       state.create.selectedId = track.id;
       drag = {
@@ -455,12 +477,28 @@ canvas.addEventListener('pointerdown', (e) => {
   }
 });
 canvas.addEventListener('pointermove', (e) => {
+  // なげなわ描画中: 点を足す
+  if (state.create.drawingPoly && polyDrawing) {
+    state.create.drawingPoly.push(canvasPoint(e));
+    return;
+  }
   if (!drag) return;
   const p = canvasPoint(e);
   const { track, mode, start, g0 } = drag;
+  const dx = p.x - start.x;
+  const dy = p.y - start.y;
   let geom;
   if (mode === 'move') {
-    geom = { ...g0, cx: g0.cx + (p.x - start.x), cy: g0.cy + (p.y - start.y) };
+    geom = { ...g0, cx: g0.cx + dx, cy: g0.cy + dy };
+    // poly は表示用の絶対頂点も一緒に平行移動する
+    if (g0.poly) geom.poly = g0.poly.map((pt) => ({ x: pt.x + dx, y: pt.y + dy }));
+  } else if (track.shape === 'poly') {
+    // poly の resize は重心からの距離比で scale を変える
+    const d0 = Math.hypot(start.x - g0.cx, start.y - g0.cy) || 1;
+    const d1 = Math.hypot(p.x - g0.cx, p.y - g0.cy);
+    const k = Math.max(0.2, d1 / d0);
+    geom = { ...g0, scale: (g0.scale ?? 1) * k };
+    geom.poly = g0.poly.map((pt) => ({ x: g0.cx + (pt.x - g0.cx) * k, y: g0.cy + (pt.y - g0.cy) * k }));
   } else {
     const rx = Math.max(10, Math.abs(p.x - g0.cx));
     const ry = Math.max(10, Math.abs(p.y - g0.cy));
@@ -470,7 +508,17 @@ canvas.addEventListener('pointermove', (e) => {
   }
   state.create.liveGeom = { id: track.id, geom };
 });
-canvas.addEventListener('pointerup', () => {
+canvas.addEventListener('pointerup', (e) => {
+  // なげなわ描画完了: トラックを作る
+  if (state.create.drawingPoly) {
+    finishPolyDraw(state.create.drawingPoly);
+    state.create.drawingPoly = null;
+    polyDrawing = false;
+    $('polyHint').hidden = true;
+    $('addPoly').classList.remove('active-draw');
+    try { canvas.releasePointerCapture(e.pointerId); } catch { /* 無視 */ }
+    return;
+  }
   if (!drag) return;
   const live = state.create.liveGeom;
   if (live && live.id === drag.track.id) {
@@ -480,6 +528,28 @@ canvas.addEventListener('pointerup', () => {
   state.create.liveGeom = null;
   drag = null;
 });
+
+function finishPolyDraw(rawPoints) {
+  const built = buildPolyPoints(rawPoints);
+  if (!built) {
+    setStatus('createStatus', '形が小さすぎます。もう一度大きく囲んでください。', 'error');
+    return;
+  }
+  const id = state.create.nextId++;
+  const track = {
+    id,
+    shape: 'poly',
+    name: `自由形状${id}`,
+    enabled: true,
+    points: built.points,
+    keyframes: [],
+  };
+  upsertKeyframe(track, currentTime(), { cx: built.center.cx, cy: built.center.cy, scale: 1 });
+  state.create.tracks.push(track);
+  state.create.selectedId = id;
+  renderRegionUI();
+  setStatus('createStatus', '自由形状を追加しました。ドラッグで移動・時間を進めて追従できます。', 'ok');
+}
 function canvasPoint(e) {
   const rect = canvas.getBoundingClientRect();
   return {
@@ -515,6 +585,20 @@ function drawPreview() {
       ? 'rgba(224, 85, 85, 0.8)'
       : (track.id === state.create.selectedId ? '#f0a935' : 'rgba(255,255,255,0.55)');
     regionPath(ctx, g);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // なげなわ描画中のなぞり線を表示
+  const dp = state.create.drawingPoly;
+  if (dp && dp.length > 1) {
+    ctx.save();
+    ctx.lineWidth = Math.max(2, canvas.width / 300);
+    ctx.strokeStyle = '#f0a935';
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(dp[0].x, dp[0].y);
+    for (let i = 1; i < dp.length; i++) ctx.lineTo(dp[i].x, dp[i].y);
     ctx.stroke();
     ctx.restore();
   }
@@ -685,7 +769,7 @@ const TUTORIAL_STEPS = [
   },
   {
     title: '② 隠す場所に領域を置く',
-    body: '「顔を自動でさがす」で顔を自動検出できます(不要な顔はチェックを外して除外)。手動なら「+ 円を追加」でドラッグ移動・縁で大きさ変更。複数置くときは名前を付けると分かりやすいです。',
+    body: '「顔を自動でさがす」で顔を自動検出(不要な顔はチェックを外して除外)。手動は「+ 円/四角」でドラッグ移動・縁で大きさ変更。「+ 自由形状」ならプレビューを指でなぞって好きな形に囲めます。複数置くときは名前を付けると便利です。',
   },
   {
     title: '③ 動きに合わせる',

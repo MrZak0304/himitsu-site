@@ -2,10 +2,14 @@
 // フィルターは「見た目を隠す」ためだけの処理で、復元はフィルターの逆変換ではなく
 // 復元データの合成で行う(SPEC §2 合成方式)。
 
-/** 領域のパスを ctx に設定する(g.shape: 'rect' は矩形、それ以外は楕円) */
+/** 領域のパスを ctx に設定する(poly:多角形 / rect:矩形 / それ以外:楕円) */
 export function regionPath(ctx, g) {
   ctx.beginPath();
-  if (g.shape === 'rect') {
+  if (g.poly && g.poly.length >= 3) {
+    ctx.moveTo(g.poly[0].x, g.poly[0].y);
+    for (let i = 1; i < g.poly.length; i++) ctx.lineTo(g.poly[i].x, g.poly[i].y);
+    ctx.closePath();
+  } else if (g.shape === 'rect') {
     ctx.rect(g.cx - g.rx, g.cy - g.ry, Math.max(2, g.rx * 2), Math.max(2, g.ry * 2));
   } else {
     ctx.ellipse(g.cx, g.cy, Math.max(1, g.rx), Math.max(1, g.ry), 0, 0, Math.PI * 2);
@@ -161,7 +165,17 @@ function makeScratchCanvas(w, h) {
 export function composeRestore(ctx, restoreSource, track, g, pad = 2) {
   const { crop, slotY } = track;
   ctx.save();
-  regionPath(ctx, { cx: g.cx, cy: g.cy, rx: g.rx + pad, ry: g.ry + pad, shape: track.shape });
+  if (g.poly) {
+    // 多角形は重心から pad ピクセル外側へ広げてにじみ対策
+    const expanded = g.poly.map((p) => {
+      const dx = p.x - g.cx, dy = p.y - g.cy;
+      const d = Math.hypot(dx, dy) || 1;
+      return { x: p.x + (dx / d) * pad, y: p.y + (dy / d) * pad };
+    });
+    regionPath(ctx, { poly: expanded });
+  } else {
+    regionPath(ctx, { cx: g.cx, cy: g.cy, rx: g.rx + pad, ry: g.ry + pad, shape: track.shape });
+  }
   ctx.clip();
   ctx.drawImage(restoreSource, 0, slotY, crop.w, crop.h, crop.x, crop.y, crop.w, crop.h);
   ctx.restore();
