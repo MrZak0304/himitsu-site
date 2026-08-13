@@ -501,6 +501,15 @@ export function initSettings(ctx) {
         ctx.renderCharacter?.();
       };
     }
+
+    // キャラクターの表示ON/OFF(2026-08-14 PD FB)
+    const enabledBox = document.getElementById('character-enabled');
+    enabledBox.checked = s.character.enabled !== false;
+    enabledBox.onchange = async () => {
+      const cur = await ctx.stores.settings.get();
+      await ctx.stores.settings.merge({ character: { ...cur.character, enabled: enabledBox.checked } });
+      ctx.renderCharacter?.();
+    };
   }
 
   let pendingExpr = null;

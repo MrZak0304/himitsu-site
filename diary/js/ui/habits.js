@@ -225,6 +225,8 @@ export function initHabits(ctx) {
   // --- キャラクターレイヤ(きょう・日課タブに表示) ---
   async function renderCharacter() {
     const settings = await ctx.stores.settings.get();
+    // キャラクターOFF時はレイヤごと非表示(タブ切替の表示指定より優先=CSSの !important)
+    els.layer.classList.toggle('char-off', settings.character.enabled === false);
     els.layer.classList.toggle('pos-left', settings.character.position === 'left');
     if (charUrl) {
       URL.revokeObjectURL(charUrl);

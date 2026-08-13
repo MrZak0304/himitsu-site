@@ -27,7 +27,7 @@ export const DEFAULT_SETTINGS = {
   },
   reminder: { enabled: false, time: '21:00' },
   theme: 'shiro',
-  character: { type: 'builtin', value: 'cat', position: 'right' },
+  character: { type: 'builtin', value: 'cat', position: 'right', enabled: true },
   customCharacters: [],
   characterLines: DEFAULT_LINES,
   customTheme: null,
@@ -86,6 +86,8 @@ function normalizeSettings(raw) {
       type: character.type === 'custom' ? 'custom' : 'builtin',
       value: typeof character.value === 'string' ? character.value : d.character.value,
       position: character.position === 'left' ? 'left' : 'right',
+      // enabled=false でキャラクターを非表示にできる(既定は表示。2026-08-14 PD FB)
+      enabled: character.enabled !== false,
     },
     customCharacters: Array.isArray(raw.customCharacters)
       ? raw.customCharacters.map(normalizeCustomCharacter).filter(Boolean)
