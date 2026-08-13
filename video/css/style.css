@@ -1,43 +1,90 @@
-/* 簡単動画修正 プロトタイプ — メカ調ダークテーマ(本格デザインは P2) */
+/* 簡単動画修正 — メカ調(セミプロ映像機材/DAWコントローラ風)テーマ。
+   画像・外部フォントは使わずCSSのみで金属パネル・ベベル・LED・フェーダーを表現。 */
 :root {
-  --bg: #14171c;
-  --panel: #1e232b;
-  --panel-edge: #2c333e;
-  --text: #d8dde5;
-  --text-dim: #8a93a1;
-  --accent: #f0a935;
-  --accent-dark: #b87d1e;
-  --danger: #e05555;
-  --ok: #5bc17a;
+  --bg: #0d1014;
+  --bg2: #14181e;
+  --panel: #1b2028;         /* 金属パネル面 */
+  --panel-hi: #262d38;      /* パネル上端のハイライト面 */
+  --panel-lo: #141920;      /* パネル下端の陰 */
+  --panel-edge: #313a47;
+  --groove: #090b0f;        /* 掘り込み(スクリーン/溝) */
+  --text: #dfe4ec;
+  --text-dim: #8993a2;
+  --accent: #f5b23c;        /* 主アクセント(アンバーLED) */
+  --accent-dark: #a9741d;
+  --led: #57e08a;           /* 通電LED(緑) */
+  --danger: #e8595b;
+  --ok: #57e08a;
+  --bevel-hi: rgba(255, 255, 255, 0.08);
+  --bevel-lo: rgba(0, 0, 0, 0.55);
 }
 
 * { box-sizing: border-box; }
-
-/* display 指定のあるクラスでも hidden 属性を常に優先させる */
 [hidden] { display: none !important; }
 
 body {
   margin: 0;
-  background: var(--bg);
   color: var(--text);
   font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
   font-size: 14px;
   line-height: 1.6;
+  background:
+    radial-gradient(120% 80% at 50% -10%, #1a1f27 0%, var(--bg) 60%),
+    var(--bg);
+  background-attachment: fixed;
 }
 
-.mono { font-family: "SF Mono", Menlo, monospace; }
+.mono {
+  font-family: "SF Mono", "Roboto Mono", Menlo, monospace;
+  letter-spacing: 0.02em;
+}
 
+/* ===== ヘッダー = 機材のフェイスプレート ===== */
 .app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 10px 16px;
-  background: linear-gradient(180deg, #232933, #1a1f27);
-  border-bottom: 2px solid var(--panel-edge);
+  padding: 12px 18px;
+  background:
+    linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
+  border-bottom: 1px solid #000;
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    0 2px 0 #000,
+    0 3px 12px rgba(0, 0, 0, 0.5);
+  position: relative;
 }
-.app-header h1 { font-size: 18px; margin: 0; letter-spacing: 0.06em; }
+/* 電源レール(アンバーの発光ライン) */
+.app-header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent) 80%, transparent);
+  opacity: 0.5;
+  box-shadow: 0 0 8px rgba(245, 178, 60, 0.5);
+}
+.app-header h1 {
+  font-size: 17px;
+  margin: 0;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  text-transform: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-shadow: 0 1px 0 #000;
+}
+/* タイトル横の通電LED */
+.app-header h1::before {
+  content: "";
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #b6ffce, var(--led) 55%, #1c7a44 100%);
+  box-shadow: 0 0 8px var(--led), inset 0 0 2px rgba(0,0,0,.4);
+}
 .proto-badge {
   font-size: 10px;
   color: var(--accent);
@@ -45,227 +92,361 @@ body {
   border-radius: 3px;
   padding: 1px 6px;
   vertical-align: middle;
-  letter-spacing: 0.15em;
+  letter-spacing: 0.18em;
+  background: rgba(245, 178, 60, 0.08);
+  box-shadow: inset 0 0 6px rgba(245, 178, 60, 0.15);
 }
 
 .header-right { display: flex; align-items: center; gap: 12px; }
+
+/* ===== タブ = ハードのセレクタボタン ===== */
 .tabs { display: flex; gap: 6px; }
 .tab {
-  background: var(--panel);
+  position: relative;
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
   color: var(--text-dim);
-  border: 1px solid var(--panel-edge);
-  border-radius: 6px 6px 0 0;
-  padding: 8px 22px;
+  border: 1px solid #0c0f13;
+  border-radius: 6px;
+  padding: 8px 22px 8px 30px;
   font-size: 14px;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 1px 2px rgba(0,0,0,.5);
+}
+/* タブのステータスLED */
+.tab::before {
+  content: "";
+  position: absolute;
+  left: 12px; top: 50%; transform: translateY(-50%);
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #2b333d;
+  box-shadow: inset 0 0 2px #000;
 }
 .tab.active {
   color: var(--accent);
-  border-color: var(--accent-dark);
-  background: #262d38;
-  font-weight: 600;
+  border-color: #0c0f13;
+  background: linear-gradient(180deg, #2c3440, #1d232b);
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(245, 178, 60, 0.4);
+}
+.tab.active::before {
+  background: radial-gradient(circle at 35% 30%, #ffe6b0, var(--accent) 55%, #7a4f12 100%);
+  box-shadow: 0 0 8px var(--accent);
 }
 
-.panel { max-width: 860px; margin: 0 auto; padding: 16px; }
+.panel { max-width: 880px; margin: 0 auto; padding: 18px; }
 .block { margin-bottom: 14px; }
 
+/* ===== ボタン = 物理キー ===== */
 .btn {
   display: inline-block;
-  background: #2a313c;
+  background: linear-gradient(180deg, #313947, #202631);
   color: var(--text);
-  border: 1px solid var(--panel-edge);
+  border: 1px solid #0c0f13;
   border-radius: 6px;
   padding: 8px 16px;
   font-size: 14px;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
+  touch-action: manipulation;
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    inset 0 -1px 0 rgba(0,0,0,.4),
+    0 2px 3px rgba(0,0,0,.5);
+  transition: transform 0.04s, box-shadow 0.08s;
 }
-.btn:hover { border-color: var(--accent-dark); }
-.btn { touch-action: manipulation; } /* iOSのダブルタップ拡大を抑止 */
-.btn.active-draw { background: linear-gradient(180deg, var(--accent), var(--accent-dark)); color: #14171c; font-weight: 700; }
-.btn:disabled { opacity: 0.45; cursor: default; }
+.btn:hover { border-color: #000; }
+.btn:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 5px rgba(0,0,0,.6);
+}
+.btn.active-draw,
 .btn-primary {
-  background: linear-gradient(180deg, var(--accent), var(--accent-dark));
-  color: #14171c;
+  background: linear-gradient(180deg, #ffce6a, var(--accent) 45%, var(--accent-dark));
+  color: #1a1205;
   font-weight: 700;
-  border-color: var(--accent-dark);
-  padding: 10px 28px;
+  border-color: #6e4a10;
+  text-shadow: 0 1px 0 rgba(255,255,255,.25);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.4),
+    0 0 10px rgba(245, 178, 60, 0.35),
+    0 2px 3px rgba(0,0,0,.5);
 }
-.btn-secondary { background: #232a34; }
+.btn-primary { padding: 10px 28px; }
+.btn:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+.btn-secondary { background: linear-gradient(180deg, #29313c, #1c222b); }
 .btn-small { padding: 4px 10px; font-size: 12px; }
 .btn-danger { color: var(--danger); }
-.btn-icon { width: 42px; font-size: 16px; white-space: nowrap; padding-left: 4px; padding-right: 4px; touch-action: manipulation; }
+.btn-icon {
+  width: 44px; font-size: 16px; white-space: nowrap;
+  padding-left: 4px; padding-right: 4px;
+}
 
 .file-label { cursor: pointer; }
 .file-name { margin-left: 10px; color: var(--text-dim); word-break: break-all; }
 
+/* ===== プレビュー = モニタのベゼル ===== */
 .canvas-wrap {
   background: #000;
-  border: 1px solid var(--panel-edge);
-  border-radius: 6px;
+  border: 1px solid #000;
+  border-radius: 8px;
   display: flex;
   justify-content: center;
+  padding: 8px;
+  background: linear-gradient(180deg, #0a0c10, #05070a);
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.03),
+    inset 0 2px 12px rgba(0,0,0,.8),
+    0 1px 0 var(--bevel-hi);
 }
-#createCanvas { max-width: 100%; max-height: 60vh; touch-action: none; }
+#createCanvas { max-width: 100%; max-height: 60vh; touch-action: none; border-radius: 3px; }
 
-.transport { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
-.transport input[type="range"] { flex: 1; accent-color: var(--accent); }
-#timeLabel { color: var(--text-dim); font-size: 12px; white-space: nowrap; }
+/* ===== トランスポート ===== */
+.transport { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+#timeLabel {
+  color: var(--accent);
+  font-size: 12px;
+  white-space: nowrap;
+  font-family: "SF Mono", "Roboto Mono", Menlo, monospace;
+  background: var(--groove);
+  padding: 4px 8px;
+  border-radius: 3px;
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.7);
+  text-shadow: 0 0 6px rgba(245, 178, 60, 0.5);
+}
 
-/* シークバー下の位置可視化(モザイク領域・ピー音の帯) */
-.track-lanes { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
+/* ===== レンジ = フェーダー ===== */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #05070a, #10141a);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.9), 0 1px 0 var(--bevel-hi);
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #05070a, #10141a);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.9);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px; height: 22px;
+  margin-top: -9px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #3d4553 0%, #2a313c 48%, #1b212a 52%, #262d38 100%);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 3px rgba(0,0,0,.7);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 16px; height: 22px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #3d4553 0%, #2a313c 48%, #1b212a 52%, #262d38 100%);
+  border: 1px solid #000;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 1px 3px rgba(0,0,0,.7);
+}
+/* フェーダーキャップ中央のアンバー指標 */
+input[type="range"]::-webkit-slider-thumb { position: relative; }
+.transport input[type="range"] { flex: 1; }
+.row input[type="range"] { flex: 1; max-width: 260px; }
+
+/* ===== シークバー下の位置可視化 = 掘り込みスクリーン ===== */
+.track-lanes { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; }
 .track-lane {
   position: relative;
   height: 16px;
-  background: #10131a;
-  border: 1px solid var(--panel-edge);
+  background: linear-gradient(180deg, #05070a, #0d1116);
+  border: 1px solid #000;
   border-radius: 3px;
   overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.8);
 }
 .track-lane .lane-label {
   position: absolute;
-  left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 6px; top: 50%; transform: translateY(-50%);
   font-size: 10px;
   color: var(--text-dim);
   z-index: 1;
   pointer-events: none;
+  text-shadow: 0 1px 0 #000;
 }
 .track-seg {
   position: absolute;
-  top: 2px;
-  bottom: 2px;
+  top: 2px; bottom: 2px;
   border-radius: 2px;
   min-width: 2px;
   cursor: pointer;
 }
-.track-seg.region { background: rgba(240, 169, 53, 0.55); }
-.track-seg.region.selected { background: var(--accent); }
-.track-seg.beep { background: rgba(91, 193, 122, 0.55); }
-.track-seg.beep.selected { background: var(--ok); }
+.track-seg.region { background: linear-gradient(180deg, rgba(245,178,60,.7), rgba(169,116,29,.6)); }
+.track-seg.region.selected { background: linear-gradient(180deg, #ffce6a, var(--accent)); box-shadow: 0 0 8px rgba(245,178,60,.6); }
+.track-seg.beep { background: linear-gradient(180deg, rgba(87,224,138,.65), rgba(40,120,70,.6)); }
+.track-seg.beep.selected { background: linear-gradient(180deg, #9bffc2, var(--led)); box-shadow: 0 0 8px rgba(87,224,138,.6); }
 .track-lane .lane-playhead {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 0; bottom: 0;
   width: 2px;
   background: #fff;
   z-index: 2;
   pointer-events: none;
+  box-shadow: 0 0 6px rgba(255,255,255,.8);
 }
 
-.controls-grid { display: grid; gap: 12px; margin-top: 14px; }
+/* ===== コントロールモジュール = ネジ止めパネル ===== */
+.controls-grid { display: grid; gap: 12px; margin-top: 16px; }
 .control-group {
-  background: var(--panel);
-  border: 1px solid var(--panel-edge);
-  border-radius: 6px;
-  padding: 10px 14px;
+  position: relative;
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
+  border: 1px solid #0c0f13;
+  border-radius: 7px;
+  padding: 12px 16px;
   margin: 0;
+  box-shadow:
+    inset 0 1px 0 var(--bevel-hi),
+    0 2px 4px rgba(0,0,0,.4);
+}
+/* 四隅のネジ(radial-gradientの点) */
+.control-group {
+  background-image:
+    linear-gradient(180deg, var(--panel-hi), var(--panel-lo)),
+    radial-gradient(circle at 7px 7px, #454d5a 0.5px, #171c23 1.6px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 7px) 7px, #454d5a 0.5px, #171c23 1.6px, transparent 2.2px),
+    radial-gradient(circle at 7px calc(100% - 7px), #454d5a 0.5px, #171c23 1.6px, transparent 2.2px),
+    radial-gradient(circle at calc(100% - 7px) calc(100% - 7px), #454d5a 0.5px, #171c23 1.6px, transparent 2.2px);
+  background-repeat: no-repeat;
 }
 .control-group legend {
-  color: var(--text-dim);
-  font-size: 12px;
-  padding: 0 6px;
-  letter-spacing: 0.05em;
+  color: var(--accent);
+  font-size: 11px;
+  padding: 0 8px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-shadow: 0 0 6px rgba(245,178,60,.3);
 }
 .control-group label { margin-right: 14px; }
 .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 6px 0; }
-.row input[type="range"] { flex: 1; max-width: 260px; accent-color: var(--accent); }
 
+/* ===== チップ = 押しボタン ===== */
 .chip-row { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .chip {
-  background: #232a34;
-  border: 1px solid var(--panel-edge);
+  background: linear-gradient(180deg, #2b323d, #1d232b);
+  border: 1px solid #0c0f13;
   border-radius: 12px;
-  padding: 2px 12px;
+  padding: 3px 12px;
   font-size: 12px;
   cursor: pointer;
   color: var(--text-dim);
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 1px 2px rgba(0,0,0,.4);
 }
-.chip.selected { color: var(--accent); border-color: var(--accent-dark); }
-.chip.disabled { opacity: 0.45; text-decoration: line-through; }
+.chip.selected {
+  color: #1a1205;
+  border-color: #6e4a10;
+  background: linear-gradient(180deg, #ffce6a, var(--accent));
+  box-shadow: 0 0 8px rgba(245,178,60,.35);
+}
+.chip.disabled { opacity: 0.4; text-decoration: line-through; }
 .chip .x { margin-left: 6px; color: var(--danger); }
+.chip.selected .x { color: #7a1414; }
 .toggle-label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text-dim); }
+input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 
 .hint { color: var(--text-dim); font-size: 12px; margin: 6px 0 0; }
+.export-row { margin-top: 16px; }
 
-.export-row { margin-top: 14px; }
-
+/* ===== 進捗 = メーター ===== */
 .progress-block { display: flex; align-items: center; gap: 10px; }
 .progress-track {
   flex: 1;
-  height: 10px;
-  background: #10131a;
-  border: 1px solid var(--panel-edge);
-  border-radius: 5px;
+  height: 12px;
+  background: var(--groove);
+  border: 1px solid #000;
+  border-radius: 6px;
   overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.8);
 }
 .progress-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--accent-dark), var(--accent));
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,.18) 0 2px, transparent 2px 7px),
+    linear-gradient(90deg, var(--accent-dark), var(--accent));
+  box-shadow: 0 0 10px rgba(245,178,60,.5);
   transition: width 0.15s;
+}
+#createProgressLabel, #restoreProgressLabel {
+  color: var(--accent);
+  font-family: "SF Mono", "Roboto Mono", Menlo, monospace;
 }
 
 .status { min-height: 1.4em; color: var(--text-dim); }
 .status.error { color: var(--danger); }
 .status.ok { color: var(--ok); }
 
+/* ===== 結果パネル ===== */
 .result-block {
-  background: var(--panel);
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
   border: 1px solid var(--accent-dark);
-  border-radius: 6px;
-  padding: 12px 16px;
+  border-radius: 7px;
+  padding: 14px 18px;
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 0 14px rgba(245,178,60,.1);
 }
-.result-block h2 { font-size: 15px; margin: 0 0 10px; color: var(--accent); }
+.result-block h2 { font-size: 15px; margin: 0 0 10px; color: var(--accent); letter-spacing: 0.06em; text-shadow: 0 0 8px rgba(245,178,60,.3); }
 
 .key-box { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .key-caption { color: var(--text-dim); font-size: 12px; }
 .key-value {
-  background: #10131a;
-  border: 1px dashed var(--accent-dark);
+  background: var(--groove);
+  border: 1px solid #000;
   border-radius: 4px;
-  padding: 6px 14px;
-  font-size: 16px;
-  letter-spacing: 0.12em;
+  padding: 8px 16px;
+  font-size: 17px;
+  letter-spacing: 0.16em;
   color: var(--accent);
+  font-family: "SF Mono", "Roboto Mono", Menlo, monospace;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,.8);
+  text-shadow: 0 0 8px rgba(245,178,60,.6);
 }
-.name-input {
-  background: #10131a;
-  border: 1px solid var(--panel-edge);
+.name-input, .key-input {
+  background: var(--groove);
+  border: 1px solid #000;
   border-radius: 4px;
   color: var(--text);
-  padding: 6px 10px;
+  padding: 7px 12px;
   font-size: 14px;
-  flex: 1;
-  max-width: 240px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,.7);
 }
+.name-input { flex: 1; max-width: 240px; }
 .key-input {
   width: 260px;
-  background: #10131a;
-  border: 1px solid var(--panel-edge);
-  border-radius: 4px;
-  color: var(--text);
-  padding: 8px 12px;
   font-size: 15px;
   letter-spacing: 0.1em;
+  font-family: "SF Mono", "Roboto Mono", Menlo, monospace;
+  color: var(--accent);
 }
+.key-input:focus, .name-input:focus { outline: none; border-color: var(--accent-dark); box-shadow: inset 0 1px 3px rgba(0,0,0,.7), 0 0 6px rgba(245,178,60,.3); }
 
-#restoreResultVideo { max-width: 100%; border-radius: 6px; background: #000; }
+#restoreResultVideo { max-width: 100%; border-radius: 6px; background: #000; border: 1px solid #000; }
 
 .app-footer {
   text-align: center;
   color: var(--text-dim);
   font-size: 11px;
-  padding: 18px 8px 24px;
+  padding: 20px 8px 26px;
 }
 
-/* チュートリアル */
+/* ===== チュートリアル ===== */
 .tutorial-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(8, 10, 14, 0.78);
+  background: rgba(5, 7, 10, 0.82);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,35 +455,34 @@ body {
 }
 .tutorial-card {
   position: relative;
-  background: var(--panel);
+  background: linear-gradient(180deg, var(--panel-hi), var(--panel-lo));
   border: 1px solid var(--accent-dark);
   border-radius: 8px;
-  padding: 22px 24px 16px;
+  padding: 24px 26px 18px;
   max-width: 420px;
   width: 100%;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: inset 0 1px 0 var(--bevel-hi), 0 12px 40px rgba(0, 0, 0, 0.7), 0 0 20px rgba(245,178,60,.08);
 }
 .tutorial-x {
   position: absolute;
-  top: 6px;
-  right: 10px;
+  top: 8px; right: 12px;
   background: none;
   border: none;
   color: var(--text-dim);
   font-size: 20px;
   cursor: pointer;
 }
-.tutorial-title { font-size: 16px; color: var(--accent); margin: 0 0 10px; }
+.tutorial-title { font-size: 16px; color: var(--accent); margin: 0 0 10px; letter-spacing: 0.04em; text-shadow: 0 0 8px rgba(245,178,60,.3); }
 .tutorial-body { margin: 0 0 16px; min-height: 4.5em; }
 .tutorial-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .tutorial-dots { display: flex; gap: 6px; }
 .tutorial-dots i {
-  width: 8px;
-  height: 8px;
+  width: 8px; height: 8px;
   border-radius: 50%;
-  background: var(--panel-edge);
+  background: #2b333d;
+  box-shadow: inset 0 0 2px #000;
 }
-.tutorial-dots i.on { background: var(--accent); }
+.tutorial-dots i.on { background: radial-gradient(circle at 35% 30%, #ffe6b0, var(--accent) 55%, #7a4f12 100%); box-shadow: 0 0 6px var(--accent); }
 
 @media (min-width: 700px) {
   .controls-grid { grid-template-columns: 1fr 1fr; }
