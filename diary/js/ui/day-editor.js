@@ -17,6 +17,8 @@ export function createDayEditor(ctx, { onChange } = {}) {
     imageInput: $('edit-image-input'),
     imageNote: $('edit-image-note'),
     images: $('edit-images'),
+    habits: $('edit-habits'),
+    habitNote: $('edit-habit-note'),
   };
   let date = null;
   let urls = [];
@@ -36,9 +38,11 @@ export function createDayEditor(ctx, { onChange } = {}) {
     if (!date) return;
     renderSeq += 1;
     const seq = renderSeq;
-    const [entry, tags] = await Promise.all([
+    const [entry, tags, habits, checks] = await Promise.all([
       ctx.stores.entries.get(date),
       ctx.stores.tags.list({ includeHidden: false }), // 隠したタグは候補に出さない
+      ctx.stores.habits.list(),
+      ctx.stores.habitLogs.forDate(date),
     ]);
     if (seq !== renderSeq) return;
 
@@ -139,6 +143,35 @@ export function createDayEditor(ctx, { onChange } = {}) {
     els.images.replaceChildren(...cells);
     els.imageAdd.disabled = imageIds.length >= MAX_IMAGES_PER_DAY;
     note(els.imageNote, imageIds.length >= MAX_IMAGES_PER_DAY ? '画像は1日10枚までです。' : null);
+
+    // 日課チェック(過去日も編集可。2026-08-14 PD FB)。当日の連続達成キャラ演出はしない。
+    if (habits.length === 0) {
+      els.habits.replaceChildren();
+      note(els.habitNote, '日課はまだありません。「日課」タブから登録できます。');
+    } else {
+      note(els.habitNote, null);
+      els.habits.replaceChildren(
+        ...habits.map((habit) => {
+          const li = document.createElement('li');
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.checked = checks[habit.id] === true;
+          cb.onchange = async () => {
+            await ctx.stores.habitLogs.setChecked(date, habit.id, cb.checked);
+            ctx.notifySaved?.();
+            onChange?.();
+          };
+          const icon = document.createElement('span');
+          icon.className = 'habit-icon';
+          ctx.renderHabitIcon(icon, habit.icon);
+          const name = document.createElement('span');
+          name.className = 'habit-name';
+          name.textContent = habit.name;
+          li.append(cb, icon, name);
+          return li;
+        }),
+      );
+    }
   }
 
   els.text.onchange = async () => {
@@ -188,6 +221,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
       revoke();
       els.tags.replaceChildren();
       els.images.replaceChildren();
+      els.habits.replaceChildren();
     },
   };
 }
