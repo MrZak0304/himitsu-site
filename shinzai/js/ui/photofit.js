@@ -51,9 +51,13 @@ const JOINT_LABELS = {
 };
 
 // container: 画像+SVGオーバーレイを入れる要素 / onChange: 関節が動くたび joints(px) を通知
-export function createPhotoFit(container, onChange) {
+// onStatus: 操作ガイド文の通知(2タップフィットの進行表示)
+export function createPhotoFit(container, onChange, onStatus = () => {}) {
   let joints = null; // {id: {x,y}} px(表示座標)
   let svg = null;
+  let tapTop = null; // 2タップフィット: 1回目(頭頂)のタップ位置
+
+  const TAP_GUIDE = '骨格がずれているときは、画像を直接タップ: 1回目=頭頂 → 2回目=足先 で骨格全体がその範囲に合います。細かい位置は点をドラッグ。';
 
   function emit() {
     if (joints) onChange({ ...joints });
@@ -125,8 +129,51 @@ export function createPhotoFit(container, onChange) {
       c.addEventListener('pointerdown', (ev) => startDrag(ev, id));
       svg.append(c);
     }
+    // 2タップフィット: 関節以外の場所のタップで頭頂→足先を指定して骨格全体を合わせる
+    svg.addEventListener('pointerdown', onCanvasTap);
     redrawBones();
     return svg;
+  }
+
+  function onCanvasTap(ev) {
+    if (ev.target.dataset?.joint) return; // 関節のドラッグはそちらで処理
+    const p = svgPoint(ev);
+    if (!tapTop) {
+      tapTop = p;
+      drawTapMarker(p);
+      onStatus('頭頂を指定しました。次に足先をタップしてください。');
+      return;
+    }
+    const soleP = p;
+    clearTapMarker();
+    if (soleP.y - tapTop.y < 20) {
+      tapTop = null;
+      onStatus('足先は頭頂より下をタップしてください。もう一度、頭頂からやり直せます。');
+      return;
+    }
+    const vb = svg.viewBox.baseVal;
+    layoutTemplate(vb.width, vb.height, {
+      figTop: tapTop.y,
+      figH: soleP.y - tapTop.y,
+      cx: (tapTop.x + soleP.x) / 2,
+    });
+    tapTop = null;
+    redrawBones();
+    onStatus(TAP_GUIDE);
+    emit();
+  }
+
+  function drawTapMarker(p) {
+    const m = document.createElementNS(SVG_NS, 'circle');
+    m.setAttribute('class', 'tap-marker');
+    m.setAttribute('cx', p.x);
+    m.setAttribute('cy', p.y);
+    m.setAttribute('r', 6);
+    svg.append(m);
+  }
+
+  function clearTapMarker() {
+    for (const m of svg.querySelectorAll('.tap-marker')) m.remove();
   }
 
   function titleEl(text) {
@@ -146,6 +193,7 @@ export function createPhotoFit(container, onChange) {
 
   function startDrag(ev, id) {
     ev.preventDefault();
+    ev.stopPropagation(); // 2タップフィットのタップ扱いにしない
     const target = ev.currentTarget;
     target.setPointerCapture(ev.pointerId);
     const move = (e) => {
@@ -175,8 +223,10 @@ export function createPhotoFit(container, onChange) {
         img.className = 'photofit-image';
         container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
         container.append(img);
+        tapTop = null;
         layoutTemplate(w, h, detectBox(img, w, h));
         container.append(buildOverlay(w, h));
+        onStatus(TAP_GUIDE);
         emit();
         resolvePromise();
       };

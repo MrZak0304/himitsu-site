@@ -223,6 +223,12 @@ td .note { font-size: 0.75rem; color: #857a6a; }
   stroke-width: 2;
   cursor: grab;
 }
+.photofit-overlay .tap-marker {
+  fill: none;
+  stroke: var(--felt);
+  stroke-width: 3;
+  cursor: default;
+}
 
 /* 保存リスト・材料リスト */
 .preset-list, .material-list { list-style: none; padding: 0; margin: 0; }

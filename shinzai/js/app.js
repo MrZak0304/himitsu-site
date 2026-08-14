@@ -2,7 +2,7 @@
 import { computeArmature, SCALE_CHOICES } from './core/armature.js';
 import { PROPORTION_PRESETS } from './core/proportions.js';
 import {
-  applyAdjustments, ADJUSTMENT_DEFS, DEFAULT_ADJUSTMENTS,
+  applyAdjustments, ADJUSTMENT_DEFS, DEFAULT_ADJUSTMENTS, isAdjusted,
 } from './core/adjustments.js';
 import { ratiosFromJoints } from './core/skeleton2d.js';
 import {
@@ -136,9 +136,7 @@ function syncModeRows() {
 }
 
 function activeCustomRatios() {
-  if (!LIMITS.adjustments) return null;
-  const touched = ADJUSTMENT_DEFS.some((d) => Math.abs(adjustments[d.key] - 1) > 1e-6);
-  if (!touched) return null;
+  if (!LIMITS.adjustments || !isAdjusted(adjustments)) return null;
   return applyAdjustments(PROPORTION_PRESETS[$('preset').value].ratios, adjustments);
 }
 
@@ -177,6 +175,8 @@ function renderCalc() {
 function buildAdjustSliders() {
   const box = $('adjustSliders');
   box.replaceChildren();
+  const baseRatios = PROPORTION_PRESETS[$('preset').value].ratios;
+  const format = (def, v) => (def.absolute ? `${Number(v).toFixed(1)}頭身` : `${Math.round(v * 100)}%`);
   for (const def of ADJUSTMENT_DEFS) {
     const row = h('div', 'row');
     const label = h('label', null, def.label);
@@ -186,12 +186,15 @@ function buildAdjustSliders() {
     input.id = `adj-${def.key}`;
     input.min = def.min;
     input.max = def.max;
-    input.step = '0.01';
-    input.value = adjustments[def.key];
-    const value = h('span', 'adj-value', `${Math.round(adjustments[def.key] * 100)}%`);
+    input.step = String(def.step);
+    // 頭身(absolute)は未調整=プリセットの頭身を表示
+    const current = adjustments[def.key]
+      ?? (def.absolute ? Math.round(10 / baseRatios.head) / 10 : def.default);
+    input.value = current;
+    const value = h('span', 'adj-value', format(def, current));
     input.addEventListener('input', () => {
       adjustments[def.key] = Number(input.value);
-      value.textContent = `${Math.round(adjustments[def.key] * 100)}%`;
+      value.textContent = format(def, adjustments[def.key]);
       renderCalc();
     });
     row.append(label, input, value);
@@ -383,13 +386,18 @@ function main() {
     radio.addEventListener('change', () => { syncModeRows(); renderPhoto(); });
   }
   $('scale').addEventListener('change', renderCalc);
-  for (const id of ['height', 'preset', 'targetHeight']) {
+  for (const id of ['height', 'targetHeight']) {
     $(id).addEventListener('input', renderCalc);
   }
+  $('preset').addEventListener('change', () => {
+    buildAdjustSliders(); // 未調整の頭身表示をプリセットに追従させる
+    renderCalc();
+  });
   $('adjustReset').addEventListener('click', resetAdjustments);
   $('saveBtn').addEventListener('click', onSave);
 
-  photoFit = createPhotoFit($('photoBox'), renderPhoto);
+  photoFit = createPhotoFit($('photoBox'), renderPhoto,
+    (text) => { $('photoTapHint').textContent = text; });
   $('photoFile').addEventListener('change', (e) => onPhotoFile(e.target.files?.[0]));
   for (const id of ['photoTarget', 'photoHeight']) {
     $(id).addEventListener('input', renderPhoto);
