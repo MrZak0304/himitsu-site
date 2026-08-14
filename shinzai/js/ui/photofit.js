@@ -56,8 +56,13 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   let joints = null; // {id: {x,y}} px(表示座標)
   let svg = null;
   let tapTop = null; // 2タップフィット: 1回目(頭頂)のタップ位置
+  // 2回目のタップの基準。足先が描かれていないイラスト向けに「腰(股)」も選べる
+  // (2026-08-14 PDフィードバック第3弾)。hip のときは 頭頂〜股=全高の半分 の比率則から全身を逆算する。
+  let tapAnchor = 'sole'; // 'sole' | 'hip'
 
-  const TAP_GUIDE = '骨格がずれているときは、画像を直接タップ: 1回目=頭頂 → 2回目=足先 で骨格全体がその範囲に合います。細かい位置は点をドラッグ。';
+  const anchorLabel = () => (tapAnchor === 'hip' ? '腰(股)' : '足先');
+  const tapGuide = () =>
+    `骨格がずれているときは、画像を直接タップ: 1回目=頭頂 → 2回目=${anchorLabel()} で骨格全体がその範囲に合います。細かい位置は点をドラッグ。`;
 
   function emit() {
     if (joints) onChange({ ...joints });
@@ -141,26 +146,36 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     if (!tapTop) {
       tapTop = p;
       drawTapMarker(p);
-      onStatus('頭頂を指定しました。次に足先をタップしてください。');
+      onStatus(`頭頂を指定しました。次に${anchorLabel()}をタップしてください。`);
       return;
     }
-    const soleP = p;
     clearTapMarker();
-    if (soleP.y - tapTop.y < 20) {
+    if (p.y - tapTop.y < 20) {
       tapTop = null;
-      onStatus('足先は頭頂より下をタップしてください。もう一度、頭頂からやり直せます。');
+      onStatus(`${anchorLabel()}は頭頂より下をタップしてください。もう一度、頭頂からやり直せます。`);
       return;
     }
+    const base = PROPORTION_PRESETS['female-adult'].ratios;
+    const span = p.y - tapTop.y;
+    // 腰(股)基準なら 頭頂〜股=全高×hipTop から全身の高さを逆算(脚は画面外でも比率で補完される)
+    const figH = tapAnchor === 'hip' ? span / base.hipTop : span;
     const vb = svg.viewBox.baseVal;
     layoutTemplate(vb.width, vb.height, {
       figTop: tapTop.y,
-      figH: soleP.y - tapTop.y,
-      cx: (tapTop.x + soleP.x) / 2,
+      figH,
+      cx: (tapTop.x + p.x) / 2,
     });
     tapTop = null;
     redrawBones();
-    onStatus(TAP_GUIDE);
+    onStatus(tapGuide());
     emit();
+  }
+
+  function setTapAnchor(anchor) {
+    tapAnchor = anchor === 'hip' ? 'hip' : 'sole';
+    tapTop = null;
+    if (svg) clearTapMarker();
+    if (joints) onStatus(tapGuide());
   }
 
   function drawTapMarker(p) {
@@ -226,7 +241,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
         tapTop = null;
         layoutTemplate(w, h, detectBox(img, w, h));
         container.append(buildOverlay(w, h));
-        onStatus(TAP_GUIDE);
+        onStatus(tapGuide());
         emit();
         resolvePromise();
       };
@@ -235,5 +250,5 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     });
   }
 
-  return { loadImage, getJoints: () => (joints ? { ...joints } : null) };
+  return { loadImage, setTapAnchor, getJoints: () => (joints ? { ...joints } : null) };
 }

@@ -82,6 +82,10 @@
         <label for="photoScale">スケール</label>
         <select id="photoScale"></select>
       </div>
+      <div class="mode-row" role="radiogroup" aria-label="画像の写り">
+        <label class="mode"><input type="radio" name="tapAnchor" value="sole" checked>足先まで写っている</label>
+        <label class="mode"><input type="radio" name="tapAnchor" value="hip">腰(股)まで写っている</label>
+      </div>
       <p id="photoTapHint" class="hint" role="status"></p>
       <div id="photoBox" class="photofit-box"></div>
     </section>

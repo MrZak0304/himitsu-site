@@ -16,6 +16,7 @@ import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
 const $ = (id) => document.getElementById(id);
 const storage = window.localStorage;
 let adjustments = { ...DEFAULT_ADJUSTMENTS };
+let showFlesh = false; // 肉付けイメージの表示(両タブ共通)
 
 // ---- タブ ----
 
@@ -63,8 +64,23 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       `推奨アルミ線径 ${result.wireDiameterMm}mm(2本撚り)`),
   );
 
+  const fleshRow = h('div', 'flesh-row');
+  const fleshLabel = h('label', 'flesh-toggle');
+  const fleshCb = document.createElement('input');
+  fleshCb.type = 'checkbox';
+  fleshCb.className = 'flesh-checkbox';
+  fleshCb.checked = showFlesh;
+  fleshCb.addEventListener('change', () => {
+    showFlesh = fleshCb.checked;
+    renderCalc();
+    renderPhoto();
+  });
+  fleshLabel.append(fleshCb, h('span', null, '肉付けイメージを表示'));
+  fleshRow.append(fleshLabel);
+  root.append(fleshRow);
+
   const views = h('div', 'views');
-  views.append(renderThreeViews(result));
+  views.append(renderThreeViews(result, { flesh: showFlesh }));
   root.append(views);
 
   root.append(h('h3', null, '各部の仕上がり寸法'));
@@ -403,6 +419,9 @@ function main() {
     $(id).addEventListener('input', renderPhoto);
   }
   $('photoScale').addEventListener('change', renderPhoto);
+  for (const radio of document.querySelectorAll('input[name=tapAnchor]')) {
+    radio.addEventListener('change', () => photoFit.setTapAnchor(radio.value));
+  }
 
   if (IS_FREE) {
     $('adjustPanel').hidden = true;

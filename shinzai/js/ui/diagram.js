@@ -142,8 +142,94 @@ function sideBones(seg, g) {
   return bones;
 }
 
+// 肉付けイメージ(ざっくり人型シルエット)。骨格の下に敷く(2026-08-14 PDフィードバック第3弾)
+function fleshFront(seg, g) {
+  const flesh = el('g', { class: 'flesh' });
+  const armW = Math.max(4, g.headR * 0.55);
+  const legW = Math.max(5, g.headR * 0.85);
+  // 頭・首
+  flesh.append(
+    el('circle', { cx: g.cx, cy: g.top + g.headR, r: g.headR * 1.04 }),
+    el('line', { x1: g.cx, y1: g.neckY - 2, x2: g.cx, y2: g.shoulderY, 'stroke-width': g.headR * 0.55 }),
+  );
+  // 胴(肩→ウエスト→腰のくびれ付きシルエット)
+  const sw = g.shoulderHalf * 0.95;
+  const hw = g.hipHalf * 1.3;
+  const waistY = (g.shoulderY + g.hipY) / 2;
+  const ww = Math.min(sw, hw) * 0.8;
+  flesh.append(el('path', {
+    d: `M ${g.cx - sw} ${g.shoulderY} L ${g.cx + sw} ${g.shoulderY} `
+      + `Q ${g.cx + ww} ${waistY} ${g.cx + hw} ${g.hipY} `
+      + `L ${g.cx - hw} ${g.hipY} `
+      + `Q ${g.cx - ww} ${waistY} ${g.cx - sw} ${g.shoulderY} Z`,
+    'stroke-width': 4,
+  }));
+  // 腕・脚・手足(骨組みと同じ経路を太いストロークで)
+  for (const side of [-1, 1]) {
+    const sx = g.cx + side * g.shoulderHalf;
+    const ex = sx + side * 6;
+    const elbowY = g.shoulderY + seg.upperArm * g.k;
+    const wx = ex + side * 4;
+    const wristY = elbowY + seg.forearm * g.k;
+    flesh.append(el('path', {
+      d: `M ${sx} ${g.shoulderY} L ${ex} ${elbowY} L ${wx} ${wristY}`,
+      fill: 'none', 'stroke-width': armW,
+    }));
+    flesh.append(el('ellipse', {
+      cx: wx + side * (seg.hand / 2) * g.k * 0.4,
+      cy: wristY + (seg.hand / 2) * g.k,
+      rx: Math.max(4, (seg.hand / 3) * g.k * 1.2),
+      ry: (seg.hand / 2) * g.k * 1.1,
+    }));
+    const hx = g.cx + side * g.hipHalf;
+    const kneeY = g.hipY + seg.thigh * g.k;
+    const ankleY = kneeY + seg.shin * g.k;
+    flesh.append(el('path', {
+      d: `M ${hx} ${g.hipY} L ${hx} ${kneeY} L ${hx} ${ankleY}`,
+      fill: 'none', 'stroke-width': legW,
+    }));
+    flesh.append(el('ellipse', {
+      cx: hx + side * (seg.footLength / 2) * g.k * 0.6,
+      cy: g.soleY - (seg.ankle / 2) * g.k,
+      rx: (seg.footLength / 2) * g.k * 1.1,
+      ry: Math.max(3, (seg.ankle / 2) * g.k * 1.2),
+    }));
+  }
+  return flesh;
+}
+
+function fleshSide(seg, g) {
+  const flesh = el('g', { class: 'flesh' });
+  const bodyW = Math.max(6, g.shoulderHalf * 1.05); // 側面の胴の厚み
+  const armW = Math.max(4, g.headR * 0.55);
+  const legW = Math.max(5, g.headR * 0.85);
+  const elbowY = g.shoulderY + seg.upperArm * g.k;
+  const wristY = elbowY + seg.forearm * g.k;
+  const kneeY = g.hipY + seg.thigh * g.k;
+  const ankleY = kneeY + seg.shin * g.k;
+  const footPx = seg.footLength * g.k;
+  flesh.append(
+    el('circle', { cx: g.cx + g.headR * 0.25, cy: g.top + g.headR, r: g.headR * 1.04 }),
+    el('line', { x1: g.cx, y1: g.neckY - 2, x2: g.cx, y2: g.hipY, 'stroke-width': bodyW }),
+    el('path', {
+      d: `M ${g.cx} ${g.shoulderY} L ${g.cx - 5} ${elbowY} L ${g.cx - 2} ${wristY}`,
+      fill: 'none', 'stroke-width': armW,
+    }),
+    el('path', {
+      d: `M ${g.cx} ${g.hipY} L ${g.cx + 3} ${kneeY} L ${g.cx} ${ankleY}`,
+      fill: 'none', 'stroke-width': legW,
+    }),
+    el('path', {
+      d: `M ${g.cx - footPx * 0.3} ${g.soleY - 2} L ${g.cx + footPx * 0.7} ${g.soleY - 2}`,
+      fill: 'none', 'stroke-width': Math.max(4, seg.ankle * g.k),
+    }),
+  );
+  return flesh;
+}
+
 // result = computeArmature() の戻り値、view = 'front' | 'side' | 'back'
-export function renderDiagram(result, view = 'front') {
+// opts.flesh = true で肉付けイメージ(シルエット)を骨格の下に重ねる
+export function renderDiagram(result, view = 'front', { flesh = false } = {}) {
   const seg = result.segments;
   const g = geometry(seg);
   const svg = el('svg', {
@@ -152,6 +238,7 @@ export function renderDiagram(result, view = 'front') {
     'aria-label': `骨格図(${view === 'front' ? '正面' : view === 'side' ? '側面' : '背面'})`,
   });
   if (view === 'side') {
+    if (flesh) svg.append(fleshSide(seg, g));
     svg.append(sideBones(seg, g));
     svg.append(
       dimLineV(g.cx + g.headR + 50, g.top, g.soleY, `全高 ${seg.figureHeight}cm`),
@@ -159,6 +246,7 @@ export function renderDiagram(result, view = 'front') {
         `足 ${seg.footLength}cm`),
     );
   } else {
+    if (flesh) svg.append(fleshFront(seg, g));
     svg.append(frontBones(seg, g));
     if (view === 'front') {
       const rightX = g.cx + Math.max(g.shoulderHalf, g.hipHalf) + 52;
@@ -183,13 +271,13 @@ export function renderDiagram(result, view = 'front') {
 }
 
 // 三面図(正面・側面・背面)をまとめて返す
-export function renderThreeViews(result) {
+export function renderThreeViews(result, opts = {}) {
   const frag = document.createDocumentFragment();
   const views = [['front', '正面'], ['side', '側面'], ['back', '背面']];
   for (const [view, label] of views) {
     const fig = document.createElement('figure');
     fig.className = 'view';
-    fig.append(renderDiagram(result, view));
+    fig.append(renderDiagram(result, view, opts));
     const cap = document.createElement('figcaption');
     cap.textContent = label;
     fig.append(cap);

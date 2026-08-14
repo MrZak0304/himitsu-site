@@ -184,6 +184,22 @@ details[open] summary { margin-bottom: 6px; }
   color: var(--thread);
   padding-bottom: 4px;
 }
+/* 肉付けイメージ(粘土色のシルエット) */
+.flesh { opacity: 0.85; }
+.flesh circle, .flesh ellipse { fill: #e6c9a5; stroke: none; }
+.flesh path, .flesh line { stroke: #e6c9a5; stroke-linecap: round; stroke-linejoin: round; }
+.flesh path[d*="Z"] { fill: #e6c9a5; }
+.flesh-row { margin: 8px 0 4px; }
+.flesh-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--felt-dark);
+}
+.flesh-checkbox { min-width: 0; width: 18px; height: 18px; accent-color: var(--felt); }
+
 .bones line, .bones circle, .bones ellipse {
   stroke: var(--ink);
   stroke-width: 3;
