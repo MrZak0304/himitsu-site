@@ -4,6 +4,7 @@
 import { buildMonth, prevMonth, nextMonth } from '../core/calendar.js';
 import { monthOfKey } from '../core/dates.js';
 import { monthlyTagRanking } from '../core/tag-stats.js';
+import { monthlyHabitCounts } from '../core/habit-stats.js';
 import { createDayEditor } from './day-editor.js';
 
 export function initCalendar(ctx) {
@@ -27,6 +28,8 @@ export function initCalendar(ctx) {
     detailClose: $('detail-close'),
     monthRanking: $('month-ranking'),
     monthRankingList: $('month-ranking-list'),
+    monthHabits: $('month-habits'),
+    monthHabitsList: $('month-habits-list'),
   };
   let cur = monthOfKey(ctx.todayKey());
   let openDate = null; // 詳細/編集で開いている日付
@@ -44,7 +47,12 @@ export function initCalendar(ctx) {
     const today = ctx.todayKey();
     if (!editing) els.detail.hidden = true;
     els.title.textContent = `${cur.year}年${cur.month}月`;
-    const [entries, tags] = await Promise.all([ctx.stores.entries.all(), ctx.stores.tags.list()]);
+    const [entries, tags, habits, habitLogs] = await Promise.all([
+      ctx.stores.entries.all(),
+      ctx.stores.tags.list(),
+      ctx.stores.habits.list(),
+      ctx.stores.habitLogs.all(),
+    ]);
     const tagName = new Map(tags.map((t) => [t.id, t.name]));
     const weeks = buildMonth(cur.year, cur.month, entries, today);
 
@@ -117,6 +125,28 @@ export function initCalendar(ctx) {
     } else {
       els.monthRanking.hidden = true;
       els.monthRankingList.replaceChildren();
+    }
+
+    // 月間の日課達成日数(この月に各日課を何日達成したか。達成感の可視化。2026-08-14 PD要望)
+    const habitCounts = monthlyHabitCounts(habitLogs, habits, cur.year, cur.month);
+    if (habitCounts.length > 0) {
+      els.monthHabits.hidden = false;
+      els.monthHabitsList.replaceChildren(
+        ...habitCounts.map((h) => {
+          const li = document.createElement('li');
+          const name = document.createElement('span');
+          name.className = 'habit-count-name';
+          name.textContent = h.name;
+          const c = document.createElement('span');
+          c.className = 'habit-count-days';
+          c.textContent = `${h.count}日`;
+          li.append(name, c);
+          return li;
+        }),
+      );
+    } else {
+      els.monthHabits.hidden = true;
+      els.monthHabitsList.replaceChildren();
     }
   }
 
