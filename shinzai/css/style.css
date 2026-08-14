@@ -1,0 +1,244 @@
+/* css/style.css — 紙・布のハンドクラフト調(2026-08-13 PD決定)
+   デザイン画像・外部フォントは使わない(不変条件)。質感はCSSグラデーションと
+   ステッチ風の破線ボーダーで表現する。 */
+:root {
+  --paper: #f3ecdd;          /* 生成り紙の地 */
+  --paper-line: #e7dcc4;
+  --card: #fffdf4;           /* カード=白い紙 */
+  --stitch: #c9b48e;         /* ステッチ(縫い目)の糸色 */
+  --ink: #4a4036;            /* 鉛筆・インク */
+  --thread: #a2543f;         /* 赤茶の糸(アクセント) */
+  --felt: #7c8c66;           /* フェルトのモスグリーン(ボタン) */
+  --felt-dark: #667553;
+  --danger: #b05a4a;
+  --grid: #e3d9c2;           /* 方眼紙の線 */
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; } /* .row の display:flex に hidden 属性が負けないように */
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+  line-height: 1.6;
+  /* 紙の質感: ベース色+ごく薄い繊維ムラ */
+  background:
+    repeating-linear-gradient(0deg, transparent 0 22px, var(--paper-line) 22px 23px),
+    repeating-linear-gradient(90deg, transparent 0 26px, rgba(231, 220, 196, 0.55) 26px 27px),
+    var(--paper);
+}
+header, main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 14px;
+}
+main { padding-bottom: 92px; } /* 下部メニューぶん */
+
+header { padding-top: 20px; text-align: center; }
+h1 {
+  font-size: 1.35rem;
+  margin: 0;
+  letter-spacing: 0.06em;
+}
+h1 .sub {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: normal;
+  color: var(--thread);
+  letter-spacing: 0.12em;
+}
+
+h2 {
+  font-size: 1.02rem;
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px dashed var(--thread); /* 縫い目風の見出し下線 */
+}
+h3 { font-size: 0.95rem; margin: 18px 0 4px; }
+
+/* カード=ステッチで縫い付けた紙片 */
+.card {
+  background: var(--card);
+  border: 2px dashed var(--stitch);
+  border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(74, 64, 54, 0.12);
+  padding: 14px 16px 16px;
+  margin: 16px 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.row label { min-width: 9em; font-size: 0.9rem; }
+input, select {
+  font-size: 1rem;
+  padding: 6px 10px;
+  border: 1.5px solid var(--stitch);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  min-width: 9em;
+  font-family: inherit;
+}
+input[type="range"] { min-width: 8em; flex: 1; accent-color: var(--felt); }
+input[type="file"] { border: none; min-width: 0; }
+.adj-value { min-width: 3.2em; text-align: right; font-size: 0.85rem; color: var(--thread); }
+
+button {
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 7px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--felt);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 2px 0 var(--felt-dark);
+}
+button:active { transform: translateY(1px); box-shadow: none; }
+button.ghost {
+  background: transparent;
+  color: var(--felt-dark);
+  border: 1.5px dashed var(--felt);
+  box-shadow: none;
+}
+button.danger { background: var(--danger); box-shadow: 0 2px 0 #8d4638; }
+
+details { margin: 12px 0; }
+details summary {
+  cursor: pointer;
+  color: var(--felt-dark);
+  font-size: 0.92rem;
+  font-weight: bold;
+}
+details[open] summary { margin-bottom: 6px; }
+
+.save-row input[type="text"] { flex: 1; }
+
+.hint { font-size: 0.8rem; color: #857a6a; margin: 6px 0; }
+.hint.is-error, #saveMsg.is-error { color: var(--danger); }
+.error {
+  background: #f9e8e3;
+  border: 2px dashed var(--danger);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+}
+.summary { font-weight: bold; }
+
+/* 三面図: 方眼紙のパネル */
+.views {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.views .view {
+  margin: 0;
+  flex: 1 1 180px;
+  max-width: 250px;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 14px, var(--grid) 14px 15px),
+    repeating-linear-gradient(90deg, transparent 0 14px, var(--grid) 14px 15px),
+    #fbf7ea;
+  border: 1.5px solid var(--stitch);
+  border-radius: 8px;
+  padding: 4px;
+}
+.views .view svg { width: 100%; height: auto; display: block; }
+.views figcaption {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--thread);
+  padding-bottom: 4px;
+}
+.bones line, .bones circle, .bones ellipse {
+  stroke: var(--ink);
+  stroke-width: 3;
+  stroke-linecap: round;
+  fill: none;
+}
+.dim line { stroke: var(--thread); stroke-width: 1.5; }
+.dim text { fill: var(--thread); font-size: 13px; font-family: inherit; }
+
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { border-bottom: 1px dashed var(--stitch); padding: 6px 8px; text-align: left; }
+th { background: #f6efdd; }
+td.num, th.num { text-align: right; white-space: nowrap; }
+td .note { font-size: 0.75rem; color: #857a6a; }
+
+/* 画像から: オーバーレイ */
+.photofit-box {
+  position: relative;
+  margin-top: 12px;
+  max-width: 420px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.photofit-box:empty { display: none; }
+.photofit-image { width: 100%; display: block; }
+.photofit-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.photofit-overlay line { stroke: #5f7f9e; stroke-width: 2.5; stroke-linecap: round; }
+.photofit-overlay circle {
+  fill: rgba(162, 84, 63, 0.85);
+  stroke: #fff;
+  stroke-width: 2;
+  cursor: grab;
+}
+
+/* 保存リスト・材料リスト */
+.preset-list, .material-list { list-style: none; padding: 0; margin: 0; }
+.preset-list li, .material-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 4px;
+  border-bottom: 1px dashed var(--stitch);
+}
+.preset-list .preset-name { font-weight: bold; flex: 1; }
+.preset-list .preset-date { font-size: 0.78rem; color: #857a6a; }
+.material-list li { display: block; }
+.material-list .note { font-size: 0.8rem; }
+.material-list .shops { font-size: 0.8rem; color: var(--felt-dark); }
+a { color: var(--thread); }
+
+/* 下部メニュー=布のテープ */
+.tabbar {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+  background:
+    repeating-linear-gradient(45deg, rgba(255,255,255,0.06) 0 8px, transparent 8px 16px),
+    #8b7a5e; /* 麻布のテープ */
+  border-top: 2px dashed #f3ecdd; /* 縫い付け */
+}
+.tabbar button {
+  flex: 1;
+  max-width: 130px;
+  background: transparent;
+  box-shadow: none;
+  color: #f3ecdd;
+  font-size: 0.85rem;
+  padding: 8px 4px;
+  border-radius: 8px;
+}
+.tabbar button[aria-selected="true"] {
+  background: var(--card);
+  color: var(--ink);
+  font-weight: bold;
+}
