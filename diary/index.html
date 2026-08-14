@@ -85,6 +85,16 @@
       <h2 class="panel-title" id="cal-title"></h2>
       <button id="cal-next" class="icon-btn" aria-label="次の月"><span data-ui-icon="right"></span></button>
     </div>
+
+    <!-- ふりかえりのサブメニュー(2026-08-14 PD案。情報が増えても整理して見られるように) -->
+    <div class="sub-tabs" id="cal-subtabs" role="tablist">
+      <button class="sub-tab active" data-subview="calendar">カレンダー</button>
+      <button class="sub-tab" data-subview="tags">よく使うタグ</button>
+      <button class="sub-tab" data-subview="habits">日課の達成</button>
+    </div>
+
+    <!-- サブビュー: カレンダー -->
+    <div id="subview-calendar">
     <div class="cal-dow"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
     <div id="cal-grid" class="cal-grid"></div>
 
@@ -127,17 +137,24 @@
         <button id="detail-edit-done" class="btn">編集を終える</button>
       </div>
     </div>
+    </div><!-- /subview-calendar -->
 
-    <!-- 月間タグランキング(この月によく使ったタグ) -->
-    <div id="month-ranking" hidden>
-      <h4 class="section-title">この月によく使ったタグ</h4>
-      <ol id="month-ranking-list" class="ranking-list"></ol>
+    <!-- サブビュー: よく使うタグ(この月によく使ったタグ) -->
+    <div id="subview-tags" hidden>
+      <div id="month-ranking">
+        <h4 class="section-title">この月によく使ったタグ</h4>
+        <ol id="month-ranking-list" class="ranking-list"></ol>
+      </div>
+      <p class="note" id="month-ranking-empty" hidden>この月はまだタグの記録がありません。</p>
     </div>
 
-    <!-- 月間の日課達成日数(達成感の可視化) -->
-    <div id="month-habits" hidden>
-      <h4 class="section-title">この月の日課の達成</h4>
-      <ul id="month-habits-list" class="habit-count-list"></ul>
+    <!-- サブビュー: 日課の達成(月間の達成日数) -->
+    <div id="subview-habits" hidden>
+      <div id="month-habits">
+        <h4 class="section-title">この月の日課の達成</h4>
+        <ul id="month-habits-list" class="habit-count-list"></ul>
+      </div>
+      <p class="note" id="month-habits-empty" hidden>日課がまだありません。「日課」タブから登録できます。</p>
     </div>
   </section>
 

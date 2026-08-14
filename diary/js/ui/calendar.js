@@ -28,12 +28,19 @@ export function initCalendar(ctx) {
     detailClose: $('detail-close'),
     monthRanking: $('month-ranking'),
     monthRankingList: $('month-ranking-list'),
+    monthRankingEmpty: $('month-ranking-empty'),
     monthHabits: $('month-habits'),
     monthHabitsList: $('month-habits-list'),
+    monthHabitsEmpty: $('month-habits-empty'),
+    subCalendar: $('subview-calendar'),
+    subTags: $('subview-tags'),
+    subHabits: $('subview-habits'),
+    subtabs: $('cal-subtabs'),
   };
   let cur = monthOfKey(ctx.todayKey());
   let openDate = null; // 詳細/編集で開いている日付
   let editing = false;
+  let subview = 'calendar'; // ふりかえりのサブタブ(calendar|tags|habits)
   let urls = [];
   let detailUrls = [];
   let renderSeq = 0; // 古い描画が新しい描画を上書きしないための世代トークン
@@ -107,46 +114,56 @@ export function initCalendar(ctx) {
     // 月間タグランキング(この月によく使ったタグ。上位5件・hidden除外)
     const hiddenIds = new Set(tags.filter((t) => t.hidden).map((t) => t.id));
     const ranking = monthlyTagRanking(entries, cur.year, cur.month, { hiddenTagIds: hiddenIds, limit: 5 });
-    if (ranking.length > 0) {
-      els.monthRanking.hidden = false;
-      els.monthRankingList.replaceChildren(
-        ...ranking.map((r) => {
-          const li = document.createElement('li');
-          const name = document.createElement('span');
-          name.className = 'ranking-name';
-          name.textContent = tagName.get(r.id) ?? '';
-          const c = document.createElement('span');
-          c.className = 'ranking-count';
-          c.textContent = `${r.count}回`;
-          li.append(name, c);
-          return li;
-        }),
-      );
-    } else {
-      els.monthRanking.hidden = true;
-      els.monthRankingList.replaceChildren();
-    }
+    els.monthRanking.hidden = ranking.length === 0; // 見出し+一覧は空なら隠し、代わりに空メッセージ
+    els.monthRankingEmpty.hidden = ranking.length > 0;
+    els.monthRankingList.replaceChildren(
+      ...ranking.map((r) => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'ranking-name';
+        name.textContent = tagName.get(r.id) ?? '';
+        const c = document.createElement('span');
+        c.className = 'ranking-count';
+        c.textContent = `${r.count}回`;
+        li.append(name, c);
+        return li;
+      }),
+    );
 
     // 月間の日課達成日数(この月に各日課を何日達成したか。達成感の可視化。2026-08-14 PD要望)
     const habitCounts = monthlyHabitCounts(habitLogs, habits, cur.year, cur.month);
-    if (habitCounts.length > 0) {
-      els.monthHabits.hidden = false;
-      els.monthHabitsList.replaceChildren(
-        ...habitCounts.map((h) => {
-          const li = document.createElement('li');
-          const name = document.createElement('span');
-          name.className = 'habit-count-name';
-          name.textContent = h.name;
-          const c = document.createElement('span');
-          c.className = 'habit-count-days';
-          c.textContent = `${h.count}日`;
-          li.append(name, c);
-          return li;
-        }),
-      );
-    } else {
-      els.monthHabits.hidden = true;
-      els.monthHabitsList.replaceChildren();
+    els.monthHabits.hidden = habitCounts.length === 0; // 日課が無ければ隠し、空メッセージを出す
+    els.monthHabitsEmpty.hidden = habitCounts.length > 0;
+    els.monthHabitsList.replaceChildren(
+      ...habitCounts.map((h) => {
+        const li = document.createElement('li');
+        const name = document.createElement('span');
+        name.className = 'habit-count-name';
+        name.textContent = h.name;
+        const c = document.createElement('span');
+        c.className = 'habit-count-days';
+        c.textContent = `${h.count}日`;
+        li.append(name, c);
+        return li;
+      }),
+    );
+  }
+
+  // ふりかえりのサブタブ切替(カレンダー/よく使うタグ/日課の達成)
+  function showSubview(name) {
+    subview = name;
+    // カレンダー以外へ移るときは開いていた詳細・編集を閉じる(詳細はカレンダー内の機能)
+    if (name !== 'calendar') {
+      editing = false;
+      editor.close();
+      els.detail.hidden = true;
+      openDate = null;
+    }
+    els.subCalendar.hidden = name !== 'calendar';
+    els.subTags.hidden = name !== 'tags';
+    els.subHabits.hidden = name !== 'habits';
+    for (const b of els.subtabs.querySelectorAll('.sub-tab')) {
+      b.classList.toggle('active', b.dataset.subview === name);
     }
   }
 
@@ -156,12 +173,14 @@ export function initCalendar(ctx) {
     editor.close();
     els.detail.hidden = true;
     openDate = null;
+    showSubview('calendar'); // ふりかえりを開いたらカレンダーから
     await renderGrid();
   }
 
-  // 指定日付の月を開いて詳細を表示(タグの使用日ジャンプ用)
+  // 指定日付の月を開いて詳細を表示(タグの使用日ジャンプ用)。カレンダーのサブビューに切替。
   async function openAt(date) {
     cur = monthOfKey(date);
+    showSubview('calendar');
     await renderGrid();
     await openDetail(date);
   }
@@ -260,6 +279,9 @@ export function initCalendar(ctx) {
 
   els.prev.onclick = () => move(-1);
   els.next.onclick = () => move(1);
+  for (const b of els.subtabs.querySelectorAll('.sub-tab')) {
+    b.onclick = () => showSubview(b.dataset.subview);
+  }
   els.detailEdit.onclick = startEdit;
   els.detailEditDone.onclick = endEdit;
   els.detailClose.onclick = () => {
