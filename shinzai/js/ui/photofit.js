@@ -59,6 +59,9 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   // 2回目のタップの基準。足先が描かれていないイラスト向けに「腰(股)」も選べる
   // (2026-08-14 PDフィードバック第3弾)。hip のときは 頭頂〜股=全高の半分 の比率則から全身を逆算する。
   let tapAnchor = 'sole'; // 'sole' | 'hip'
+  // 2タップフィットの受付状態。フィット完了後は false にして、微調整中の誤タップで
+  // 頭頂指定に戻らないようにする(2026-08-14 PDフィードバック第4弾)。再開は rearm()。
+  let armed = true;
 
   const anchorLabel = () => (tapAnchor === 'hip' ? '腰(股)' : '足先');
   const tapGuide = () =>
@@ -142,6 +145,10 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
 
   function onCanvasTap(ev) {
     if (ev.target.dataset?.joint) return; // 関節のドラッグはそちらで処理
+    if (!armed) {
+      onStatus('位置合わせのタップは完了しています。やり直すときは「タップで合わせ直す」を押してください。');
+      return;
+    }
     const p = svgPoint(ev);
     if (!tapTop) {
       tapTop = p;
@@ -166,16 +173,26 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
       cx: (tapTop.x + p.x) / 2,
     });
     tapTop = null;
+    armed = false; // 以後のタップは無効。微調整はドラッグ、やり直しは rearm()
     redrawBones();
-    onStatus(tapGuide());
+    onStatus('骨格を合わせました。細かい位置は点をドラッグで調整してください。');
     emit();
   }
 
   function setTapAnchor(anchor) {
     tapAnchor = anchor === 'hip' ? 'hip' : 'sole';
     tapTop = null;
+    armed = true; // 基準を変えた=合わせ直したいはず
     if (svg) clearTapMarker();
     if (joints) onStatus(tapGuide());
+  }
+
+  // 「タップで合わせ直す」: 2タップフィットの受付を再開する
+  function rearm() {
+    armed = true;
+    tapTop = null;
+    if (svg) clearTapMarker();
+    onStatus(tapGuide());
   }
 
   function drawTapMarker(p) {
@@ -239,6 +256,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
         container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
         container.append(img);
         tapTop = null;
+        armed = true;
         layoutTemplate(w, h, detectBox(img, w, h));
         container.append(buildOverlay(w, h));
         onStatus(tapGuide());
@@ -250,5 +268,5 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     });
   }
 
-  return { loadImage, setTapAnchor, getJoints: () => (joints ? { ...joints } : null) };
+  return { loadImage, setTapAnchor, rearm, getJoints: () => (joints ? { ...joints } : null) };
 }

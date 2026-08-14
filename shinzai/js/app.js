@@ -345,15 +345,20 @@ function renderPhoto() {
   }
 }
 
+// 画像読み込みの共通経路(ファイル選択・デバッグフックの両方から使う)
+function loadPhotoImage(dataUrl) {
+  return photoFit.loadImage(dataUrl).then(() => {
+    $('photoRefit').hidden = false;
+  }).catch((e) => {
+    $('photoError').hidden = false;
+    $('photoError').textContent = e.message;
+  });
+}
+
 function onPhotoFile(file) {
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
-    photoFit.loadImage(reader.result).catch((e) => {
-      $('photoError').hidden = false;
-      $('photoError').textContent = e.message;
-    });
-  };
+  reader.onload = () => loadPhotoImage(reader.result);
   reader.readAsDataURL(file);
 }
 
@@ -422,6 +427,7 @@ function main() {
   for (const radio of document.querySelectorAll('input[name=tapAnchor]')) {
     radio.addEventListener('change', () => photoFit.setTapAnchor(radio.value));
   }
+  $('photoRefit').addEventListener('click', () => photoFit.rearm());
 
   if (IS_FREE) {
     $('adjustPanel').hidden = true;
@@ -432,7 +438,7 @@ function main() {
   renderCalc();
 
   // スモークテスト用の開発フック(画像入力をdataURLで直接流し込む)
-  window.__debug = { loadPhoto: (dataUrl) => photoFit.loadImage(dataUrl) };
+  window.__debug = { loadPhoto: loadPhotoImage };
 }
 
 main();
