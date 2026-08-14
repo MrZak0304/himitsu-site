@@ -75,6 +75,33 @@ h3 { font-size: 0.95rem; margin: 18px 0 4px; }
   flex-wrap: wrap;
 }
 .row label { min-width: 9em; font-size: 0.9rem; }
+
+/* サイズの決め方: 布パッチ風の切り替えボタン */
+.mode-row { display: flex; gap: 8px; margin: 4px 0 10px; }
+.mode-row .mode {
+  flex: 1;
+  text-align: center;
+  padding: 8px 6px;
+  border: 1.5px dashed var(--stitch);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background: #faf6e9;
+  color: #857a6a;
+}
+.mode-row .mode:has(input:checked) {
+  background: var(--felt);
+  border-style: solid;
+  border-color: var(--felt-dark);
+  color: #fff;
+  font-weight: bold;
+}
+.mode-row input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  width: 0; height: 0;
+  min-width: 0;
+}
 input, select {
   font-size: 1rem;
   padding: 6px 10px;

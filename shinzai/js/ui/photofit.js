@@ -3,6 +3,7 @@
 // 画像は端末内でのみ扱い、外部送信・保存はしない(不変条件)。
 
 import { PROPORTION_PRESETS } from '../core/proportions.js';
+import { detectFigureBox } from '../core/imagefit.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -58,15 +59,37 @@ export function createPhotoFit(container, onChange) {
     if (joints) onChange({ ...joints });
   }
 
-  function layoutTemplate(width, height) {
+  function layoutTemplate(width, height, box = null) {
     const base = PROPORTION_PRESETS['female-adult'].ratios;
     const tpl = templateJoints(base);
-    const figTop = height * 0.06;
-    const figH = height * 0.88;
-    const cx = width / 2;
+    const figTop = box ? box.figTop : height * 0.06;
+    const figH = box ? box.figH : height * 0.88;
+    const cx = box ? box.cx : width / 2;
     joints = {};
     for (const [id, p] of Object.entries(tpl)) {
       joints[id] = { x: cx + p.x * figH, y: figTop + p.y * figH };
+    }
+  }
+
+  // 前景検出でテンプレートの初期位置を画像内の人物に合わせる(失敗時は null → 既定配置)
+  function detectBox(img, w, h) {
+    try {
+      const sw = 160;
+      const sh = Math.max(1, Math.round((sw * img.naturalHeight) / img.naturalWidth));
+      const canvas = document.createElement('canvas');
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, sw, sh);
+      const box = detectFigureBox(ctx.getImageData(0, 0, sw, sh));
+      if (!box.found) return null;
+      return {
+        figTop: (box.top / sh) * h,
+        figH: ((box.bottom - box.top) / sh) * h,
+        cx: (box.centerX / sw) * w,
+      };
+    } catch {
+      return null;
     }
   }
 
@@ -152,7 +175,7 @@ export function createPhotoFit(container, onChange) {
         img.className = 'photofit-image';
         container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
         container.append(img);
-        layoutTemplate(w, h);
+        layoutTemplate(w, h, detectBox(img, w, h));
         container.append(buildOverlay(w, h));
         emit();
         resolvePromise();

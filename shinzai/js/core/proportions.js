@@ -9,12 +9,13 @@
 
 export const PROPORTION_PRESETS = {
   'female-adult': {
-    label: '女性(成人・約6.5頭身)',
+    // 既定プリセット。需要の中心は少女キャラのため頭身を約6に下げた(2026-08-14 PDフィードバック)
+    label: '女性(約6頭身)',
     ratios: {
-      head: 0.154, // 頭高(頭頂〜あご)
+      head: 0.167, // 頭高(頭頂〜あご)
       hipTop: 0.5, // 頭頂〜股(腰)
-      shoulderWidth: 0.22, // 肩幅
-      upperArm: 0.17, // 肩〜ヒジ
+      shoulderWidth: 0.215, // 肩幅
+      upperArm: 0.165, // 肩〜ヒジ
       forearm: 0.15, // ヒジ〜手首
       hand: 0.1, // 手首〜指先
       thigh: 0.24, // 股〜ヒザ

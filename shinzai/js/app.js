@@ -110,12 +110,29 @@ function fillSelects() {
     if (LIMITS.presetKeys && !LIMITS.presetKeys.includes(key)) continue;
     presetSel.append(new Option(preset.label, key));
   }
-  const scaleSel = $('scale');
-  for (const d of SCALE_CHOICES) {
-    scaleSel.append(new Option(`1/${d}`, String(d)));
+  for (const id of ['scale', 'photoScale']) {
+    const sel = $(id);
+    for (const d of SCALE_CHOICES) {
+      sel.append(new Option(`1/${d}`, String(d)));
+    }
+    sel.value = '8';
   }
-  scaleSel.append(new Option('完成サイズを直接指定', 'custom'));
-  scaleSel.value = '8';
+}
+
+// 「完成品のサイズから」/「設定の身長から」の選択(2026-08-14 PDフィードバック)
+function sizeMode(groupName) {
+  return document.querySelector(`input[name=${groupName}]:checked`)?.value ?? 'target';
+}
+
+function syncModeRows() {
+  const calcByHeight = sizeMode('sizeMode') === 'height';
+  $('targetHeightRow').hidden = calcByHeight;
+  $('heightRow').hidden = !calcByHeight;
+  $('scaleRow').hidden = !calcByHeight;
+  const photoByHeight = sizeMode('photoSizeMode') === 'height';
+  $('photoTargetRow').hidden = photoByHeight;
+  $('photoHeightRow').hidden = !photoByHeight;
+  $('photoScaleRow').hidden = !photoByHeight;
 }
 
 function activeCustomRatios() {
@@ -127,14 +144,16 @@ function activeCustomRatios() {
 
 function readCalcInput() {
   const input = {
-    modelHeightCm: Number($('height').value),
     preset: $('preset').value,
     customRatios: activeCustomRatios(),
   };
-  if ($('scale').value === 'custom') {
-    input.targetHeightCm = Number($('targetHeight').value);
-  } else {
+  if (sizeMode('sizeMode') === 'height') {
+    input.modelHeightCm = Number($('height').value);
     input.scaleDenominator = Number($('scale').value);
+  } else {
+    const target = Number($('targetHeight').value);
+    input.modelHeightCm = target;
+    input.targetHeightCm = target;
   }
   return input;
 }
@@ -144,7 +163,8 @@ function renderCalc() {
   const errBox = $('calcError');
   errBox.hidden = true;
   try {
-    renderResultInto(out, computeArmature(readCalcInput()));
+    renderResultInto(out, computeArmature(readCalcInput()),
+      { showScale: sizeMode('sizeMode') === 'height' });
   } catch (e) {
     out.hidden = true;
     errBox.hidden = false;
@@ -190,10 +210,11 @@ function resetAdjustments() {
 function currentSaveData() {
   return {
     mode: 'calc',
+    sizeMode: sizeMode('sizeMode'),
     modelHeightCm: Number($('height').value),
     preset: $('preset').value,
     adjustments: { ...adjustments },
-    scaleMode: $('scale').value,
+    scaleDen: $('scale').value,
     targetHeightCm: Number($('targetHeight').value),
   };
 }
@@ -218,17 +239,22 @@ function onSave() {
 
 function loadSaved(item) {
   const d = item.data;
+  // 旧形式(scaleMode: '8'|'custom')との互換: custom=完成サイズから、それ以外=身長から
+  const mode = d.sizeMode ?? (d.scaleMode === 'custom' ? 'target' : 'height');
+  const scaleDen = d.scaleDen ?? (d.scaleMode !== 'custom' ? d.scaleMode : null);
+  const radio = document.querySelector(`input[name=sizeMode][value=${mode}]`);
+  if (radio) radio.checked = true;
   if (Number.isFinite(d.modelHeightCm)) $('height').value = d.modelHeightCm;
   if (d.preset && [...$('preset').options].some((o) => o.value === d.preset)) {
     $('preset').value = d.preset;
   }
-  if (d.scaleMode) {
-    $('scale').value = d.scaleMode;
-    $('targetHeightRow').hidden = d.scaleMode !== 'custom';
+  if (scaleDen && [...$('scale').options].some((o) => o.value === scaleDen)) {
+    $('scale').value = scaleDen;
   }
   if (Number.isFinite(d.targetHeightCm)) $('targetHeight').value = d.targetHeightCm;
   adjustments = { ...DEFAULT_ADJUSTMENTS, ...(d.adjustments ?? {}) };
   buildAdjustSliders();
+  syncModeRows();
   $('saveName').value = item.name;
   showTab('calc');
   renderCalc();
@@ -281,14 +307,18 @@ function renderPhoto() {
   try {
     const base = PROPORTION_PRESETS['female-adult'].ratios;
     const customRatios = ratiosFromJoints(joints, base);
-    const heightVal = Number($('photoHeight').value);
-    const den = Number($('photoScaleDen').value);
-    const targetH = Number($('photoTarget').value);
-    const useScale = heightVal > 0 && den > 0;
-    const input = useScale
-      ? { modelHeightCm: heightVal, scaleDenominator: den, customRatios }
-      : { modelHeightCm: targetH, targetHeightCm: targetH, customRatios };
-    renderResultInto(out, computeArmature(input), { showScale: useScale });
+    const byHeight = sizeMode('photoSizeMode') === 'height';
+    const input = byHeight
+      ? {
+        modelHeightCm: Number($('photoHeight').value),
+        scaleDenominator: Number($('photoScale').value),
+        customRatios,
+      }
+      : (() => {
+        const targetH = Number($('photoTarget').value);
+        return { modelHeightCm: targetH, targetHeightCm: targetH, customRatios };
+      })();
+    renderResultInto(out, computeArmature(input), { showScale: byHeight });
   } catch (e) {
     out.hidden = true;
     errBox.hidden = false;
@@ -338,6 +368,7 @@ function initSettings() {
 
 function main() {
   fillSelects();
+  syncModeRows();
   buildAdjustSliders();
   renderMaterials();
   initSettings();
@@ -345,10 +376,13 @@ function main() {
   for (const btn of document.querySelectorAll('.tabbar button')) {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   }
-  $('scale').addEventListener('change', () => {
-    $('targetHeightRow').hidden = $('scale').value !== 'custom';
-    renderCalc();
-  });
+  for (const radio of document.querySelectorAll('input[name=sizeMode]')) {
+    radio.addEventListener('change', () => { syncModeRows(); renderCalc(); });
+  }
+  for (const radio of document.querySelectorAll('input[name=photoSizeMode]')) {
+    radio.addEventListener('change', () => { syncModeRows(); renderPhoto(); });
+  }
+  $('scale').addEventListener('change', renderCalc);
   for (const id of ['height', 'preset', 'targetHeight']) {
     $(id).addEventListener('input', renderCalc);
   }
@@ -357,9 +391,10 @@ function main() {
 
   photoFit = createPhotoFit($('photoBox'), renderPhoto);
   $('photoFile').addEventListener('change', (e) => onPhotoFile(e.target.files?.[0]));
-  for (const id of ['photoTarget', 'photoHeight', 'photoScaleDen']) {
+  for (const id of ['photoTarget', 'photoHeight']) {
     $(id).addEventListener('input', renderPhoto);
   }
+  $('photoScale').addEventListener('change', renderPhoto);
 
   if (IS_FREE) {
     $('adjustPanel').hidden = true;

@@ -17,21 +17,25 @@
   <section class="tab" data-tab="calc">
     <section class="card">
       <h2>キャラクターと完成サイズ</h2>
-      <div class="row">
+      <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
+        <label class="mode"><input type="radio" name="sizeMode" value="target" checked>完成品のサイズから</label>
+        <label class="mode"><input type="radio" name="sizeMode" value="height">設定の身長から</label>
+      </div>
+      <div class="row" id="targetHeightRow">
+        <label for="targetHeight">完成サイズ(cm)</label>
+        <input type="number" id="targetHeight" value="20" min="1" max="200" step="0.5">
+      </div>
+      <div class="row" id="heightRow" hidden>
         <label for="height">身長(cm)</label>
         <input type="number" id="height" value="160" min="1" max="1000" step="1">
+      </div>
+      <div class="row" id="scaleRow" hidden>
+        <label for="scale">スケール</label>
+        <select id="scale"></select>
       </div>
       <div class="row">
         <label for="preset">体型</label>
         <select id="preset"></select>
-      </div>
-      <div class="row">
-        <label for="scale">スケール</label>
-        <select id="scale"></select>
-      </div>
-      <div class="row" id="targetHeightRow" hidden>
-        <label for="targetHeight">完成サイズ(cm)</label>
-        <input type="number" id="targetHeight" value="20" min="1" max="200" step="0.5">
       </div>
 
       <details id="adjustPanel">
@@ -62,22 +66,22 @@
         <label for="photoFile">画像</label>
         <input type="file" id="photoFile" accept="image/*">
       </div>
-      <div class="row">
+      <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
+        <label class="mode"><input type="radio" name="photoSizeMode" value="target" checked>完成品のサイズから</label>
+        <label class="mode"><input type="radio" name="photoSizeMode" value="height">設定の身長から</label>
+      </div>
+      <div class="row" id="photoTargetRow">
         <label for="photoTarget">完成サイズ(cm)</label>
         <input type="number" id="photoTarget" value="20" min="1" max="200" step="0.5">
       </div>
-      <details>
-        <summary>身長とスケールから指定する</summary>
-        <div class="row">
-          <label for="photoHeight">身長(cm)</label>
-          <input type="number" id="photoHeight" min="1" max="1000" step="1" placeholder="例: 160">
-        </div>
-        <div class="row">
-          <label for="photoScaleDen">スケール(1/○)</label>
-          <input type="number" id="photoScaleDen" min="1" max="64" step="1" placeholder="例: 8">
-        </div>
-        <p class="hint">両方入力すると完成サイズより優先されます。</p>
-      </details>
+      <div class="row" id="photoHeightRow" hidden>
+        <label for="photoHeight">身長(cm)</label>
+        <input type="number" id="photoHeight" value="160" min="1" max="1000" step="1">
+      </div>
+      <div class="row" id="photoScaleRow" hidden>
+        <label for="photoScale">スケール</label>
+        <select id="photoScale"></select>
+      </div>
       <div id="photoBox" class="photofit-box"></div>
     </section>
     <p id="photoError" class="error" hidden></p>
