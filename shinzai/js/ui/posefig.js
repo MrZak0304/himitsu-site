@@ -7,7 +7,7 @@
 //   ・寸法注記は直立(未ポーズ)のときだけ表示
 
 import {
-  restPose, boneLengths, dragJoint, resetJoint, twistUpper, twistLower, project, isPosed, neckStubEnd,
+  restPose, boneLengths, dragJoint, resetJoint, twistUpper, twistLower, project, unproject, isPosed, neckStubEnd,
   BONES, FOOT_BONES, DRAGGABLE, JOINT_LABELS,
 } from '../core/pose3d.js';
 import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
@@ -16,6 +16,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
 // 体型合わせモードで追加・言い換えする関節名
 const FIT_LABELS = { top: '頭頂', neck: 'あご', hip: '股(ロック解除中は骨格全体、ロック中は骨盤だけ移動)' };
+const POSE_LABELS = { hip: '股(骨格全体を移動)' };
 
 function el(name, attrs = {}, ...children) {
   const node = document.createElementNS(SVG_NS, name);
@@ -252,10 +253,11 @@ export function createPoseFigure(container, seg, opts = {}) {
     const dims = el('g', { class: 'dims' });
     const jointsG = el('g', { class: 'pose-joints' });
     if (interactive && (!fitMode || view === 'front')) {
-      const ids = fitMode ? ['top', 'neck', 'hip', ...DRAGGABLE] : DRAGGABLE;
+      // ポーズ中も股は掴める(骨格全体の平行移動。第30弾FB: 位置を直したいのに何も起きない/回転する)
+      const ids = fitMode ? ['top', 'neck', 'hip', ...DRAGGABLE] : ['hip', ...DRAGGABLE];
       for (const id of ids) {
         const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 22 });
-        const t = el('title'); t.textContent = FIT_LABELS[id] ?? JOINT_LABELS[id]; hit.append(t);
+        const t = el('title'); t.textContent = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id]; hit.append(t);
         hit.addEventListener('pointerdown', (ev) => startDrag(ev, id, view));
         jointsG.append(el('circle', { class: 'pose-dot', 'data-joint': id, r: 6 }), hit);
       }
@@ -552,13 +554,15 @@ export function createPoseFigure(container, seg, opts = {}) {
     const pointerId = ev.pointerId;
     try { ev.currentTarget.setPointerCapture(pointerId); } catch { /* window監視で継続 */ }
     lastJoint = id;
-    const label = FIT_LABELS[id] ?? JOINT_LABELS[id];
+    const label = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id];
     opts.onJointPick?.(id, label);
     // 注意: ドラッグ中に案内文を書き換えると行数変化で図が上下に動き、指の下の座標がずれて関節が飛ぶ
     // (第24弾FB「肩の位置がおかしい」の原因)。案内文の更新は pointerup 後に行う
     const statusText = fitMode
       ? `「${label}」を動かしました。参考画像の${label}の位置に合っているか確認してください(骨格合わせ中は骨の長さが変わります)`
-      : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
+      : id === 'hip'
+        ? '骨格全体を移動しました(骨の長さ・ポーズはそのまま)。首や胴の長さを直すには「骨格の位置・長さを直す」を押してください'
+        : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
@@ -582,6 +586,17 @@ export function createPoseFigure(container, seg, opts = {}) {
           const other = id === 'hipL' ? 'hipR' : 'hipL';
           joints.hip = { x: (joints[id].x + joints[other].x) / 2, y: (joints[id].y + joints[other].y) / 2, z: joints.hip.z };
         }
+        redraw();
+        return;
+      }
+      if (id === 'hip') {
+        // ポーズ中の股=骨格全体の平行移動(その面の2軸だけ動かす)
+        const uv = fromPx(localPoint(svg, view, e), view);
+        const nh = unproject(uv, view, joints.hip);
+        const d = { x: nh.x - joints.hip.x, y: nh.y - joints.hip.y, z: nh.z - joints.hip.z };
+        const moved = {};
+        for (const k2 of Object.keys(joints)) moved[k2] = { x: joints[k2].x + d.x, y: joints[k2].y + d.y, z: joints[k2].z + d.z };
+        joints = moved;
         redraw();
         return;
       }
