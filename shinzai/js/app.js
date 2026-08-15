@@ -23,7 +23,7 @@ const refImage = { overlay: null, dragTarget: 'view' };
 // 参考画像から取り込んだ体型(比率セット)。null ならプリセット(第2段階=一体化)
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
-const fitState = { on: false, joints: null };
+const fitState = { on: false, joints: null, locked: false };
 
 // ---- タブ ----
 
@@ -149,6 +149,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       flesh: showFlesh,
       interactive: poseState.on || fitOn,
       mode: fitOn ? 'fit' : 'pose',
+      fitLocked: fitOn && fitState.locked,
       initialJoints: fitOn ? fitState.joints : (poseState.on ? poseState.joints : null),
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { jointSel.value = id; },
@@ -493,8 +494,10 @@ function initSettings() {
 
 function syncRefButtons() {
   const has = !!refImage.overlay?.src;
-  for (const id of ['refMove', 'refZoomIn', 'refZoomOut', 'refClear']) $(id).disabled = !has;
-  $('refMove').setAttribute('aria-pressed', String(has && refImage.dragTarget === 'overlay'));
+  const locked = fitState.on && fitState.locked;
+  for (const id of ['refMove', 'refZoomIn', 'refZoomOut']) $(id).disabled = !has || locked;
+  $('refClear').disabled = !has;
+  $('refMove').setAttribute('aria-pressed', String(has && !locked && refImage.dragTarget === 'overlay'));
 }
 
 function calcFig() {
@@ -513,9 +516,19 @@ function initFit() {
   const sync = () => {
     $('fitToggle').setAttribute('aria-pressed', String(fitState.on));
     $('fitImport').hidden = !fitState.on;
+    $('fitLock').hidden = !fitState.on;
+    $('fitLock').setAttribute('aria-pressed', String(fitState.locked));
+    $('fitLock').textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
+    // ロック中は参考画像を動かせない(骨格との位置関係を固定)
+    if (fitState.on && fitState.locked) {
+      refImage.dragTarget = 'view';
+      calcFig()?.setDragTarget('view');
+    }
+    syncRefButtons();
   };
   $('fitToggle').addEventListener('click', () => {
     fitState.on = !fitState.on;
+    fitState.locked = false;
     if (fitState.on) {
       // 合わせている間はポーズ側は使わない(骨長が変わるため)。ポーズはOFFに
       const st = poseStates.get($('calcOutput'));
@@ -524,6 +537,11 @@ function initFit() {
     sync();
     renderCalc();
     if (fitState.on) $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('fitLock').addEventListener('click', () => {
+    fitState.locked = !fitState.locked;
+    calcFig()?.setFitLocked(fitState.locked);
+    sync();
   });
   $('fitImport').addEventListener('click', () => {
     const fig = calcFig();
@@ -550,6 +568,7 @@ function initFit() {
       }
       fitState.on = false;
       fitState.joints = null;
+      fitState.locked = false;
       const st = poseStates.get($('calcOutput'));
       if (st) st.joints = null; // 骨長が変わるのでポーズは直立から
       sync();

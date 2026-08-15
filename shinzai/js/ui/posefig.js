@@ -15,7 +15,7 @@ import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
 // 体型合わせモードで追加・言い換えする関節名
-const FIT_LABELS = { top: '頭頂', neck: 'あご', hip: '股(ここを動かすと骨格全体が移動)' };
+const FIT_LABELS = { top: '頭頂', neck: 'あご', hip: '股(ロック解除中は骨格全体、ロック中は骨盤だけ移動)' };
 
 function el(name, attrs = {}, ...children) {
   const node = document.createElementNS(SVG_NS, name);
@@ -34,6 +34,8 @@ const fmt = (n) => Math.round(n * 100) / 100;
 export function createPoseFigure(container, seg, opts = {}) {
   const interactive = opts.interactive !== false;
   const fitMode = opts.mode === 'fit';
+  // 骨格合わせの位置ロック(第25弾FB): ロック中は股ドラッグ=骨盤だけ移動(骨格全体は動かない)
+  let fitLocked = !!opts.fitLocked;
   const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
   // 透かし画像(正面図の背面に半透明で重ねる。「画像から」と「芯材計算」を一体化する第1段階。第18弾FB)
@@ -563,10 +565,12 @@ export function createPoseFigure(container, seg, opts = {}) {
         // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
         const uv = fromPx(localPoint(svg, view, e), view);
         if (id === 'hip') {
-          // 股=骨格全体の平行移動(参考画像に骨格を寄せる。第22弾FB「腰の位置も動かしたい」)
           const dx = uv.u - joints.hip.x; const dy = uv.v - joints.hip.y;
-          const moved = {};
-          for (const [k2, p2] of Object.entries(joints)) moved[k2] = { x: p2.x + dx, y: p2.y + dy, z: p2.z };
+          // 股=骨格全体の平行移動(参考画像に骨格を寄せる。第22弾FB)。
+          // 位置ロック中は骨盤(股+左右の股関節)だけを動かす(微調整で全体が動かないように。第25弾FB)
+          const ids = fitLocked ? ['hip', 'hipL', 'hipR'] : Object.keys(joints);
+          const moved = { ...joints };
+          for (const k2 of ids) moved[k2] = { x: joints[k2].x + dx, y: joints[k2].y + dy, z: joints[k2].z };
           joints = moved;
           redraw();
           return;
@@ -632,6 +636,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
+    setFitLocked(v) { fitLocked = !!v; },
     // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
     standardFrame: () => ({ topY: g.top, soleY: g.soleY, hipX: g.cx }),
     // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
