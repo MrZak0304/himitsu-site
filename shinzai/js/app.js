@@ -427,7 +427,11 @@ function main() {
   for (const radio of document.querySelectorAll('input[name=tapAnchor]')) {
     radio.addEventListener('change', () => photoFit.setTapAnchor(radio.value));
   }
-  $('photoRefit').addEventListener('click', () => photoFit.rearm());
+  $('photoRefit').addEventListener('click', () => {
+    photoFit.rearm();
+    $('photoOutput').hidden = true; // 骨格を消すのに合わせて古い寸法も消す
+    $('photoError').hidden = true;
+  });
 
   if (IS_FREE) {
     $('adjustPanel').hidden = true;

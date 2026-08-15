@@ -102,8 +102,11 @@ export function computeArmature({
   };
 
   // 頭・手・足はアルミ芯で作らない前提(パテ等で造形。2026-08-15 PDフィードバック)。
-  // 芯は 背骨(首〜股)+腕(手首まで)+脚(足首まで)の3系統。
+  // 芯は 背骨(首〜股)+腕(手首まで)+脚(足首の先まで)の3系統。
+  // 首の先・足先はパテを保持できるよう少し伸ばす(同第7弾FB)。
   const spineLen = s.hipTop - s.head; // あご下(首)〜股
+  const neckStub = s.head / 3; // 首の先: 頭の中への差し込み
+  const footStub = s.ankle + s.footLength * 0.2; // 足先: くるぶし〜足裏+つま先側へ少し
   const legInsert = spineLen / 2; // 脚線を胴に固定する差し込み分
 
   const cut = (finishedCm, joins) =>
@@ -112,11 +115,11 @@ export function computeArmature({
   const cutList = [
     {
       id: 'trunk',
-      name: '体幹線(背骨: 首〜股)',
-      finishedCm: round1(spineLen),
-      cutCm: cut(spineLen, 1),
+      name: '体幹線(首の先〜股)',
+      finishedCm: round1(neckStub + spineLen),
+      cutCm: cut(neckStub + spineLen, 1),
       count: 1,
-      note: '首(あご下)〜股。頭はアルミ芯で作らずパテ等で造形する想定。股で脚線と接合',
+      note: '首(あご下)〜股+頭への差し込み(頭高の1/3)。頭はパテ等で造形。股で脚線と接合',
     },
     {
       id: 'arms',
@@ -128,11 +131,11 @@ export function computeArmature({
     },
     {
       id: 'leg',
-      name: '脚線(股〜足首)',
-      finishedCm: round1(legInsert + s.thigh + s.shin),
-      cutCm: cut(legInsert + s.thigh + s.shin, 1),
+      name: '脚線(股〜足首の先)',
+      finishedCm: round1(legInsert + s.thigh + s.shin + footStub),
+      cutCm: cut(legInsert + s.thigh + s.shin + footStub, 1),
       count: 2,
-      note: '左右で2本。上端は胴の中ほどまで差し込んで接合。足はパテ造形(芯は足首まで)',
+      note: '左右で2本。上端は胴の中ほどまで差し込んで接合。足首の先(足裏+つま先側)まで少し伸ばし、足本体はパテ造形',
     },
   ];
 

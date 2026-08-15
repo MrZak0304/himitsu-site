@@ -179,12 +179,17 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     if (joints) onStatus(fitted ? tapGuide() : startGuide());
   }
 
-  // 「タップで合わせ直す」: 2タップフィットの受付を再開する
+  // 「タップで合わせ直す」: 骨格をいったん消して(2026-08-15 PDフィードバック第7弾)、
+  // 2タップフィットを最初からやり直す
   function rearm() {
     armed = true;
     tapTop = null;
-    if (svg) clearTapMarker();
-    onStatus(tapGuide());
+    fitted = false;
+    if (svg) {
+      clearTapMarker();
+      svg.classList.add('unfitted');
+    }
+    onStatus(startGuide());
   }
 
   function drawTapMarker(p) {
