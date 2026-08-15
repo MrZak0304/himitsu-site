@@ -383,3 +383,20 @@ a { color: var(--thread); }
 .fit-row .fit-import-btn { flex: 1; min-width: 10em; padding: 9px 8px; font-size: 0.9rem; }
 .pose-svg.fit-side { opacity: 0.55; }
 .imported-note button { padding: 4px 10px; font-size: 0.8rem; margin-left: 6px; }
+
+/* 縦長対策(第27弾FB): 操作列を詰める・ヒントは折りたたみ・無効表示 */
+.pose-tools .pose-hint { min-height: 2.6em; font-size: 0.78rem; }
+.pose-tools .twist-row { margin: 2px 0 4px; }
+.pose-tools .twist-row label { min-width: 5.5em; font-size: 0.82rem; }
+.pose-tools .twist-row .twist-zero { padding: 3px 8px; font-size: 0.75rem; }
+.pose-buttons { gap: 6px; }
+.pose-buttons button, .pose-one-row button { padding: 7px 6px; font-size: 0.85rem; min-width: 6.5em; }
+.pose-one-row .joint-select { padding: 6px 4px; font-size: 0.85rem; min-width: 6em; }
+.view-buttons { margin-top: 6px; gap: 4px; }
+.view-buttons button { min-width: 4.8em; padding: 6px 4px; font-size: 0.8rem; }
+.pose-help { margin: 4px 0 6px; }
+.pose-help summary { font-size: 0.8rem; color: var(--felt-dark); cursor: pointer; }
+.pose-help .hint { margin: 4px 0 0; }
+.pose-tools .is-disabled { opacity: 0.45; }
+.pose-tools .fit-note { margin: 0 0 6px; color: var(--thread); }
+.toggle-row .toggle { padding: 8px 6px; }

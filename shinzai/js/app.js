@@ -114,7 +114,13 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const zoomOutBtn = mkBtn('縮小', 'view-zoom-out');
   const viewResetBtn = mkBtn('表示位置を戻す', 'view-reset');
   viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
-  const viewHint = h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小できます。');
+  // 詳しい説明は折りたたみ(縦長対策。第27弾FB)
+  const help = document.createElement('details');
+  help.className = 'pose-help';
+  const helpSum = document.createElement('summary');
+  helpSum.textContent = '操作のヒント';
+  help.append(helpSum, h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小。関節を離したとき枠外なら自動で全体を収めます。「全体を初期位置に戻す」はポーズ・ひねり・表示位置を初期化します。骨格合わせ中(キャラクターの設定)はひねり・関節リセットは使えません(骨の長さを変えるモードのため)。'));
+  const viewHint = help;
   // ひねり(第15〜16弾FB): 上半身(肩)=首のつけ根から先 / 腰(骨盤)=股関節から先 を背骨の軸まわりに回す
   const mkTwist = (key, label, cls) => {
     const row = h('div', 'twist-row');
@@ -134,14 +140,16 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
-  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
+  const fitNote = h('p', 'hint fit-note', '骨格合わせ中はひねり・関節リセットは使えません(合わせを終えるか取り込むと使えます)。');
+  fitNote.hidden = true;
+  poseTools.append(poseHint, fitNote, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
   root.append(views);
 
-  const GUIDE_IDLE = '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
-  const GUIDE_POSED = 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。';
+  const GUIDE_IDLE = '関節をドラッグでポーズ。どの面で動かしても他の面が連動します。';
+  const GUIDE_POSED = 'ポーズ中(骨の長さは不変=切り出し寸法はそのまま。図は曲げ位置の指示)。';
   const renderViews = () => {
     const isCalc = root.id === 'calcOutput';
     const fitOn = isCalc && fitState.on;
@@ -168,14 +176,17 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseState.fig = fig;
     poseTools.hidden = !(poseState.on || fitOn);
     // 骨格合わせ中はポーズ専用の操作(ひねり・関節リセット・ポーズ切替)を隠し、表示位置の操作だけ残す
-    for (const n of [twistUp.row, twistLo.row, poseButtons]) n.hidden = fitOn;
+    // 骨格合わせ中はひねり・関節リセットを無効表示(隠すと「消えた」と見えるため。第27弾FB)
+    for (const n of [twistUp.row, twistLo.row, poseButtons]) n.classList.toggle('is-disabled', fitOn);
+    for (const el2 of [twistUp.input, twistUp.zero, twistLo.input, twistLo.zero, resetOne, resetAll, jointSel]) el2.disabled = fitOn;
+    fitNote.hidden = !fitOn;
     // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
     viewRow.hidden = fitOn && fitState.locked;
     viewHint.hidden = fitOn && fitState.locked;
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
-      poseHint.textContent = '骨格合わせ中: 正面図の点を参考画像のキャラクターに合わせてください(骨の長さは自由に変わります。股を動かすと骨格全体が移動)。合わせ終わったら「キャラクターの設定」の「この骨格を体型に取り込む」を押してください。';
+      poseHint.textContent = '骨格合わせ中: 正面図の点を参考画像に合わせ、「キャラクターの設定」の「この骨格を体型に取り込む」を押してください。';
     } else if (poseState.on) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
     }
