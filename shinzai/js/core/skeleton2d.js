@@ -32,6 +32,9 @@ export function ratiosFromJoints(joints, baseRatios) {
   }
 
   const avg = (a, b) => (a + b) / 2;
+  // 股関節(骨盤の左右)。旧形式(hipL/hipR なし)は股=hip を両脚の付け根として扱う
+  const hipL = joints.hipL ?? joints.hip;
+  const hipR = joints.hipR ?? joints.hip;
   const r = {
     head: (joints.chin.y - joints.top.y) / total,
     hipTop: (joints.hip.y - joints.top.y) / total,
@@ -39,7 +42,7 @@ export function ratiosFromJoints(joints, baseRatios) {
     // 腕・脚は傾き(ポーズ)を拾えるよう2点間距離で測る
     upperArm: avg(dist(joints.shoulderL, joints.elbowL), dist(joints.shoulderR, joints.elbowR)) / total,
     forearm: avg(dist(joints.elbowL, joints.wristL), dist(joints.elbowR, joints.wristR)) / total,
-    thigh: avg(dist(joints.hip, joints.kneeL), dist(joints.hip, joints.kneeR)) / total,
+    thigh: avg(dist(hipL, joints.kneeL), dist(hipR, joints.kneeR)) / total,
     shin: avg(dist(joints.kneeL, joints.ankleL), dist(joints.kneeR, joints.ankleR)) / total,
     ankle: Math.max(0.01, (joints.sole.y - avg(joints.ankleL.y, joints.ankleR.y)) / total),
     // 手・足の長さは正面画像から測れないためベース体型から補完

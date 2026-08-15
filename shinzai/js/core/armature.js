@@ -109,6 +109,7 @@ export function computeArmature({
   const footStub = s.ankle + s.footLength * 0.2; // 足先: くるぶし〜足裏+つま先側へ少し
   const handStub = s.hand * 0.4; // 手首の先: 手(パテ)への接続しろ
   const legInsert = spineLen / 2; // 脚線を胴に固定する差し込み分
+  const pelvisWidth = s.shoulderWidth * 0.75; // 腰(骨盤)の幅=股関節の左右の間隔
 
   const cut = (finishedCm, joins) =>
     round1(finishedCm * opts.strands * opts.twistFactor + opts.joinMarginCm * joins);
@@ -131,12 +132,20 @@ export function computeArmature({
       note: '1本で左右の腕を作り、肩の位置で背骨に接合。手首の先(手への接続しろ=手長の4割)まで伸ばし、手本体はパテ造形',
     },
     {
+      id: 'pelvis',
+      name: '腰線(骨盤の横棒)',
+      finishedCm: round1(pelvisWidth),
+      cutCm: cut(pelvisWidth, 1),
+      count: 1,
+      note: '骨盤の幅。背骨の下端(股)に横向きに接合し、左右の端が股関節=脚線の付け根になる(骨格模型の骨盤に相当)',
+    },
+    {
       id: 'leg',
-      name: '脚線(股〜足首の先)',
+      name: '脚線(股関節〜足首の先)',
       finishedCm: round1(legInsert + s.thigh + s.shin + footStub),
       cutCm: cut(legInsert + s.thigh + s.shin + footStub, 1),
       count: 2,
-      note: '左右で2本。上端は胴の中ほどまで差し込んで接合。足首の先(足裏+つま先側)まで少し伸ばし、足本体はパテ造形',
+      note: '左右で2本。上端は腰線の端(股関節)から胴の中ほどまで差し込んで接合。足首の先(足裏+つま先側)まで少し伸ばし、足本体はパテ造形',
     },
   ];
 

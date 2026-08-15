@@ -81,6 +81,8 @@ function frontBones(seg, g) {
     // 背骨: 首の先(頭への差し込み=頭高の1/3)まで伸ばす
     el('line', { x1: g.cx, y1: g.neckY - (seg.head / 3) * g.k, x2: g.cx, y2: g.hipY }),
     el('line', { x1: g.cx - g.shoulderHalf, y1: g.shoulderY, x2: g.cx + g.shoulderHalf, y2: g.shoulderY }),
+    // 腰線(骨盤の横棒): 左右の端が股関節(骨格模型の骨盤に相当)
+    el('line', { x1: g.cx - g.hipHalf, y1: g.hipY, x2: g.cx + g.hipHalf, y2: g.hipY }),
   );
   for (const side of [-1, 1]) {
     const sx = g.cx + side * g.shoulderHalf;
@@ -103,14 +105,14 @@ function frontBones(seg, g) {
         fill: 'none',
       }),
     );
+    // 脚: 股関節(腰線の端)から大腿骨がわずかに内側へ、ヒザ→足首はほぼ垂直(骨格模型の立ち姿)
     const hx = g.cx + side * g.hipHalf;
-    // ヒザから足首にかけて内側に絞る(人体の立ち姿。針金とシルエットで同じ関節位置を使う)
-    const ax = g.cx + side * g.hipHalf * 0.72;
+    const kx = g.cx + side * g.hipHalf * 0.85; // ヒザ
+    const ax = g.cx + side * g.hipHalf * 0.8; // 足首
     const kneeY = g.hipY + seg.thigh * g.k;
     bones.append(
-      // 脚は股(背骨の下端)から斜めに出す(「画像から」の骨格と同じ形)。足首の先まで伸ばす
-      el('line', { x1: g.cx, y1: g.hipY, x2: hx, y2: kneeY }),
-      el('line', { x1: hx, y1: kneeY, x2: ax, y2: g.soleY - 1 }),
+      el('line', { x1: hx, y1: g.hipY, x2: kx, y2: kneeY }),
+      el('line', { x1: kx, y1: kneeY, x2: ax, y2: g.soleY - 1 }),
       // 足の参考輪郭
       el('ellipse', {
         class: 'ref',
@@ -231,17 +233,18 @@ function fleshFront(seg, g) {
       }),
     );
     // 脚: もも(太)→すね(細)のテーパー+ヒザの丸み+接地する足。
-    // ヒザから足首にかけて内側に絞る(人体の立ち姿。針金と同じ関節位置=矛盾を作らない)
+    // 股関節→ヒザ→足首の位置は針金と同じ(矛盾を作らない)
     // 足は正面視の奥行き縮みを表現して実寸より短く描く(実寸は側面図の注記が持つ)
     const hx = g.cx + side * g.hipHalf;
-    const ax = g.cx + side * g.hipHalf * 0.72;
+    const kx = g.cx + side * g.hipHalf * 0.85;
+    const ax = g.cx + side * g.hipHalf * 0.8;
     const kneeY = g.hipY + seg.thigh * g.k;
     const ankleY = kneeY + seg.shin * g.k;
     const footR = (seg.footLength / 2) * g.k * 0.62;
     flesh.append(
-      el('line', { x1: hx, y1: g.hipY, x2: hx, y2: kneeY, 'stroke-width': legW }),
-      el('circle', { cx: hx, cy: kneeY, r: shinW * 0.62 }),
-      el('line', { x1: hx, y1: kneeY, x2: ax, y2: ankleY, 'stroke-width': shinW }),
+      el('line', { x1: hx, y1: g.hipY, x2: kx, y2: kneeY, 'stroke-width': legW }),
+      el('circle', { cx: kx, cy: kneeY, r: shinW * 0.62 }),
+      el('line', { x1: kx, y1: kneeY, x2: ax, y2: ankleY, 'stroke-width': shinW }),
       // 足: かかと(内側)→足首→つま先(外側)の、地面に接する丸みのある形
       el('path', {
         d: `M ${ax - side * footR * 0.5} ${g.soleY}`

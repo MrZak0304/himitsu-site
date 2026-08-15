@@ -25,10 +25,13 @@ function templateJoints(ratios) {
     wristL: { x: -half - 0.035, y: wristY },
     wristR: { x: half + 0.035, y: wristY },
     hip: { x: 0, y: ratios.hipTop },
-    kneeL: { x: -hipHalf, y: kneeY },
-    kneeR: { x: hipHalf, y: kneeY },
-    ankleL: { x: -hipHalf, y: ankleY },
-    ankleR: { x: hipHalf, y: ankleY },
+    // 骨盤: 股関節は腰の左右(骨格模型と同じ)。脚はそこからほぼ垂直に下りる
+    hipL: { x: -hipHalf, y: ratios.hipTop },
+    hipR: { x: hipHalf, y: ratios.hipTop },
+    kneeL: { x: -hipHalf * 0.85, y: kneeY },
+    kneeR: { x: hipHalf * 0.85, y: kneeY },
+    ankleL: { x: -hipHalf * 0.8, y: ankleY },
+    ankleR: { x: hipHalf * 0.8, y: ankleY },
     sole: { x: 0, y: 1 },
   };
 }
@@ -38,20 +41,22 @@ const BONES = [
   ['shoulderL', 'shoulderR'],
   ['shoulderL', 'elbowL'], ['elbowL', 'wristL'],
   ['shoulderR', 'elbowR'], ['elbowR', 'wristR'],
-  ['hip', 'kneeL'], ['kneeL', 'ankleL'],
-  ['hip', 'kneeR'], ['kneeR', 'ankleR'],
+  ['hipL', 'hipR'], // 腰線(骨盤)
+  ['hipL', 'kneeL'], ['kneeL', 'ankleL'],
+  ['hipR', 'kneeR'], ['kneeR', 'ankleR'],
 ];
 
 const JOINT_LABELS = {
   top: '頭頂', chin: 'あご', shoulderL: '肩(左)', shoulderR: '肩(右)',
   elbowL: 'ヒジ(左)', elbowR: 'ヒジ(右)', wristL: '手首(左)', wristR: '手首(右)',
-  hip: '股', kneeL: 'ヒザ(左)', kneeR: 'ヒザ(右)', ankleL: 'くるぶし(左)', ankleR: 'くるぶし(右)',
+  hip: '股', hipL: '腰(左の股関節)', hipR: '腰(右の股関節)',
+  kneeL: 'ヒザ(左)', kneeR: 'ヒザ(右)', ankleL: 'くるぶし(左)', ankleR: 'くるぶし(右)',
   sole: '足裏',
 };
 
 // 部位別の色分け(どの点をどこに置くか分かりやすく。凡例は画面側に表示)
 const JOINT_GROUP = {
-  top: 'torso', chin: 'torso', hip: 'torso', sole: 'torso',
+  top: 'torso', chin: 'torso', hip: 'torso', hipL: 'torso', hipR: 'torso', sole: 'torso',
   shoulderL: 'arm', shoulderR: 'arm', elbowL: 'arm', elbowR: 'arm',
   wristL: 'arm', wristR: 'arm',
   kneeL: 'leg', kneeR: 'leg', ankleL: 'leg', ankleR: 'leg',
