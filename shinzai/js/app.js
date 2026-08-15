@@ -535,7 +535,9 @@ function initFit() {
       const ratios = ratiosFromJoints(px, base);
       // 取り込み後の骨格は標準位置(頭頂=上端pad、股=既定x、全高=枠いっぱい)に描き直されるので、
       // 参考画像も同じ変換で動かして骨格とのズレを防ぐ(PD追加コメント「取り込み後にズレる」)
-      if (refImage.overlay?.src) {
+      // 骨格を動かしていない(直立のまま)なら位置は変わらないので参考画像も動かさない
+      // (丸め誤差で取り込みのたびにわずかに動く累積ズレを防ぐ)
+      if (refImage.overlay?.src && fig.isPosed()) {
         const std = fig.standardFrame(); // { topY, soleY, hipX } 標準位置(px)
         const topY = px.top.y;
         const soleY = Math.max(px.heelL.y, px.heelR.y);

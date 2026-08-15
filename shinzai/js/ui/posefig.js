@@ -49,8 +49,9 @@ export function createPoseFigure(container, seg, opts = {}) {
   const k = g.k;
   // 股の描画位置。正面・右側面は左寄り(寸法注記を右に置く)、左側面は「前」が左向きなので
   // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
-  // 体型合わせ中の正面図は骨格を中央に置く(参考画像の初期位置=中央と揃える。第22弾FB「骨格の位置がズレる」)
-  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : (fitMode && view === 'front' ? VIEW_W / 2 : g.cx));
+  // 骨格の位置は全モードで同じ(第24弾FB: モードで位置が変わると取り込みのたびに参考画像とズレが累積した)。
+  // 参考画像のほうを、選んだ時点で骨格の中心(hipX)に置く
+  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : g.cx);
   const toPx = (p, view) => {
     const { u, v } = project(p, view);
     return { x: hipX(view) + u * k, y: g.hipY + v * k };
@@ -550,9 +551,11 @@ export function createPoseFigure(container, seg, opts = {}) {
     lastJoint = id;
     const label = FIT_LABELS[id] ?? JOINT_LABELS[id];
     opts.onJointPick?.(id, label);
-    opts.onStatus?.(fitMode
-      ? `「${label}」を動かしています。参考画像の${label}の位置に合わせてください(体型合わせ中は骨の長さが変わります)`
-      : `「${label}」を動かしています(骨の長さは変わりません。他の面も連動します)`);
+    // 注意: ドラッグ中に案内文を書き換えると行数変化で図が上下に動き、指の下の座標がずれて関節が飛ぶ
+    // (第24弾FB「肩の位置がおかしい」の原因)。案内文の更新は pointerup 後に行う
+    const statusText = fitMode
+      ? `「${label}」を動かしました。参考画像の${label}の位置に合っているか確認してください(骨格合わせ中は骨の長さが変わります)`
+      : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
@@ -585,7 +588,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
-      opts.onPoseChange?.(joints, isPosed(joints, rest));
+      opts.onStatus?.(statusText);
+      opts.onPoseChange?.(joints, isPosed(joints, rest)); // ポーズモードでは案内文(寸法不変)がこちらで上書きされる
       // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)
       if (!allJointsVisible()) fitAll();
     };
@@ -655,7 +659,8 @@ export function createPoseFigure(container, seg, opts = {}) {
     fitAll, zoomIn: () => zoomBy(1.25), zoomOut: () => zoomBy(0.8), resetView,
     // 透かし画像
     setOverlay(src) {
-      overlayState = { src, t: { x: 0, y: 0 }, s: 1, opacity: 0.45 };
+      // 初期位置: 骨格の中心線(hipX)に画像の中心を合わせる
+      overlayState = { src, t: { x: hipX('front') - VIEW_W / 2, y: 0 }, s: 1, opacity: 0.45 };
       applyOverlay();
       emitOverlay();
     },

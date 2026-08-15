@@ -215,6 +215,7 @@ details[open] summary { margin-bottom: 6px; }
 }
 .pose-tools { margin: 4px 0 8px; }
 .pose-tools .hint { margin: 0 0 6px; }
+.pose-tools .pose-hint { min-height: 3.9em; } /* 案内文の行数変化で図が動かないよう高さを確保 */
 .pose-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
 .pose-buttons button { flex: 1; min-width: 9em; padding: 9px 8px; }
 .pose-buttons button:disabled { opacity: 0.45; cursor: default; }
