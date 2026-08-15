@@ -16,7 +16,7 @@
   <!-- 芯材計算 -->
   <section class="tab" data-tab="calc">
     <section class="card">
-      <h2>キャラクターと完成サイズ</h2>
+      <h2>キャラクターの設定</h2>
       <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
         <label class="mode"><input type="radio" name="sizeMode" value="target" checked>完成品のサイズから</label>
         <label class="mode"><input type="radio" name="sizeMode" value="height">設定の身長から</label>
@@ -37,6 +37,18 @@
         <label for="preset">体型</label>
         <select id="preset"></select>
       </div>
+
+      <div class="row ref-row">
+        <label>参考画像</label>
+        <div class="ref-controls">
+          <label class="ghost overlay-pick" id="refPick">参考画像を選ぶ<input type="file" id="refFile" accept="image/*" class="overlay-file"></label>
+          <button type="button" id="refMove" class="toggle overlay-move" aria-pressed="false" disabled>参考画像を動かす</button>
+          <button type="button" id="refZoomIn" class="ghost overlay-zoom-in" disabled>拡大</button>
+          <button type="button" id="refZoomOut" class="ghost overlay-zoom-out" disabled>縮小</button>
+          <button type="button" id="refClear" class="ghost overlay-clear" disabled>消す</button>
+        </div>
+      </div>
+      <p class="hint">参考画像(立ち絵など)は骨格図の正面図の背面に半透明で表示されます。「参考画像を動かす」をオンにすると正面図の背景ドラッグ・2本指で画像の位置と大きさを合わせられます。画像は端末内でのみ処理されます。</p>
 
       <details id="adjustPanel">
         <summary>体型を調整する(マイ体型)</summary>

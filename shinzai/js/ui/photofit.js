@@ -10,7 +10,7 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 function templateJoints(ratios) {
   const half = ratios.shoulderWidth / 2;
   const hipHalf = half * 0.7;
-  const shoulderY = ratios.head * 1.15;
+  const shoulderY = ratios.head * 1.35; // 首の長さ=頭高の0.35(pose3d の restPose と揃える)
   const elbowY = shoulderY + ratios.upperArm;
   const wristY = elbowY + ratios.forearm;
   const kneeY = ratios.hipTop + ratios.thigh;

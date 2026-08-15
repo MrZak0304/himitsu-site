@@ -19,6 +19,8 @@ const storage = window.localStorage;
 let adjustments = { ...DEFAULT_ADJUSTMENTS };
 let showFlesh = false; // 肉付けイメージの表示(両タブ共通)
 const poseStates = new WeakMap(); // 出力領域ごとのポーズ状態(計算タブ/画像からタブで独立)
+// 参考画像(キャラクターの設定で選ぶ。芯材計算タブの正面図の背面に表示。第18〜19弾FB)
+const refImage = { overlay: null, dragTarget: 'view' };
 
 // ---- タブ ----
 
@@ -129,25 +131,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
-  // 透かし画像(正面図の背面に半透明表示。ポーズを画像に合わせられる。第18弾FB)
-  const ovRow = h('div', 'overlay-row');
-  const ovPick = h('label', 'ghost overlay-pick', '透かし画像を選ぶ');
-  const ovFile = document.createElement('input');
-  ovFile.type = 'file'; ovFile.accept = 'image/*'; ovFile.className = 'overlay-file';
-  ovPick.append(ovFile);
-  const ovMove = h('button', 'toggle overlay-move', '透かしを動かす');
-  ovMove.type = 'button'; ovMove.setAttribute('aria-pressed', String(poseState.dragTarget === 'overlay'));
-  const ovIn = mkBtn('透かし拡大', 'overlay-zoom-in');
-  const ovOut = mkBtn('透かし縮小', 'overlay-zoom-out');
-  const ovClear = mkBtn('透かしを消す', 'overlay-clear');
-  ovRow.append(ovPick, ovMove, ovIn, ovOut, ovClear);
-  const ovHint = h('p', 'hint', '透かし画像は正面図の背面に半透明で表示されます。「透かしを動かす」をオンにすると背景ドラッグ・2本指で画像の位置と大きさを合わせられます(オフのときは図が動きます)。画像は端末内でのみ処理されます。');
-  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint, ovRow, ovHint);
-  const syncOverlayButtons = () => {
-    const has = !!poseState.overlay?.src;
-    for (const b of [ovMove, ovIn, ovOut, ovClear]) b.disabled = !has;
-  };
-  syncOverlayButtons();
+  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -164,9 +148,10 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       onJointPick: (id) => { jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
       onViewportChange: (vp) => { poseState.viewport = vp; },
-      overlay: poseState.on ? poseState.overlay : null,
-      dragTarget: poseState.dragTarget,
-      onOverlayChange: (ov) => { poseState.overlay = ov; syncOverlayButtons(); },
+      // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
+      overlay: root.id === 'calcOutput' ? refImage.overlay : null,
+      dragTarget: root.id === 'calcOutput' ? refImage.dragTarget : 'view',
+      onOverlayChange: (ov) => { if (root.id === 'calcOutput') { refImage.overlay = ov; syncRefButtons(); } },
       onPoseChange: (joints, posed) => {
         poseState.joints = posed ? joints : null;
         poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
@@ -218,34 +203,6 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     });
   }
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
-  ovFile.addEventListener('change', () => {
-    const file = ovFile.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      poseState.fig?.setOverlay(reader.result);
-      poseState.dragTarget = 'overlay';
-      poseState.fig?.setDragTarget('overlay');
-      ovMove.setAttribute('aria-pressed', 'true');
-      syncOverlayButtons();
-    };
-    reader.readAsDataURL(file);
-    ovFile.value = '';
-  });
-  ovMove.addEventListener('click', () => {
-    poseState.dragTarget = poseState.dragTarget === 'overlay' ? 'view' : 'overlay';
-    ovMove.setAttribute('aria-pressed', String(poseState.dragTarget === 'overlay'));
-    poseState.fig?.setDragTarget(poseState.dragTarget);
-  });
-  ovIn.addEventListener('click', () => poseState.fig?.overlayZoom(1.2));
-  ovOut.addEventListener('click', () => poseState.fig?.overlayZoom(1 / 1.2));
-  ovClear.addEventListener('click', () => {
-    poseState.fig?.clearOverlay();
-    poseState.dragTarget = 'view';
-    poseState.fig?.setDragTarget('view');
-    ovMove.setAttribute('aria-pressed', 'false');
-    syncOverlayButtons();
-  });
   fitBtn.addEventListener('click', () => poseState.fig?.fitAll());
   zoomInBtn.addEventListener('click', () => poseState.fig?.zoomIn());
   zoomOutBtn.addEventListener('click', () => poseState.fig?.zoomOut());
@@ -559,10 +516,55 @@ function initSettings() {
 
 // ---- 起動 ----
 
+// ---- 参考画像(キャラクターの設定) ----
+
+function syncRefButtons() {
+  const has = !!refImage.overlay?.src;
+  for (const id of ['refMove', 'refZoomIn', 'refZoomOut', 'refClear']) $(id).disabled = !has;
+  $('refMove').setAttribute('aria-pressed', String(has && refImage.dragTarget === 'overlay'));
+}
+
+function calcFig() {
+  return poseStates.get($('calcOutput'))?.fig;
+}
+
+function setRefImage(dataUrl) {
+  calcFig()?.setOverlay(dataUrl);
+  refImage.dragTarget = 'overlay';
+  calcFig()?.setDragTarget('overlay');
+  syncRefButtons();
+}
+
+function initRefImage() {
+  $('refFile').addEventListener('change', () => {
+    const file = $('refFile').files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setRefImage(reader.result);
+    reader.readAsDataURL(file);
+    $('refFile').value = '';
+  });
+  $('refMove').addEventListener('click', () => {
+    refImage.dragTarget = refImage.dragTarget === 'overlay' ? 'view' : 'overlay';
+    calcFig()?.setDragTarget(refImage.dragTarget);
+    syncRefButtons();
+  });
+  $('refZoomIn').addEventListener('click', () => calcFig()?.overlayZoom(1.2));
+  $('refZoomOut').addEventListener('click', () => calcFig()?.overlayZoom(1 / 1.2));
+  $('refClear').addEventListener('click', () => {
+    calcFig()?.clearOverlay();
+    refImage.dragTarget = 'view';
+    calcFig()?.setDragTarget('view');
+    syncRefButtons();
+  });
+  syncRefButtons();
+}
+
 function main() {
   fillSelects();
   syncModeRows();
   buildAdjustSliders();
+  initRefImage();
   renderMaterials();
   initSettings();
 
@@ -613,7 +615,7 @@ function main() {
   // スモークテスト用の開発フック(画像入力をdataURLで直接流し込む)
   window.__debug = {
     loadPhoto: loadPhotoImage,
-    setOverlay: (dataUrl) => poseStates.get($('calcOutput'))?.fig?.setOverlay(dataUrl),
+    setOverlay: (dataUrl) => setRefImage(dataUrl),
   };
 }
 

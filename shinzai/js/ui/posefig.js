@@ -245,9 +245,10 @@ export function createPoseFigure(container, seg, opts = {}) {
     stage.append(flesh, bones, dims, jointsG);
     stages[view] = stage;
     svg.append(stage);
-    if (interactive) {
-      svg.addEventListener('pointerdown', (ev) => startPan(ev, view));
-    }
+    // 背景操作: ポーズモードでは図の移動/ズーム、参考画像モードでは正面図の参考画像の移動/ズーム
+    // (参考画像は通常表示でも動かせる=キャラクターの設定から操作するため。第19弾FB)
+    svg.addEventListener('pointerdown', (ev) => startPan(ev, view));
+    if (!interactive) svg.addEventListener('touchmove', (ev) => { if (dragTarget === 'overlay') ev.preventDefault(); }, { passive: false });
     return svg;
   }
 
@@ -281,8 +282,9 @@ export function createPoseFigure(container, seg, opts = {}) {
     if (ev.target.classList?.contains('pose-hit')) return;
     ev.preventDefault();
     const svg = svgs[view];
-    // 「透かしを動かす」モードでは正面図の背景操作は透かし画像に対して行う
+    // 「参考画像を動かす」モードでは正面図の背景操作は参考画像に対して行う
     const onOverlay = dragTarget === 'overlay' && view === 'front' && overlayState?.src;
+    if (!interactive && !onOverlay) return; // 通常表示では図は動かさない
     pointers.set(ev.pointerId, svgPoint(svg, ev));
     let last = svgPoint(svg, ev);
     if (pointers.size === 2) {
@@ -566,6 +568,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     redraw();
     applyViewport();
     applyOverlay();
+    svgs.front?.classList.toggle('overlay-drag', dragTarget === 'overlay');
   }
 
   mount();
@@ -610,7 +613,10 @@ export function createPoseFigure(container, seg, opts = {}) {
       applyOverlay();
       emitOverlay();
     },
-    setDragTarget(t) { dragTarget = t === 'overlay' ? 'overlay' : 'view'; },
+    setDragTarget(t) {
+      dragTarget = t === 'overlay' ? 'overlay' : 'view';
+      svgs.front?.classList.toggle('overlay-drag', dragTarget === 'overlay');
+    },
     getJoints: () => joints,
     isPosed: () => isPosed(joints, rest),
     setFlesh(on) {
