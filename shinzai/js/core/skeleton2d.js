@@ -55,7 +55,12 @@ export function ratiosFromJoints(joints, baseRatios) {
     // 手・足の長さは正面画像から測れないためベース体型から補完
     hand: baseRatios.hand,
     footLength: baseRatios.footLength,
+    // 首の長さ(あご下〜肩線)と骨盤の幅(左右の股関節)も画像から取る(取り込み精度。第23弾FB)
+    neck: Math.max(0.01, (avg(joints.shoulderL.y, joints.shoulderR.y) - joints.chin.y) / total),
   };
+  if (joints.hipL && joints.hipR) {
+    r.pelvisWidth = Math.max(0.02, Math.abs(joints.hipR.x - joints.hipL.x) / total);
+  }
 
   // 芯材モデルは「腰〜足先 = 股下」を前提とするため、脚をバランス維持のまま股下に正規化
   const legSum = r.thigh + r.shin + r.ankle;

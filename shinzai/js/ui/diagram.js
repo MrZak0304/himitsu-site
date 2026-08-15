@@ -58,12 +58,12 @@ export function geometry(seg) {
     k, cx, y,
     headR: (seg.head / 2) * k,
     neckY: y(seg.head),
-    shoulderY: y(seg.head * 1.35), // 首の長さ=頭高の0.35(pose3d の restPose と揃える)
+    shoulderY: y(seg.head + (seg.neck ?? seg.head * 0.35)), // 首の長さ(既定=頭高の0.35。pose3d の restPose と揃える)
     hipY: y(seg.headTopToHip),
     soleY: y(H),
     top: pad,
     shoulderHalf: (seg.shoulderWidth / 2) * k,
-    hipHalf: (seg.shoulderWidth / 2) * k * 0.7,
+    hipHalf: ((seg.pelvisWidth ?? seg.shoulderWidth * 0.75) / 2) * k,
   };
 }
 

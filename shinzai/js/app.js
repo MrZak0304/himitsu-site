@@ -22,6 +22,8 @@ const poseStates = new WeakMap(); // 出力領域ごとのポーズ状態(計算
 const refImage = { overlay: null, dragTarget: 'view' };
 // 参考画像から取り込んだ体型(比率セット)。null ならプリセット(第2段階=一体化)
 let importedRatios = null;
+// 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
+const fitState = { on: false, joints: null };
 
 // ---- タブ ----
 
@@ -132,17 +134,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
-  // 体型合わせ(第2段階=一体化): 正面図の関節を参考画像に合わせて自由に動かし、比率を取り込む
-  const fitRow = h('div', 'fit-row');
-  const fitBtnT = h('button', 'toggle fit-toggle-btn', '体型を合わせる(骨を伸縮)');
-  fitBtnT.type = 'button'; fitBtnT.setAttribute('aria-pressed', String(!!poseState.fit));
-  const importBtn = h('button', 'fit-import-btn', 'この骨格を体型に取り込む');
-  importBtn.type = 'button';
-  fitRow.append(fitBtnT, importBtn);
-  const fitHint = h('p', 'hint fit-hint',
-    '「体型を合わせる」をオンにすると、正面図の関節(頭頂・あご・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます。参考画像のキャラクターに合わせてから「この骨格を体型に取り込む」を押すと、頭身・胴・肩幅・腕・脚の比率が体型に反映されて寸法が再計算されます(骨の長さを変えるので、通常のポーズ操作とは分けています)。'
-    + (IS_FREE ? ' 無料版では取り込み1回につき広告が1回表示されます(モバイル版)。' : ''));
-  poseTools.append(poseHint, fitRow, fitHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
+  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -151,11 +143,13 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const GUIDE_IDLE = '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
   const GUIDE_POSED = 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。';
   const renderViews = () => {
+    const isCalc = root.id === 'calcOutput';
+    const fitOn = isCalc && fitState.on;
     const fig = createPoseFigure(views, result.segments, {
       flesh: showFlesh,
-      interactive: poseState.on,
-      mode: poseState.on && poseState.fit ? 'fit' : 'pose',
-      initialJoints: poseState.on ? (poseState.fit ? poseState.fitJoints : poseState.joints) : null,
+      interactive: poseState.on || fitOn,
+      mode: fitOn ? 'fit' : 'pose',
+      initialJoints: fitOn ? fitState.joints : (poseState.on ? poseState.joints : null),
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
@@ -165,46 +159,23 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       dragTarget: root.id === 'calcOutput' ? refImage.dragTarget : 'view',
       onOverlayChange: (ov) => { if (root.id === 'calcOutput') { refImage.overlay = ov; syncRefButtons(); } },
       onPoseChange: (joints, posed) => {
-        if (poseState.fit) { poseState.fitJoints = posed ? joints : null; return; }
+        if (fitOn) { fitState.joints = posed ? joints : null; return; }
         poseState.joints = posed ? joints : null;
         poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
       },
     });
     poseState.fig = fig;
-    poseTools.hidden = !poseState.on;
-    const fitOn = !!poseState.fit;
-    fitBtnT.setAttribute('aria-pressed', String(fitOn));
-    importBtn.hidden = !fitOn;
-    // 体型合わせ中はポーズ専用の操作(ひねり・関節リセット)を隠す
+    poseTools.hidden = !(poseState.on || fitOn);
+    // 骨格合わせ中はポーズ専用の操作(ひねり・関節リセット・ポーズ切替)を隠し、表示位置の操作だけ残す
     for (const n of [twistUp.row, twistLo.row, poseButtons]) n.hidden = fitOn;
-    if (poseState.on) {
-      poseHint.textContent = fitOn
-        ? '体型合わせ中: 正面図の点を参考画像のキャラクターに合わせてください(骨の長さは自由に変わります)。合わせ終わったら「この骨格を体型に取り込む」。'
-        : (poseState.joints ? GUIDE_POSED : GUIDE_IDLE);
+    poseBtn.disabled = fitOn;
+    if (isCalc) toggleRow.hidden = false;
+    if (fitOn) {
+      poseHint.textContent = '骨格合わせ中: 正面図の点を参考画像のキャラクターに合わせてください(骨の長さは自由に変わります。股を動かすと骨格全体が移動)。合わせ終わったら「キャラクターの設定」の「この骨格を体型に取り込む」を押してください。';
+    } else if (poseState.on) {
+      poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
     }
   };
-  fitBtnT.addEventListener('click', () => {
-    poseState.fit = !poseState.fit;
-    renderViews();
-  });
-  importBtn.addEventListener('click', () => {
-    const fig = poseState.fig;
-    if (!fig) return;
-    const errBox = $('calcError');
-    try {
-      const px = fig.getFrontJointsPx();
-      const base = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
-      const ratios = ratiosFromJoints(px, base);
-      poseState.fit = false;
-      poseState.fitJoints = null;
-      poseState.joints = null; // 骨長が変わるのでポーズは直立から
-      setImportedRatios(ratios); // renderCalc → 再描画
-      errBox.hidden = true;
-    } catch (e) {
-      errBox.hidden = false;
-      errBox.textContent = `体型の取り込みに失敗しました: ${e.message}`;
-    }
-  });
   fleshBtn.addEventListener('click', () => {
     showFlesh = !showFlesh;
     renderCalc();
@@ -537,6 +508,65 @@ function setRefImage(dataUrl) {
   syncRefButtons();
 }
 
+// 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
+function initFit() {
+  const sync = () => {
+    $('fitToggle').setAttribute('aria-pressed', String(fitState.on));
+    $('fitImport').hidden = !fitState.on;
+  };
+  $('fitToggle').addEventListener('click', () => {
+    fitState.on = !fitState.on;
+    if (fitState.on) {
+      // 合わせている間はポーズ側は使わない(骨長が変わるため)。ポーズはOFFに
+      const st = poseStates.get($('calcOutput'));
+      if (st) st.on = false;
+    }
+    sync();
+    renderCalc();
+    if (fitState.on) $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  $('fitImport').addEventListener('click', () => {
+    const fig = calcFig();
+    if (!fig) return;
+    const errBox = $('calcError');
+    try {
+      const px = fig.getFrontJointsPx();
+      const base = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
+      const ratios = ratiosFromJoints(px, base);
+      // 取り込み後の骨格は標準位置(頭頂=上端pad、股=既定x、全高=枠いっぱい)に描き直されるので、
+      // 参考画像も同じ変換で動かして骨格とのズレを防ぐ(PD追加コメント「取り込み後にズレる」)
+      if (refImage.overlay?.src) {
+        const std = fig.standardFrame(); // { topY, soleY, hipX } 標準位置(px)
+        const topY = px.top.y;
+        const soleY = Math.max(px.heelL.y, px.heelR.y);
+        const scale = (std.soleY - std.topY) / Math.max(1, soleY - topY);
+        const ov = refImage.overlay;
+        const c0 = { x: 170 + ov.t.x, y: 230 + ov.t.y }; // 現在の中心(VIEW_W/2, VIEW_H/2 基準)
+        const anchor = { x: px.hip.x, y: topY };
+        const c1 = { x: std.hipX + (c0.x - anchor.x) * scale, y: std.topY + (c0.y - anchor.y) * scale };
+        refImage.overlay = { ...ov, s: ov.s * scale, t: { x: c1.x - 170, y: c1.y - 230 } };
+      }
+      fitState.on = false;
+      fitState.joints = null;
+      const st = poseStates.get($('calcOutput'));
+      if (st) st.joints = null; // 骨長が変わるのでポーズは直立から
+      sync();
+      setImportedRatios(ratios); // renderCalc → 再描画
+      errBox.hidden = true;
+    } catch (e) {
+      errBox.hidden = false;
+      errBox.textContent = `体型の取り込みに失敗しました: ${e.message}`;
+    }
+  });
+  sync();
+  if (IS_FREE) {
+    const note = document.createElement('p');
+    note.className = 'hint';
+    note.textContent = '無料版では体型の取り込み1回につき広告が1回表示されます(モバイル版)。';
+    $('fitImport').closest('.row').after(note);
+  }
+}
+
 function initRefImage() {
   $('refFile').addEventListener('change', () => {
     const file = $('refFile').files?.[0];
@@ -567,6 +597,7 @@ function main() {
   syncModeRows();
   buildAdjustSliders();
   initRefImage();
+  initFit();
   renderMaterials();
   initSettings();
 

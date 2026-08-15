@@ -85,9 +85,14 @@ export function computeArmature({
   for (const [key, ratio] of Object.entries(ratios)) {
     s[key] = ratio * figureHeightCm;
   }
+  // 任意比率(画像からの取り込みで得られる)。無ければ既定則: 首=頭高×0.35、骨盤幅=肩幅×0.75
+  const neckCm = ratios.neck != null ? ratios.neck * figureHeightCm : s.head * 0.35;
+  const pelvisCm = ratios.pelvisWidth != null ? ratios.pelvisWidth * figureHeightCm : s.shoulderWidth * 0.75;
   const segments = {
     figureHeight: round1(figureHeightCm),
     head: round1(s.head),
+    neck: round1(neckCm), // あご下〜肩線
+    pelvisWidth: round1(pelvisCm), // 骨盤(腰線)の幅
     headTopToHip: round1(s.hipTop), // 頭頂〜腰(股)
     hipToSole: round1(figureHeightCm - s.hipTop), // 腰(股)〜足裏
     shoulderWidth: round1(s.shoulderWidth),
@@ -109,7 +114,7 @@ export function computeArmature({
   const footStub = s.ankle + s.footLength * 0.2; // 足先: くるぶし〜足裏+つま先側へ少し
   const handStub = s.hand * 0.4; // 手首の先: 手(パテ)への接続しろ
   const legInsert = spineLen / 2; // 脚線を胴に固定する差し込み分
-  const pelvisWidth = s.shoulderWidth * 0.75; // 腰(骨盤)の幅=股関節の左右の間隔
+  const pelvisWidth = pelvisCm; // 腰(骨盤)の幅=股関節の左右の間隔
 
   const cut = (finishedCm, joins) =>
     round1(finishedCm * opts.strands * opts.twistFactor + opts.joinMarginCm * joins);

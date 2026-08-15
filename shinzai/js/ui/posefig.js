@@ -628,6 +628,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
+    // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
+    standardFrame: () => ({ topY: g.top, soleY: g.soleY, hipX: g.cx }),
     // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
     getFrontJointsPx() {
       const out = {};

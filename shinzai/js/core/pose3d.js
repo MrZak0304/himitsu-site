@@ -56,10 +56,10 @@ export const JOINT_LABELS = {
 export function restPose(seg) {
   const spineLen = seg.headTopToHip - seg.head; // あご下〜股
   // 肩の高さ: あご下から頭高の0.35下(首の長さ。0.15では首がなく頭が肩に乗って見えた=第18〜19弾FB)
-  const NECK_LEN = seg.head * 0.35;
+  const NECK_LEN = seg.neck ?? seg.head * 0.35;
   const shoulderY = -(spineLen - NECK_LEN);
   const shHalf = seg.shoulderWidth / 2;
-  const hipHalf = shHalf * 0.75;
+  const hipHalf = (seg.pelvisWidth ?? seg.shoulderWidth * 0.75) / 2;
   const armDx = 0.06 * seg.figureHeight; // 腕は体からやや外へ
   const j = {
     hip: { x: 0, y: 0, z: 0 },
