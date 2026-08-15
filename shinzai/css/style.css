@@ -400,3 +400,6 @@ a { color: var(--thread); }
 .pose-tools .is-disabled { opacity: 0.45; }
 .pose-tools .fit-note { margin: 0 0 6px; color: var(--thread); }
 .toggle-row .toggle { padding: 8px 6px; }
+
+.to-fit-row { margin: 6px 0 2px; }
+.to-fit-row .to-fit-btn { width: 100%; padding: 8px 6px; font-size: 0.85rem; }

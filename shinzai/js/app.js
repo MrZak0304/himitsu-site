@@ -142,13 +142,18 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
   const fitNote = h('p', 'hint fit-note', '骨格合わせ中はひねり・関節リセットは使えません(合わせを終えるか取り込むと使えます)。');
   fitNote.hidden = true;
-  poseTools.append(poseHint, fitNote, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
+  // ポーズ中は骨長固定で位置合わせができない → 骨格合わせ(ロック済み)へのショートカット(第28弾FB)
+  const toFitBtn = h('button', 'ghost to-fit-btn', '位置を微調整する(参考画像に骨格を合わせる)');
+  toFitBtn.type = 'button';
+  const toFitRow = h('div', 'to-fit-row');
+  toFitRow.append(toFitBtn);
+  poseTools.append(poseHint, fitNote, twistUp.row, twistLo.row, poseButtons, viewRow, toFitRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
   root.append(views);
 
-  const GUIDE_IDLE = '関節をドラッグでポーズ。どの面で動かしても他の面が連動します。';
+  const GUIDE_IDLE = '関節をドラッグでポーズ(骨の長さは固定=腰の端を動かすと回転します)。位置の微調整は下の「位置を微調整する」から。';
   const GUIDE_POSED = 'ポーズ中(骨の長さは不変=切り出し寸法はそのまま。図は曲げ位置の指示)。';
   const renderViews = () => {
     const isCalc = root.id === 'calcOutput';
@@ -180,6 +185,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     for (const n of [twistUp.row, twistLo.row, poseButtons]) n.classList.toggle('is-disabled', fitOn);
     for (const el2 of [twistUp.input, twistUp.zero, twistLo.input, twistLo.zero, resetOne, resetAll, jointSel]) el2.disabled = fitOn;
     fitNote.hidden = !fitOn;
+    toFitRow.hidden = !(isCalc && !fitOn); // ポーズモードでのみ表示
     // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
     viewRow.hidden = fitOn && fitState.locked;
     viewHint.hidden = fitOn && fitState.locked;
@@ -195,6 +201,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     showFlesh = !showFlesh;
     renderCalc();
   });
+  toFitBtn.addEventListener('click', () => enterFit(true));
   poseBtn.addEventListener('click', () => {
     poseState.on = !poseState.on;
     poseBtn.setAttribute('aria-pressed', String(poseState.on));
@@ -526,6 +533,17 @@ function setRefImage(dataUrl) {
 }
 
 // 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
+let fitSync = () => {};
+function enterFit(locked) {
+  fitState.on = true;
+  fitState.locked = !!locked;
+  // 合わせている間はポーズ側は使わない(骨長が変わるため)。ポーズはOFFに
+  const st = poseStates.get($('calcOutput'));
+  if (st) st.on = false;
+  fitSync();
+  renderCalc();
+  $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 function initFit() {
   const sync = () => {
     $('fitToggle').setAttribute('aria-pressed', String(fitState.on));
@@ -540,17 +558,10 @@ function initFit() {
     }
     syncRefButtons();
   };
+  fitSync = sync;
   $('fitToggle').addEventListener('click', () => {
-    fitState.on = !fitState.on;
-    fitState.locked = false;
-    if (fitState.on) {
-      // 合わせている間はポーズ側は使わない(骨長が変わるため)。ポーズはOFFに
-      const st = poseStates.get($('calcOutput'));
-      if (st) st.on = false;
-    }
-    sync();
-    renderCalc();
-    if (fitState.on) $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (fitState.on) { fitState.on = false; fitState.locked = false; sync(); renderCalc(); return; }
+    enterFit(false);
   });
   $('fitLock').addEventListener('click', () => {
     fitState.locked = !fitState.locked;
