@@ -340,3 +340,8 @@ a { color: var(--thread); }
 .pose-one-row { display: flex; gap: 6px; flex: 2; min-width: 14em; }
 .pose-one-row .joint-select { flex: 1; min-width: 7em; padding: 8px 6px; font-size: 0.9rem; }
 .pose-one-row button { flex: 1; min-width: 7em; }
+
+/* ポーズ: 表示位置・倍率のボタン */
+.view-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.view-buttons button { flex: 1; min-width: 6.5em; padding: 8px 6px; font-size: 0.88rem; }
+.pose-svg:not(.static) { cursor: grab; }

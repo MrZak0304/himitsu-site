@@ -101,7 +101,16 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   oneRow.append(jointSel, resetOne);
   const poseButtons = h('div', 'pose-buttons');
   poseButtons.append(oneRow, resetAll);
-  poseTools.append(poseHint, poseButtons);
+  // 表示位置・倍率(ポーズではみ出したときに見やすく調整。背景ドラッグ=移動、2本指=拡大縮小)
+  const viewRow = h('div', 'view-buttons');
+  const mkBtn = (label, cls) => { const b = h('button', `ghost ${cls}`, label); b.type = 'button'; return b; };
+  const fitBtn = mkBtn('全体を収める', 'view-fit');
+  const zoomInBtn = mkBtn('拡大', 'view-zoom-in');
+  const zoomOutBtn = mkBtn('縮小', 'view-zoom-out');
+  const viewResetBtn = mkBtn('表示位置を戻す', 'view-reset');
+  viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
+  const viewHint = h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小できます。');
+  poseTools.append(poseHint, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -116,6 +125,8 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       initialJoints: poseState.on ? poseState.joints : null,
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { jointSel.value = id; },
+      viewport: poseState.on ? poseState.viewport : null,
+      onViewportChange: (vp) => { poseState.viewport = vp; },
       onPoseChange: (joints, posed) => {
         poseState.joints = posed ? joints : null;
         poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
@@ -140,6 +151,10 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseState.joints = null;
   });
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
+  fitBtn.addEventListener('click', () => poseState.fig?.fitAll());
+  zoomInBtn.addEventListener('click', () => poseState.fig?.zoomIn());
+  zoomOutBtn.addEventListener('click', () => poseState.fig?.zoomOut());
+  viewResetBtn.addEventListener('click', () => poseState.fig?.resetView());
   renderViews();
 
   root.append(h('h3', null, '各部の仕上がり寸法'));

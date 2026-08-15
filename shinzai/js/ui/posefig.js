@@ -24,21 +24,27 @@ function el(name, attrs = {}, ...children) {
 const fmt = (n) => Math.round(n * 100) / 100;
 
 // container: 三面図を入れる要素 / seg: computeArmature().segments
-// opts: { flesh, interactive, initialJoints, onStatus, onPoseChange, onJointPick }
+// opts: { flesh, interactive, initialJoints, viewport, onStatus, onPoseChange, onJointPick, onViewportChange }
+// viewport: 表示位置・倍率 { s, t: { front:{x,y}, 'side-left':{x,y}, 'side-right':{x,y} } }
+//   (ポーズで図からはみ出すときに見やすい位置へ調整できる。2026-08-15 PD要望)
 export function createPoseFigure(container, seg, opts = {}) {
   const interactive = opts.interactive !== false;
+  const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
+  const stages = {}; // view → <g class="stage">
   const rest = restPose(seg);
   const lengths = boneLengths(rest);
   let joints = opts.initialJoints ?? rest;
   const svgs = {};
   const g = geometry(seg);
   const k = g.k;
-  const hipPx = { x: g.cx, y: g.hipY };
+  // 股の描画位置。正面・右側面は左寄り(寸法注記を右に置く)、左側面は「前」が左向きなので
+  // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
+  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : g.cx);
   const toPx = (p, view) => {
     const { u, v } = project(p, view);
-    return { x: hipPx.x + u * k, y: hipPx.y + v * k };
+    return { x: hipX(view) + u * k, y: g.hipY + v * k };
   };
-  const fromPx = (px) => ({ u: (px.x - hipPx.x) / k, v: (px.y - hipPx.y) / k });
+  const fromPx = (px, view) => ({ u: (px.x - hipX(view)) / k, v: (px.y - g.hipY) / k });
 
   // 太さの基準: 肩幅と頭高×1.5の小さい方(肩幅だけ広げても頭が埋まらない)
   const unit = Math.min(seg.shoulderWidth, seg.head * 1.5) * k;
@@ -225,8 +231,131 @@ export function createPoseFigure(container, seg, opts = {}) {
       }
       svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
     }
-    svg.append(flesh, bones, dims, jointsG);
+    const stage = el('g', { class: 'stage' });
+    stage.append(flesh, bones, dims, jointsG);
+    stages[view] = stage;
+    svg.append(stage);
+    if (interactive) {
+      svg.addEventListener('pointerdown', (ev) => startPan(ev, view));
+    }
     return svg;
+  }
+
+  function applyViewport() {
+    for (const [view, stage] of Object.entries(stages)) {
+      const t = viewport.t[view] ?? { x: 0, y: 0 };
+      stage.setAttribute('transform', `translate(${fmt(t.x)} ${fmt(t.y)}) scale(${fmt(viewport.s)})`);
+    }
+  }
+  const emitViewport = () => opts.onViewportChange?.(JSON.parse(JSON.stringify(viewport)));
+
+  // 背景ドラッグ=パン、2本指=ピンチズーム(関節のドラッグは stopPropagation されるのでここへ来ない)
+  const pointers = new Map();
+  let pinchStart = null;
+  function startPan(ev, view) {
+    if (ev.target.classList?.contains('pose-hit')) return;
+    ev.preventDefault();
+    const svg = svgs[view];
+    pointers.set(ev.pointerId, svgPoint(svg, ev));
+    let last = svgPoint(svg, ev);
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchStart = { d: Math.hypot(a.x - b.x, a.y - b.y), s: viewport.s, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, t: { ...(viewport.t[view] ?? { x: 0, y: 0 }) } };
+    }
+    const move = (e) => {
+      if (!pointers.has(e.pointerId)) return;
+      e.preventDefault();
+      const p = svgPoint(svg, e);
+      pointers.set(e.pointerId, p);
+      if (pointers.size >= 2 && pinchStart) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        const ns = Math.min(3, Math.max(0.3, (pinchStart.s * d) / (pinchStart.d || 1)));
+        // 中点を固定してズーム
+        const m = pinchStart.mid;
+        const t = pinchStart.t;
+        const local = { x: (m.x - t.x) / pinchStart.s, y: (m.y - t.y) / pinchStart.s };
+        viewport.s = ns;
+        viewport.t[view] = { x: m.x - local.x * ns, y: m.y - local.y * ns };
+        applyViewport();
+        return;
+      }
+      if (e.pointerId !== ev.pointerId) return;
+      const t = viewport.t[view] ?? { x: 0, y: 0 };
+      viewport.t[view] = { x: t.x + (p.x - last.x), y: t.y + (p.y - last.y) };
+      last = p;
+      applyViewport();
+    };
+    const up = (e) => {
+      pointers.delete(e.pointerId);
+      if (pointers.size < 2) pinchStart = null;
+      if (pointers.size === 0) {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        window.removeEventListener('pointercancel', up);
+        emitViewport();
+      }
+    };
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
+  }
+
+  // すべての関節(+頭)が各面に収まるように倍率と位置を決める(倍率は3面共通)
+  function fitAll() {
+    const margin = 28;
+    let s = Infinity;
+    const boxes = {};
+    for (const view of Object.keys(svgs)) {
+      let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
+      const pts = Object.keys(joints).map((id) => toPx(joints[id], view));
+      const hg = headGeom(view);
+      pts.push({ x: hg.c.x - hg.r, y: hg.c.y - hg.r }, { x: hg.c.x + hg.r, y: hg.c.y + hg.r });
+      for (const p of pts) { minX = Math.min(minX, p.x); minY = Math.min(minY, p.y); maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y); }
+      const pad = W.leg; // 肉付けの太さぶん
+      boxes[view] = { minX: minX - pad, minY: minY - pad, maxX: maxX + pad, maxY: maxY + pad };
+      const bw = boxes[view].maxX - boxes[view].minX; const bh = boxes[view].maxY - boxes[view].minY;
+      s = Math.min(s, (VIEW_W - margin * 2) / bw, (VIEW_H - margin * 2) / bh);
+    }
+    s = Math.min(1.6, Math.max(0.3, s));
+    viewport.s = s;
+    for (const [view, b] of Object.entries(boxes)) {
+      const cx = (b.minX + b.maxX) / 2; const cy = (b.minY + b.maxY) / 2;
+      viewport.t[view] = { x: VIEW_W / 2 - cx * s, y: VIEW_H / 2 - cy * s };
+    }
+    applyViewport();
+    emitViewport();
+  }
+  // ドラッグ可能な関節がすべて各面の枠内にあるか
+  function allJointsVisible() {
+    const margin = 6;
+    for (const view of Object.keys(svgs)) {
+      const t = viewport.t[view] ?? { x: 0, y: 0 };
+      for (const id of DRAGGABLE) {
+        const p = toPx(joints[id], view);
+        const x = p.x * viewport.s + t.x; const y = p.y * viewport.s + t.y;
+        if (x < margin || y < margin || x > VIEW_W - margin || y > VIEW_H - margin) return false;
+      }
+    }
+    return true;
+  }
+  function zoomBy(f) {
+    const ns = Math.min(3, Math.max(0.3, viewport.s * f));
+    for (const view of Object.keys(svgs)) {
+      // 画面中央を固定
+      const t = viewport.t[view] ?? { x: 0, y: 0 };
+      const local = { x: (VIEW_W / 2 - t.x) / viewport.s, y: (VIEW_H / 2 - t.y) / viewport.s };
+      viewport.t[view] = { x: VIEW_W / 2 - local.x * ns, y: VIEW_H / 2 - local.y * ns };
+    }
+    viewport.s = ns;
+    applyViewport();
+    emitViewport();
+  }
+  function resetView() {
+    viewport.s = 1;
+    for (const view of Object.keys(svgs)) viewport.t[view] = { x: 0, y: 0 };
+    applyViewport();
+    emitViewport();
   }
 
   function setLine(node, a, b) {
@@ -313,7 +442,8 @@ export function createPoseFigure(container, seg, opts = {}) {
         dimLineV(g.cx - g.shoulderHalf - 36, g.shoulderY, g.shoulderY + seg.armTotal * k, `腕 ${seg.armTotal}cm`, 'end'),
       );
     } else if (view === 'side-left') {
-      dims.append(dimLineV(g.cx + g.headR + 50, g.top, g.soleY, `全高 ${seg.figureHeight}cm`));
+      const hx = hipX(view);
+      dims.append(dimLineV(hx - g.headR - 50, g.top, g.soleY, `全高 ${seg.figureHeight}cm`, 'end'));
     } else {
       dims.append(
         dimLineH(g.soleY + 24, g.cx - seg.footLength * k * 0.3, g.cx + seg.footLength * k * 0.7, `足 ${seg.footLength}cm`),
@@ -326,6 +456,12 @@ export function createPoseFigure(container, seg, opts = {}) {
   function svgPoint(svg, ev) {
     const r = svg.getBoundingClientRect();
     return { x: ((ev.clientX - r.left) / r.width) * VIEW_W, y: ((ev.clientY - r.top) / r.height) * VIEW_H };
+  }
+  // 表示位置・倍率を差し引いた図の座標(関節ドラッグ用)
+  function localPoint(svg, view, ev) {
+    const p = svgPoint(svg, ev);
+    const t = viewport.t[view] ?? { x: 0, y: 0 };
+    return { x: (p.x - t.x) / viewport.s, y: (p.y - t.y) / viewport.s };
   }
 
   let lastJoint = null;
@@ -341,7 +477,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
-      joints = dragJoint(joints, lengths, id, fromPx(svgPoint(svg, e)), view);
+      joints = dragJoint(joints, lengths, id, fromPx(localPoint(svg, view, e), view), view);
       redraw();
     };
     const up = (e) => {
@@ -350,6 +486,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       opts.onPoseChange?.(joints, isPosed(joints, rest));
+      // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)
+      if (!allJointsVisible()) fitAll();
     };
     window.addEventListener('pointermove', move, { passive: false });
     window.addEventListener('pointerup', up);
@@ -370,6 +508,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       container.append(fig);
     }
     redraw();
+    applyViewport();
   }
 
   mount();
@@ -377,6 +516,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     reset() {
       joints = rest;
       redraw();
+      resetView(); // ポーズと一緒に表示位置・倍率も初期に戻す
       opts.onPoseChange?.(joints, false);
     },
     resetJoint(id = lastJoint) {
@@ -386,6 +526,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
+    fitAll, zoomIn: () => zoomBy(1.25), zoomOut: () => zoomBy(0.8), resetView,
     getJoints: () => joints,
     isPosed: () => isPosed(joints, rest),
     setFlesh(on) {
