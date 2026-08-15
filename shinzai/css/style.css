@@ -184,6 +184,21 @@ details[open] summary { margin-bottom: 6px; }
   color: var(--thread);
   padding-bottom: 4px;
 }
+/* ポーズモード(三面図の連動ポーズ) */
+.pose-svg { width: 100%; height: auto; display: block; touch-action: none; }
+.pose-svg .bones line { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.pose-svg .head-ref { fill: none; stroke: var(--ink); stroke-dasharray: 5 4; stroke-width: 1.5; opacity: 0.55; }
+.pose-svg .capsules { display: none; }
+.pose-svg.with-flesh .capsules { display: block; opacity: 0.9; }
+.pose-svg.with-flesh .capsules line { stroke: #e6c9a5; stroke-linecap: round; }
+.pose-svg.with-flesh .head-flesh { fill: #e6c9a5; }
+.pose-svg.with-flesh .bones { opacity: 0.35; }
+.pose-svg .pose-dot { fill: var(--thread); stroke: #fff; stroke-width: 1.5; pointer-events: none; }
+.pose-svg .pose-hit { fill: transparent; stroke: none; cursor: grab; touch-action: none; }
+.pose-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
+.pose-tools .hint { flex: 1; min-width: 12em; margin: 0; }
+.flesh-row { display: flex; gap: 18px; flex-wrap: wrap; }
+
 /* 肉付けイメージ(粘土色のシルエット) */
 .flesh { opacity: 0.9; }
 .with-flesh .bones { opacity: 0.25; } /* 肉付け表示中は針金を薄くしてシルエットを主役に */

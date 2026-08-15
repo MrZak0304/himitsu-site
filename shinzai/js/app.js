@@ -9,6 +9,7 @@ import {
   loadPresets, savePreset, deletePreset, hasPreset, STORE_KEY,
 } from './core/presets-store.js';
 import { renderThreeViews } from './ui/diagram.js';
+import { createPoseFigure } from './ui/posefig.js';
 import { createPhotoFit } from './ui/photofit.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
@@ -17,6 +18,7 @@ const $ = (id) => document.getElementById(id);
 const storage = window.localStorage;
 let adjustments = { ...DEFAULT_ADJUSTMENTS };
 let showFlesh = false; // 肉付けイメージの表示(両タブ共通)
+const poseStates = new WeakMap(); // 出力領域ごとのポーズ状態(計算タブ/画像からタブで独立)
 
 // ---- タブ ----
 
@@ -77,11 +79,66 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   });
   fleshLabel.append(fleshCb, h('span', null, '肉付けイメージを表示'));
   fleshRow.append(fleshLabel);
+
+  // ポーズモード(三面図の連動ポーズ)。root ごとに状態を持つ
+  const poseState = poseStates.get(root) ?? { on: false, joints: null, sig: null };
+  poseStates.set(root, poseState);
+  // 寸法(体型・サイズ)が変わったら保持していたポーズは捨てる(骨長が合わなくなるため)
+  const sig = JSON.stringify(result.segments);
+  if (poseState.sig !== sig) {
+    poseState.joints = null;
+    poseState.sig = sig;
+  }
+  const poseLabel = h('label', 'flesh-toggle');
+  const poseCb = document.createElement('input');
+  poseCb.type = 'checkbox';
+  poseCb.className = 'pose-checkbox';
+  poseCb.checked = poseState.on;
+  poseLabel.append(poseCb, h('span', null, 'ポーズを取る(関節をドラッグ)'));
+  fleshRow.append(poseLabel);
   root.append(fleshRow);
 
   const views = h('div', 'views');
-  views.append(renderThreeViews(result, { flesh: showFlesh }));
   root.append(views);
+  const poseHint = h('p', 'hint pose-hint');
+  const poseReset = h('button', 'ghost', 'ポーズをリセット');
+  poseReset.type = 'button';
+  const poseTools = h('div', 'pose-tools');
+  poseTools.append(poseHint, poseReset);
+  root.append(poseTools);
+
+  const renderViews = () => {
+    if (poseState.on) {
+      const fig = createPoseFigure(views, result.segments, {
+        flesh: showFlesh,
+        initialJoints: poseState.joints,
+        onStatus: (t) => { poseHint.textContent = t; },
+        onPoseChange: (joints, posed) => {
+          poseState.joints = posed ? joints : null;
+          poseHint.textContent = posed
+            ? 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。'
+            : '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
+        },
+      });
+      poseState.fig = fig;
+      poseHint.textContent = poseState.joints
+        ? 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。'
+        : '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
+      poseTools.hidden = false;
+    } else {
+      views.replaceChildren(renderThreeViews(result, { flesh: showFlesh }));
+      poseTools.hidden = true;
+    }
+  };
+  poseCb.addEventListener('change', () => {
+    poseState.on = poseCb.checked;
+    renderViews();
+  });
+  poseReset.addEventListener('click', () => {
+    poseState.fig?.reset();
+    poseState.joints = null;
+  });
+  renderViews();
 
   root.append(h('h3', null, '各部の仕上がり寸法'));
   const segTable = document.createElement('table');
