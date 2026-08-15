@@ -234,6 +234,29 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     };
   }
 
+  // 関節を動かす。骨盤は常に連結を保つ(2026-08-15 PDフィードバック第10弾):
+  //   股(中心)を動かす → 骨盤の左右端と両脚も一緒に平行移動
+  //   骨盤の端を動かす → 股(中心)はつねに左右端の中点
+  const PELVIS_FOLLOWERS = ['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR'];
+  function moveJoint(id, p) {
+    if (id === 'hip') {
+      const dx = p.x - joints.hip.x;
+      const dy = p.y - joints.hip.y;
+      for (const f of PELVIS_FOLLOWERS) {
+        if (joints[f]) joints[f] = { x: joints[f].x + dx, y: joints[f].y + dy };
+      }
+      joints.hip = p;
+      return;
+    }
+    joints[id] = p;
+    if ((id === 'hipL' || id === 'hipR') && joints.hipL && joints.hipR) {
+      joints.hip = {
+        x: (joints.hipL.x + joints.hipR.x) / 2,
+        y: (joints.hipL.y + joints.hipR.y) / 2,
+      };
+    }
+  }
+
   function startDrag(ev, id) {
     ev.preventDefault();
     ev.stopPropagation(); // 2タップフィットのタップ扱いにしない
@@ -247,7 +270,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
-      joints[id] = svgPoint(e);
+      moveJoint(id, svgPoint(e));
       redrawBones();
     };
     const up = (e) => {
@@ -268,12 +291,16 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
       const img = new Image();
       img.onload = () => {
         container.replaceChildren();
-        // 表示幅に合わせた座標系(横長すぎ・縦長すぎでも破綻しないよう長辺基準)
-        const maxW = container.clientWidth || 360;
-        const scale = maxW / img.naturalWidth;
-        const w = maxW;
-        const h = img.naturalHeight * scale;
+        // 表示サイズ: 幅は親要素、高さは画面の約60%に収める(縦長の大きい画像でも
+        // スクロールなしで全身が見えるように自動縮尺。2026-08-15 PDフィードバック第10弾)
+        // ※ container 自身は空のとき display:none なので親の幅を測る
+        const maxW = Math.min(420, container.parentElement?.clientWidth || 360);
+        const maxH = Math.max(240, Math.min(640, (window.innerHeight || 800) * 0.6));
+        const scale = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight);
+        const w = Math.round(img.naturalWidth * scale);
+        const h = Math.round(img.naturalHeight * scale);
         img.className = 'photofit-image';
+        container.style.width = `${w}px`;
         container.style.aspectRatio = `${img.naturalWidth} / ${img.naturalHeight}`;
         container.append(img);
         tapTop = null;

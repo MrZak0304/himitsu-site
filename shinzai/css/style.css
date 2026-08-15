@@ -225,10 +225,11 @@ td .note { font-size: 0.75rem; color: #857a6a; }
 /* 画像から: オーバーレイ */
 .photofit-box {
   position: relative;
-  margin-top: 12px;
+  margin: 12px auto 0; /* 縮尺で幅が狭まったときは中央寄せ */
   max-width: 420px;
   border-radius: 8px;
   overflow: hidden;
+  background: #efe9dc;
 }
 .photofit-box:empty { display: none; }
 .photofit-image { width: 100%; display: block; }
