@@ -110,19 +110,24 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const viewResetBtn = mkBtn('表示位置を戻す', 'view-reset');
   viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
   const viewHint = h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小できます。');
-  // 腰のひねり(上半身を背骨の軸まわりに回す。第15弾FB)
-  const twistRow = h('div', 'twist-row');
-  const twistLabel = h('label', null, '腰のひねり');
-  twistLabel.htmlFor = `twist-${root.id}`;
-  const twistInput = document.createElement('input');
-  twistInput.type = 'range';
-  twistInput.id = `twist-${root.id}`;
-  twistInput.className = 'twist-range';
-  twistInput.min = '-90'; twistInput.max = '90'; twistInput.step = '1';
-  twistInput.value = String(poseState.twist ?? 0);
-  const twistValue = h('span', 'adj-value', `${poseState.twist ?? 0}°`);
-  twistRow.append(twistLabel, twistInput, twistValue);
-  poseTools.append(poseHint, twistRow, poseButtons, viewRow, viewHint);
+  // ひねり(第15〜16弾FB): 上半身(肩)=首のつけ根から先 / 腰(骨盤)=股関節から先 を背骨の軸まわりに回す
+  const mkTwist = (key, label, cls) => {
+    const row = h('div', 'twist-row');
+    const lab = h('label', null, label);
+    lab.htmlFor = `${cls}-${root.id}`;
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.id = `${cls}-${root.id}`;
+    input.className = `twist-range ${cls}`;
+    input.min = '-90'; input.max = '90'; input.step = '1';
+    input.value = String(poseState[key] ?? 0);
+    const val = h('span', 'adj-value', `${poseState[key] ?? 0}°`);
+    row.append(lab, input, val);
+    return { row, input, val };
+  };
+  const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
+  const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
+  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -161,17 +166,21 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   resetAll.addEventListener('click', () => {
     poseState.fig?.reset();
     poseState.joints = null;
-    poseState.twist = 0;
-    twistInput.value = '0';
-    twistValue.textContent = '0°';
+    for (const [key, t] of [['twistUpper', twistUp], ['twistLower', twistLo]]) {
+      poseState[key] = 0;
+      t.input.value = '0';
+      t.val.textContent = '0°';
+    }
   });
-  twistInput.addEventListener('input', () => {
-    const next = Number(twistInput.value);
-    const delta = next - (poseState.twist ?? 0);
-    poseState.twist = next;
-    twistValue.textContent = `${next}°`;
-    poseState.fig?.twist(delta);
+  const bindTwist = (key, t, apply) => t.input.addEventListener('input', () => {
+    const next = Number(t.input.value);
+    const delta = next - (poseState[key] ?? 0);
+    poseState[key] = next;
+    t.val.textContent = `${next}°`;
+    apply(delta);
   });
+  bindTwist('twistUpper', twistUp, (d) => poseState.fig?.twistUpper(d));
+  bindTwist('twistLower', twistLo, (d) => poseState.fig?.twistLower(d));
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
   fitBtn.addEventListener('click', () => poseState.fig?.fitAll());
   zoomInBtn.addEventListener('click', () => poseState.fig?.zoomIn());

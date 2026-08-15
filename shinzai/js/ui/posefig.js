@@ -7,7 +7,7 @@
 //   ・寸法注記は直立(未ポーズ)のときだけ表示
 
 import {
-  restPose, boneLengths, dragJoint, resetJoint, twistUpper, project, isPosed, neckStubEnd,
+  restPose, boneLengths, dragJoint, resetJoint, twistUpper, twistLower, project, isPosed, neckStubEnd,
   BONES, FOOT_BONES, DRAGGABLE, JOINT_LABELS,
 } from '../core/pose3d.js';
 import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
@@ -384,8 +384,11 @@ export function createPoseFigure(container, seg, opts = {}) {
         // 接続しろ: 手首の先(手長4割)・足首の先(足裏+つま先側)
         const e = toPx(joints[`elbow${s}`], view); const w = toPx(joints[`wrist${s}`], view);
         setLine(svg.querySelector(`.stub[data-stub=wrist${s}]`), w, add(w, mul(norm(sub(w, e)), seg.hand * 0.4 * k)));
-        const kn = toPx(joints[`knee${s}`], view); const an = toPx(joints[`ankle${s}`], view);
-        setLine(svg.querySelector(`.stub[data-stub=ankle${s}]`), an, add(an, mul(norm(sub(an, kn)), seg.ankle * k)));
+        // 足首の先の接続しろは足(足首→つま先)の中に沿わせる=足を動かしても露出しない(第16弾FB)
+        const an = toPx(joints[`ankle${s}`], view); const to = toPx(joints[`toe${s}`], view);
+        const fv = sub(to, an); const fvLen = Math.hypot(fv.x, fv.y);
+        const stubLen = Math.min(seg.ankle * k, fvLen * 0.6);
+        setLine(svg.querySelector(`.stub[data-stub=ankle${s}]`), an, fvLen > 1e-6 ? add(an, mul(fv, stubLen / fvLen)) : an);
         setEllipse(svg.querySelector(`.hand-ref[data-side=${s}]`), handEllipse(view, s));
         const f = footShape(view, s);
         const fe = svg.querySelector(`.foot-ref-e[data-side=${s}]`);
@@ -526,9 +529,15 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
-    // 腰のひねり(差分角度)。上半身を背骨軸まわりに回す
-    twist(deltaDeg) {
+    // ひねり(差分角度)。upper=上半身(肩)、lower=骨盤+脚(腰)を背骨軸まわりに回す
+    twist(deltaDeg) { this.twistUpper(deltaDeg); },
+    twistUpper(deltaDeg) {
       joints = twistUpper(joints, lengths, deltaDeg);
+      redraw();
+      opts.onPoseChange?.(joints, isPosed(joints, rest));
+    },
+    twistLower(deltaDeg) {
+      joints = twistLower(joints, lengths, deltaDeg);
       redraw();
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },

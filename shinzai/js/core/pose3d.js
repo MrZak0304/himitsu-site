@@ -281,9 +281,10 @@ export function isPosed(joints, rest, eps = 0.05) {
   return Object.keys(PARENT).some((id) => len(sub(joints[id], rest[id])) > eps);
 }
 
-// 腰のひねり(2026-08-15 PDフィードバック第15弾): 上半身(首のつけ根から先=肩・腕・首・頭)を
-// 背骨の軸(股→首のつけ根)まわりに deltaDeg だけ回す。骨盤・脚はそのまま=ウエストでひねる。
-export function twistUpper(joints, lengths, deltaDeg) {
+// ひねり(2026-08-15 PDフィードバック第15〜16弾)。背骨の軸(股→首のつけ根)まわりの回転。
+//   twistUpper: 上半身(首のつけ根から先=肩・腕・首・頭)を回す(肩のひねり)
+//   twistLower: 骨盤+脚(股関節から先)を回す(腰のひねり)。体幹・肩はそのまま
+function rotateAroundSpine(joints, lengths, deltaDeg, ids, pivot) {
   if (!Number.isFinite(deltaDeg) || Math.abs(deltaDeg) < 1e-9) return joints;
   const axis = sub(joints.spineTop, joints.hip);
   const al = len(axis);
@@ -303,9 +304,15 @@ export function twistUpper(joints, lengths, deltaDeg) {
     };
   };
   const out = { ...joints };
-  const pivot = joints.spineTop;
-  for (const d of descendants('spineTop')) {
-    out[d] = add(pivot, rot(sub(joints[d], pivot)));
-  }
+  for (const id of ids) out[id] = add(pivot, rot(sub(joints[id], pivot)));
   return normalizeLengths(out, lengths);
+}
+
+export function twistUpper(joints, lengths, deltaDeg) {
+  return rotateAroundSpine(joints, lengths, deltaDeg, descendants('spineTop'), joints.spineTop);
+}
+
+export function twistLower(joints, lengths, deltaDeg) {
+  const ids = ['hipL', 'hipR', ...descendants('hipL'), ...descendants('hipR')];
+  return rotateAroundSpine(joints, lengths, deltaDeg, ids, joints.hip);
 }
