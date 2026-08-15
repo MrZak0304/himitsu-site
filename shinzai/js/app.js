@@ -147,7 +147,19 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   toFitBtn.type = 'button';
   const toFitRow = h('div', 'to-fit-row');
   toFitRow.append(toFitBtn);
-  poseTools.append(poseHint, fitNote, twistUp.row, twistLo.row, poseButtons, viewRow, toFitRow, viewHint);
+  // 骨格合わせの終了操作を図のすぐ上に置く(上の「キャラクターの設定」まで戻らなくてよい。第29弾FB)
+  const fitLockBtn = h('button', 'toggle fit-lock-btn', '位置をロック');
+  fitLockBtn.type = 'button';
+  const fitDoneBtn = h('button', 'fit-done-btn', 'この骨格を体型に取り込む(合わせを終える)');
+  fitDoneBtn.type = 'button';
+  const fitCancelBtn = h('button', 'ghost fit-cancel-btn', '取り込まずに終える');
+  fitCancelBtn.type = 'button';
+  const fitActions = h('div', 'fit-actions');
+  fitActions.append(fitLockBtn, fitDoneBtn, fitCancelBtn);
+  fitActions.hidden = true;
+  const fitDone = h('p', 'hint fit-done-msg', '');
+  fitDone.hidden = true;
+  poseTools.append(poseHint, fitNote, fitActions, twistUp.row, twistLo.row, poseButtons, viewRow, toFitRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -185,6 +197,10 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     for (const n of [twistUp.row, twistLo.row, poseButtons]) n.classList.toggle('is-disabled', fitOn);
     for (const el2 of [twistUp.input, twistUp.zero, twistLo.input, twistLo.zero, resetOne, resetAll, jointSel]) el2.disabled = fitOn;
     fitNote.hidden = !fitOn;
+    fitActions.hidden = !fitOn;
+    fitLockBtn.setAttribute('aria-pressed', String(fitState.locked));
+    fitLockBtn.textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
+    poseHint.classList.toggle('fit-banner', fitOn);
     toFitRow.hidden = !(isCalc && !fitOn); // ポーズモードでのみ表示
     // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
     viewRow.hidden = fitOn && fitState.locked;
@@ -192,7 +208,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
-      poseHint.textContent = '骨格合わせ中: 正面図の点を参考画像に合わせ、「キャラクターの設定」の「この骨格を体型に取り込む」を押してください。';
+      poseHint.textContent = '骨格合わせ中: 正面図の点を参考画像に合わせたら、下の「この骨格を体型に取り込む(合わせを終える)」で終了します。';
     } else if (poseState.on) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
     }
@@ -202,6 +218,15 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     renderCalc();
   });
   toFitBtn.addEventListener('click', () => enterFit(true));
+  fitLockBtn.addEventListener('click', () => $('fitLock').click());
+  fitDoneBtn.addEventListener('click', () => $('fitImport').click());
+  fitCancelBtn.addEventListener('click', () => { if (fitState.on) $('fitToggle').click(); });
+  if (root.id === 'calcOutput' && fitFlash) {
+    fitDone.textContent = fitFlash;
+    fitDone.hidden = false;
+    fitFlash = '';
+    toggleRow.after(fitDone);
+  }
   poseBtn.addEventListener('click', () => {
     poseState.on = !poseState.on;
     poseBtn.setAttribute('aria-pressed', String(poseState.on));
@@ -534,6 +559,7 @@ function setRefImage(dataUrl) {
 
 // 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
 let fitSync = () => {};
+let fitFlash = ''; // 骨格合わせ終了時の一言(次の描画で1回だけ表示)
 function enterFit(locked) {
   fitState.on = true;
   fitState.locked = !!locked;
@@ -560,7 +586,11 @@ function initFit() {
   };
   fitSync = sync;
   $('fitToggle').addEventListener('click', () => {
-    if (fitState.on) { fitState.on = false; fitState.locked = false; sync(); renderCalc(); return; }
+    if (fitState.on) {
+      fitState.on = false; fitState.locked = false; fitState.joints = null;
+      fitFlash = '骨格合わせを終了しました(体型には取り込んでいません)。';
+      sync(); renderCalc(); return;
+    }
     enterFit(false);
   });
   $('fitLock').addEventListener('click', () => {
@@ -601,6 +631,7 @@ function initFit() {
       const st = poseStates.get($('calcOutput'));
       if (st) st.joints = null; // 骨長が変わるのでポーズは直立から
       sync();
+      fitFlash = '骨格合わせを終了し、体型に取り込みました。「ポーズを取る」でポーズを付けられます。';
       setImportedRatios(ratios); // renderCalc → 再描画
       errBox.hidden = true;
     } catch (e) {
