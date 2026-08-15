@@ -110,7 +110,19 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const viewResetBtn = mkBtn('表示位置を戻す', 'view-reset');
   viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
   const viewHint = h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小できます。');
-  poseTools.append(poseHint, poseButtons, viewRow, viewHint);
+  // 腰のひねり(上半身を背骨の軸まわりに回す。第15弾FB)
+  const twistRow = h('div', 'twist-row');
+  const twistLabel = h('label', null, '腰のひねり');
+  twistLabel.htmlFor = `twist-${root.id}`;
+  const twistInput = document.createElement('input');
+  twistInput.type = 'range';
+  twistInput.id = `twist-${root.id}`;
+  twistInput.className = 'twist-range';
+  twistInput.min = '-90'; twistInput.max = '90'; twistInput.step = '1';
+  twistInput.value = String(poseState.twist ?? 0);
+  const twistValue = h('span', 'adj-value', `${poseState.twist ?? 0}°`);
+  twistRow.append(twistLabel, twistInput, twistValue);
+  poseTools.append(poseHint, twistRow, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -149,6 +161,16 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   resetAll.addEventListener('click', () => {
     poseState.fig?.reset();
     poseState.joints = null;
+    poseState.twist = 0;
+    twistInput.value = '0';
+    twistValue.textContent = '0°';
+  });
+  twistInput.addEventListener('input', () => {
+    const next = Number(twistInput.value);
+    const delta = next - (poseState.twist ?? 0);
+    poseState.twist = next;
+    twistValue.textContent = `${next}°`;
+    poseState.fig?.twist(delta);
   });
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
   fitBtn.addEventListener('click', () => poseState.fig?.fitAll());

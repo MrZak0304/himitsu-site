@@ -3,12 +3,13 @@
 // proportions.js 互換の比率セットに変換する。DOM・Canvas には依存しない。
 //
 // joints: { top, chin, shoulderL, shoulderR, elbowL, elbowR, wristL, wristR,
-//           hip, kneeL, kneeR, ankleL, ankleR, sole } 各 {x, y}(px、下が+y)
-// top=頭頂 / chin=あご / hip=股 / sole=足裏(接地点)
+//           hip, kneeL, kneeR, ankleL, ankleR, heelL, heelR } 各 {x, y}(px、下が+y)
+// top=頭頂 / chin=あご / hip=股 / heelL,heelR=かかと(足裏の位置=全身の高さの基準。
+// 左右で高さが違うポーズ画像では低い方=接地している足を基準にする)。旧形式の sole(足裏1点)も受け付ける
 
 const REQUIRED_JOINTS = [
   'top', 'chin', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR',
-  'wristL', 'wristR', 'hip', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'sole',
+  'wristL', 'wristR', 'hip', 'kneeL', 'kneeR', 'ankleL', 'ankleR',
 ];
 
 function dist(a, b) {
@@ -23,12 +24,18 @@ export function ratiosFromJoints(joints, baseRatios) {
       throw new Error(`関節「${key}」の位置が不正です`);
     }
   }
-  const total = joints.sole.y - joints.top.y;
-  if (total <= 10) {
-    throw new Error('頭頂と足裏の間隔が近すぎます。骨格を画像の全身に合わせてください');
+  // 足裏の位置: かかと(左右)の低い方。旧形式は sole
+  const heels = [joints.heelL, joints.heelR].filter((p) => p && Number.isFinite(p.y));
+  const soleY = heels.length > 0 ? Math.max(...heels.map((p) => p.y)) : joints.sole?.y;
+  if (!Number.isFinite(soleY)) {
+    throw new Error('関節「かかと」の位置が不正です');
   }
-  if (!(joints.top.y < joints.chin.y && joints.chin.y < joints.hip.y && joints.hip.y < joints.sole.y)) {
-    throw new Error('頭頂→あご→股→足裏が上から順になるように配置してください');
+  const total = soleY - joints.top.y;
+  if (total <= 10) {
+    throw new Error('頭頂とかかとの間隔が近すぎます。骨格を画像の全身に合わせてください');
+  }
+  if (!(joints.top.y < joints.chin.y && joints.chin.y < joints.hip.y && joints.hip.y < soleY)) {
+    throw new Error('頭頂→あご→股→かかとが上から順になるように配置してください');
   }
 
   const avg = (a, b) => (a + b) / 2;
@@ -44,7 +51,7 @@ export function ratiosFromJoints(joints, baseRatios) {
     forearm: avg(dist(joints.elbowL, joints.wristL), dist(joints.elbowR, joints.wristR)) / total,
     thigh: avg(dist(hipL, joints.kneeL), dist(hipR, joints.kneeR)) / total,
     shin: avg(dist(joints.kneeL, joints.ankleL), dist(joints.kneeR, joints.ankleR)) / total,
-    ankle: Math.max(0.01, (joints.sole.y - avg(joints.ankleL.y, joints.ankleR.y)) / total),
+    ankle: Math.max(0.01, (soleY - avg(joints.ankleL.y, joints.ankleR.y)) / total),
     // 手・足の長さは正面画像から測れないためベース体型から補完
     hand: baseRatios.hand,
     footLength: baseRatios.footLength,

@@ -280,3 +280,32 @@ function rotationBetween(a, b) {
 export function isPosed(joints, rest, eps = 0.05) {
   return Object.keys(PARENT).some((id) => len(sub(joints[id], rest[id])) > eps);
 }
+
+// 腰のひねり(2026-08-15 PDフィードバック第15弾): 上半身(首のつけ根から先=肩・腕・首・頭)を
+// 背骨の軸(股→首のつけ根)まわりに deltaDeg だけ回す。骨盤・脚はそのまま=ウエストでひねる。
+export function twistUpper(joints, lengths, deltaDeg) {
+  if (!Number.isFinite(deltaDeg) || Math.abs(deltaDeg) < 1e-9) return joints;
+  const axis = sub(joints.spineTop, joints.hip);
+  const al = len(axis);
+  if (al < 1e-9) return joints;
+  const ux = axis.x / al; const uy = axis.y / al; const uz = axis.z / al;
+  const th = (deltaDeg * Math.PI) / 180;
+  const c = Math.cos(th); const s = Math.sin(th);
+  const rot = (v) => {
+    const cx = uy * v.z - uz * v.y;
+    const cy = uz * v.x - ux * v.z;
+    const cz = ux * v.y - uy * v.x;
+    const d = ux * v.x + uy * v.y + uz * v.z;
+    return {
+      x: v.x * c + cx * s + ux * d * (1 - c),
+      y: v.y * c + cy * s + uy * d * (1 - c),
+      z: v.z * c + cz * s + uz * d * (1 - c),
+    };
+  };
+  const out = { ...joints };
+  const pivot = joints.spineTop;
+  for (const d of descendants('spineTop')) {
+    out[d] = add(pivot, rot(sub(joints[d], pivot)));
+  }
+  return normalizeLengths(out, lengths);
+}

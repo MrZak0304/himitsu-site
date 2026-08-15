@@ -345,3 +345,8 @@ a { color: var(--thread); }
 .view-buttons { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .view-buttons button { flex: 1; min-width: 6.5em; padding: 8px 6px; font-size: 0.88rem; }
 .pose-svg:not(.static) { cursor: grab; }
+
+/* ポーズ: 腰のひねりスライダー */
+.twist-row { display: flex; align-items: center; gap: 10px; margin: 4px 0 8px; }
+.twist-row label { font-size: 0.9rem; min-width: 6em; }
+.twist-row .twist-range { flex: 1; min-width: 8em; accent-color: var(--felt); }

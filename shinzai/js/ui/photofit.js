@@ -32,7 +32,9 @@ function templateJoints(ratios) {
     kneeR: { x: hipHalf * 0.85, y: kneeY },
     ankleL: { x: -hipHalf * 0.8, y: ankleY },
     ankleR: { x: hipHalf * 0.8, y: ankleY },
-    sole: { x: 0, y: 1 },
+    // かかと(左右): 全身の高さの基準=足裏の位置(2026-08-15 PDフィードバック第15弾。旧・足裏1点を置き換え)
+    heelL: { x: -hipHalf * 0.8, y: 1 },
+    heelR: { x: hipHalf * 0.8, y: 1 },
   };
 }
 
@@ -42,8 +44,8 @@ const BONES = [
   ['shoulderL', 'elbowL'], ['elbowL', 'wristL'],
   ['shoulderR', 'elbowR'], ['elbowR', 'wristR'],
   ['hipL', 'hipR'], // 腰線(骨盤)
-  ['hipL', 'kneeL'], ['kneeL', 'ankleL'],
-  ['hipR', 'kneeR'], ['kneeR', 'ankleR'],
+  ['hipL', 'kneeL'], ['kneeL', 'ankleL'], ['ankleL', 'heelL'],
+  ['hipR', 'kneeR'], ['kneeR', 'ankleR'], ['ankleR', 'heelR'],
 ];
 
 const JOINT_LABELS = {
@@ -51,12 +53,13 @@ const JOINT_LABELS = {
   elbowL: 'ヒジ(左)', elbowR: 'ヒジ(右)', wristL: '手首(左)', wristR: '手首(右)',
   hip: '股', hipL: '腰(左の股関節)', hipR: '腰(右の股関節)',
   kneeL: 'ヒザ(左)', kneeR: 'ヒザ(右)', ankleL: 'くるぶし(左)', ankleR: 'くるぶし(右)',
-  sole: '足裏',
+  heelL: 'かかと(左)', heelR: 'かかと(右)',
 };
 
 // 部位別の色分け(どの点をどこに置くか分かりやすく。凡例は画面側に表示)
 const JOINT_GROUP = {
-  top: 'torso', chin: 'torso', hip: 'torso', hipL: 'torso', hipR: 'torso', sole: 'torso',
+  top: 'torso', chin: 'torso', hip: 'torso', hipL: 'torso', hipR: 'torso',
+  heelL: 'leg', heelR: 'leg',
   shoulderL: 'arm', shoulderR: 'arm', elbowL: 'arm', elbowR: 'arm',
   wristL: 'arm', wristR: 'arm',
   kneeL: 'leg', kneeR: 'leg', ankleL: 'leg', ankleR: 'leg',
@@ -70,9 +73,9 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   let tapTop = null; // 2タップフィット: 1回目(頭頂)のタップ位置
   // 2回目のタップの基準。足先が描かれていないイラスト向けに「腰(股)」も選べる
   // (2026-08-14 PDフィードバック第3弾)。hip のときは 頭頂〜股=全高の半分 の比率則から全身を逆算する。
-  // 2回目のタップ基準: 'soleL'=左の足先 / 'soleR'=右の足先 / 'hip'=腰(股)
+  // 2回目のタップ基準: 'heelL'=左のかかと / 'heelR'=右のかかと / 'hip'=腰(股)
   // (2026-08-15 PDフィードバック第11弾: ポーズ画像では左右の足の高さが違うので、どちらの足かを選ばせる)
-  let tapAnchor = 'soleL';
+  let tapAnchor = 'heelL';
   // 2タップフィットの受付状態。フィット完了後は false にして、微調整中の誤タップで
   // 頭頂指定に戻らないようにする(2026-08-14 PDフィードバック第4弾)。再開は rearm()。
   let armed = true;
@@ -80,7 +83,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   // デフォルト配置の点がタップの邪魔になるため)。
   let fitted = false;
 
-  const anchorLabel = () => ({ hip: '腰(股)', soleL: '左の足先', soleR: '右の足先' }[tapAnchor]);
+  const anchorLabel = () => ({ hip: '腰(股)', heelL: '左のかかと', heelR: '右のかかと' }[tapAnchor]);
   const startGuide = () =>
     `画像の頭頂をタップしてください(1回目=頭頂 → 2回目=${anchorLabel()}。骨格はそのあとに表示されます)。`;
   const tapGuide = () =>
@@ -175,7 +178,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     // 横位置: 足先基準なら「その足のくるぶし」がタップ位置に来るように中心を決める
     const tpl = templateJoints(base);
     const anchorX = tapAnchor === 'hip' ? 0
-      : tapAnchor === 'soleL' ? tpl.ankleL.x : tpl.ankleR.x;
+      : tapAnchor === 'heelL' ? tpl.heelL.x : tpl.heelR.x;
     const vb = svg.viewBox.baseVal;
     layoutTemplate(vb.width, vb.height, {
       figTop: tapTop.y,
@@ -192,7 +195,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   }
 
   function setTapAnchor(anchor) {
-    tapAnchor = ['hip', 'soleL', 'soleR'].includes(anchor) ? anchor : 'soleL';
+    tapAnchor = ['hip', 'heelL', 'heelR'].includes(anchor) ? anchor : 'heelL';
     tapTop = null;
     armed = true; // 基準を変えた=合わせ直したいはず
     if (svg) clearTapMarker();

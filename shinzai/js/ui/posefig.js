@@ -7,7 +7,7 @@
 //   ・寸法注記は直立(未ポーズ)のときだけ表示
 
 import {
-  restPose, boneLengths, dragJoint, resetJoint, project, isPosed, neckStubEnd,
+  restPose, boneLengths, dragJoint, resetJoint, twistUpper, project, isPosed, neckStubEnd,
   BONES, FOOT_BONES, DRAGGABLE, JOINT_LABELS,
 } from '../core/pose3d.js';
 import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
@@ -526,6 +526,12 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
+    // 腰のひねり(差分角度)。上半身を背骨軸まわりに回す
+    twist(deltaDeg) {
+      joints = twistUpper(joints, lengths, deltaDeg);
+      redraw();
+      opts.onPoseChange?.(joints, isPosed(joints, rest));
+    },
     fitAll, zoomIn: () => zoomBy(1.25), zoomOut: () => zoomBy(0.8), resetView,
     getJoints: () => joints,
     isPosed: () => isPosed(joints, rest),
