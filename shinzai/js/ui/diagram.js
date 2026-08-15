@@ -88,9 +88,11 @@ function frontBones(seg, g) {
     const elbowY = g.shoulderY + seg.upperArm * g.k;
     const wx = ex + side * 4;
     const wristY = elbowY + seg.forearm * g.k;
+    // 手首の先(手への接続しろ=手長の4割)まで伸ばす
+    const stub = seg.hand * 0.4 * g.k;
     bones.append(
       el('line', { x1: sx, y1: g.shoulderY, x2: ex, y2: elbowY }),
-      el('line', { x1: ex, y1: elbowY, x2: wx, y2: wristY }),
+      el('line', { x1: ex, y1: elbowY, x2: wx, y2: wristY + stub }),
       // 手の参考輪郭
       el('ellipse', {
         class: 'ref',
@@ -102,16 +104,17 @@ function frontBones(seg, g) {
       }),
     );
     const hx = g.cx + side * g.hipHalf;
+    // ヒザから足首にかけて内側に絞る(人体の立ち姿。針金とシルエットで同じ関節位置を使う)
+    const ax = g.cx + side * g.hipHalf * 0.72;
     const kneeY = g.hipY + seg.thigh * g.k;
-    const ankleY = kneeY + seg.shin * g.k;
     bones.append(
       // 脚は股(背骨の下端)から斜めに出す(「画像から」の骨格と同じ形)。足首の先まで伸ばす
       el('line', { x1: g.cx, y1: g.hipY, x2: hx, y2: kneeY }),
-      el('line', { x1: hx, y1: kneeY, x2: hx, y2: g.soleY - 1 }),
+      el('line', { x1: hx, y1: kneeY, x2: ax, y2: g.soleY - 1 }),
       // 足の参考輪郭
       el('ellipse', {
         class: 'ref',
-        cx: hx + side * (seg.footLength / 2) * g.k * 0.6,
+        cx: ax + side * (seg.footLength / 2) * g.k * 0.6,
         cy: g.soleY - (seg.ankle / 2) * g.k,
         rx: (seg.footLength / 2) * g.k,
         ry: Math.max(2, (seg.ankle / 2) * g.k),
@@ -137,7 +140,8 @@ function sideBones(seg, g) {
   const wristY = elbowY + seg.forearm * g.k;
   bones.append(
     el('line', { x1: g.cx, y1: g.shoulderY, x2: g.cx - 5, y2: elbowY }),
-    el('line', { x1: g.cx - 5, y1: elbowY, x2: g.cx - 2, y2: wristY }),
+    // 手首の先(手への接続しろ)まで伸ばす
+    el('line', { x1: g.cx - 5, y1: elbowY, x2: g.cx - 2, y2: wristY + seg.hand * 0.4 * g.k }),
     el('ellipse', {
       class: 'ref',
       cx: g.cx - 2, cy: wristY + (seg.hand / 2) * g.k,
@@ -226,21 +230,23 @@ function fleshFront(seg, g) {
         ry: (seg.hand / 2.1) * g.k,
       }),
     );
-    // 脚: もも(太)→すね(細)のテーパー+ヒザの丸み+接地する足
+    // 脚: もも(太)→すね(細)のテーパー+ヒザの丸み+接地する足。
+    // ヒザから足首にかけて内側に絞る(人体の立ち姿。針金と同じ関節位置=矛盾を作らない)
     // 足は正面視の奥行き縮みを表現して実寸より短く描く(実寸は側面図の注記が持つ)
     const hx = g.cx + side * g.hipHalf;
+    const ax = g.cx + side * g.hipHalf * 0.72;
     const kneeY = g.hipY + seg.thigh * g.k;
     const ankleY = kneeY + seg.shin * g.k;
     const footR = (seg.footLength / 2) * g.k * 0.62;
     flesh.append(
       el('line', { x1: hx, y1: g.hipY, x2: hx, y2: kneeY, 'stroke-width': legW }),
       el('circle', { cx: hx, cy: kneeY, r: shinW * 0.62 }),
-      el('line', { x1: hx, y1: kneeY, x2: hx, y2: ankleY, 'stroke-width': shinW }),
+      el('line', { x1: hx, y1: kneeY, x2: ax, y2: ankleY, 'stroke-width': shinW }),
       // 足: かかと(内側)→足首→つま先(外側)の、地面に接する丸みのある形
       el('path', {
-        d: `M ${hx - side * footR * 0.5} ${g.soleY}`
-          + ` Q ${hx - side * footR * 0.55} ${g.soleY - seg.ankle * g.k} ${hx} ${ankleY + seg.ankle * g.k * 0.2}`
-          + ` Q ${hx + side * footR * 0.9} ${g.soleY - seg.ankle * g.k * 0.9} ${hx + side * footR * 1.05} ${g.soleY - 1}`
+        d: `M ${ax - side * footR * 0.5} ${g.soleY}`
+          + ` Q ${ax - side * footR * 0.55} ${g.soleY - seg.ankle * g.k} ${ax} ${ankleY + seg.ankle * g.k * 0.2}`
+          + ` Q ${ax + side * footR * 0.95} ${g.soleY - seg.ankle * g.k * 0.9} ${ax + side * footR * 1.15} ${g.soleY - 1}`
           + ' Z',
       }),
     );

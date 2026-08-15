@@ -107,6 +107,7 @@ export function computeArmature({
   const spineLen = s.hipTop - s.head; // あご下(首)〜股
   const neckStub = s.head / 3; // 首の先: 頭の中への差し込み
   const footStub = s.ankle + s.footLength * 0.2; // 足先: くるぶし〜足裏+つま先側へ少し
+  const handStub = s.hand * 0.4; // 手首の先: 手(パテ)への接続しろ
   const legInsert = spineLen / 2; // 脚線を胴に固定する差し込み分
 
   const cut = (finishedCm, joins) =>
@@ -123,11 +124,11 @@ export function computeArmature({
     },
     {
       id: 'arms',
-      name: '腕線(手首〜肩〜手首)',
-      finishedCm: round1(s.shoulderWidth + 2 * (s.upperArm + s.forearm)),
-      cutCm: cut(s.shoulderWidth + 2 * (s.upperArm + s.forearm), 1),
+      name: '腕線(手首の先〜肩〜手首の先)',
+      finishedCm: round1(s.shoulderWidth + 2 * (s.upperArm + s.forearm + handStub)),
+      cutCm: cut(s.shoulderWidth + 2 * (s.upperArm + s.forearm + handStub), 1),
       count: 1,
-      note: '1本で左右の腕を作り、肩の位置で背骨に接合。手はパテ造形(芯に含めない)',
+      note: '1本で左右の腕を作り、肩の位置で背骨に接合。手首の先(手への接続しろ=手長の4割)まで伸ばし、手本体はパテ造形',
     },
     {
       id: 'leg',

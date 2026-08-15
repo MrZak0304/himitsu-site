@@ -43,10 +43,18 @@ const BONES = [
 ];
 
 const JOINT_LABELS = {
-  top: '頭頂', chin: 'あご', shoulderL: '肩', shoulderR: '肩',
-  elbowL: 'ヒジ', elbowR: 'ヒジ', wristL: '手首', wristR: '手首',
-  hip: '股', kneeL: 'ヒザ', kneeR: 'ヒザ', ankleL: 'くるぶし', ankleR: 'くるぶし',
+  top: '頭頂', chin: 'あご', shoulderL: '肩(左)', shoulderR: '肩(右)',
+  elbowL: 'ヒジ(左)', elbowR: 'ヒジ(右)', wristL: '手首(左)', wristR: '手首(右)',
+  hip: '股', kneeL: 'ヒザ(左)', kneeR: 'ヒザ(右)', ankleL: 'くるぶし(左)', ankleR: 'くるぶし(右)',
   sole: '足裏',
+};
+
+// 部位別の色分け(どの点をどこに置くか分かりやすく。凡例は画面側に表示)
+const JOINT_GROUP = {
+  top: 'torso', chin: 'torso', hip: 'torso', sole: 'torso',
+  shoulderL: 'arm', shoulderR: 'arm', elbowL: 'arm', elbowR: 'arm',
+  wristL: 'arm', wristR: 'arm',
+  kneeL: 'leg', kneeR: 'leg', ankleL: 'leg', ankleR: 'leg',
 };
 
 // container: 画像+SVGオーバーレイを入れる要素 / onChange: 関節が動くたび joints(px) を通知
@@ -109,13 +117,14 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     for (const [a, b] of BONES) {
       const line = document.createElementNS(SVG_NS, 'line');
       line.dataset.bone = `${a}-${b}`;
+      line.setAttribute('class', `g-${JOINT_GROUP[b] ?? 'torso'}`);
       svg.append(line);
     }
     for (const id of Object.keys(joints)) {
       // 見た目の点(小)+タッチ用の当たり判定(大)の2枚重ね(スマホで動かしやすく)
       const dot = document.createElementNS(SVG_NS, 'circle');
       dot.dataset.joint = id;
-      dot.setAttribute('class', 'dot');
+      dot.setAttribute('class', `dot g-${JOINT_GROUP[id]}`);
       dot.setAttribute('r', 8);
       const hit = document.createElementNS(SVG_NS, 'circle');
       hit.dataset.joint = id;
@@ -223,6 +232,8 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   function startDrag(ev, id) {
     ev.preventDefault();
     ev.stopPropagation(); // 2タップフィットのタップ扱いにしない
+    // いま動かしている点が何か分かるように表示する
+    onStatus(`「${JOINT_LABELS[id]}」を動かしています。キャラの${JOINT_LABELS[id]}の位置に合わせてください。`);
     const pointerId = ev.pointerId;
     try {
       ev.currentTarget.setPointerCapture(pointerId);

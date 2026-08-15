@@ -239,18 +239,26 @@ td .note { font-size: 0.75rem; color: #857a6a; }
   height: 100%;
   touch-action: none;
 }
-.photofit-overlay line { stroke: #5f7f9e; stroke-width: 2.5; stroke-linecap: round; }
+.photofit-overlay line { stroke: #a2543f; stroke-width: 2.5; stroke-linecap: round; }
+.photofit-overlay line.g-arm { stroke: #5f7f9e; }
+.photofit-overlay line.g-leg { stroke: #7c8c66; }
 /* 2タップ指定が済むまで骨格は非表示(タップマーカーだけ見せる) */
 .photofit-overlay.unfitted line,
 .photofit-overlay.unfitted .dot,
 .photofit-overlay.unfitted .hit { display: none; }
 .photofit-overlay circle { touch-action: none; }
 .photofit-overlay .dot {
-  fill: rgba(162, 84, 63, 0.85);
+  fill: rgba(162, 84, 63, 0.9);
   stroke: #fff;
   stroke-width: 2;
   pointer-events: none; /* 操作は当たり判定(.hit)が受ける */
 }
+.photofit-overlay .dot.g-arm { fill: rgba(95, 127, 158, 0.9); }
+.photofit-overlay .dot.g-leg { fill: rgba(124, 140, 102, 0.9); }
+.legend-dot { font-size: 1rem; }
+.legend-dot.torso { color: #a2543f; }
+.legend-dot.arm { color: #5f7f9e; }
+.legend-dot.leg { color: #7c8c66; }
 .photofit-overlay .hit {
   fill: transparent;
   stroke: none;
