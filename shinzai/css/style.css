@@ -335,3 +335,8 @@ a { color: var(--thread); }
   color: var(--ink);
   font-weight: bold;
 }
+
+/* ポーズ: 戻す関節の選択 */
+.pose-one-row { display: flex; gap: 6px; flex: 2; min-width: 14em; }
+.pose-one-row .joint-select { flex: 1; min-width: 7em; padding: 8px 6px; font-size: 0.9rem; }
+.pose-one-row button { flex: 1; min-width: 7em; }

@@ -18,6 +18,8 @@ export const PARENT = {
   hipL: 'hip', hipR: 'hip',
   kneeL: 'hipL', kneeR: 'hipR',
   ankleL: 'kneeL', ankleR: 'kneeR',
+  // つま先: 芯の関節ではないが、完成イメージのため足の向きを動かせる(2026-08-15 PDフィードバック第13弾)
+  toeL: 'ankleL', toeR: 'ankleR',
 };
 
 // 描画用の骨(線)の一覧
@@ -31,10 +33,13 @@ export const BONES = [
   ['hipR', 'kneeR'], ['kneeR', 'ankleR'],
 ];
 
+// 足(足首→つま先)。芯ではないので BONES とは別(参考輪郭として描く)
+export const FOOT_BONES = [['ankleL', 'toeL'], ['ankleR', 'toeR']];
+
 // ドラッグできる関節(top/neck は参考なので固定)
 export const DRAGGABLE = [
   'spineTop', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'wristL', 'wristR',
-  'hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR',
+  'hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'toeL', 'toeR',
 ];
 
 export const JOINT_LABELS = {
@@ -42,6 +47,7 @@ export const JOINT_LABELS = {
   elbowL: 'ヒジ(左)', elbowR: 'ヒジ(右)', wristL: '手首(左)', wristR: '手首(右)',
   hipL: '股関節(左)', hipR: '股関節(右)',
   kneeL: 'ヒザ(左)', kneeR: 'ヒザ(右)', ankleL: '足首(左)', ankleR: '足首(右)',
+  toeL: 'つま先(左)', toeR: 'つま先(右)',
 };
 
 // 直立(Tではなく気をつけ気味)の初期ポーズ。単位=cm、原点=股、yは下が+。
@@ -68,7 +74,10 @@ export function restPose(seg) {
     j[`wrist${side}`] = { x: elbow.x + s * armDx * 0.3, y: elbow.y + seg.forearm, z: 0 };
     const knee = { x: s * hipHalf * 0.85, y: seg.thigh, z: 0 };
     j[`knee${side}`] = knee;
-    j[`ankle${side}`] = { x: s * hipHalf * 0.8, y: seg.thigh + seg.shin, z: 0 };
+    const ankle = { x: s * hipHalf * 0.8, y: seg.thigh + seg.shin, z: 0 };
+    j[`ankle${side}`] = ankle;
+    // つま先: 足首から足裏まで下り、前(+z)へ足長の7割
+    j[`toe${side}`] = { x: ankle.x, y: ankle.y + seg.ankle, z: seg.footLength * 0.7 };
   }
   // 骨長は初期ポーズから確定(以後、ドラッグしても不変)
   return normalizeLengths(j, boneLengths(j));

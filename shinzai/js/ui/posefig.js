@@ -8,7 +8,7 @@
 
 import {
   restPose, boneLengths, dragJoint, resetJoint, project, isPosed, neckStubEnd,
-  BONES, DRAGGABLE, JOINT_LABELS,
+  BONES, FOOT_BONES, DRAGGABLE, JOINT_LABELS,
 } from '../core/pose3d.js';
 import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 
@@ -145,27 +145,30 @@ export function createPoseFigure(container, seg, opts = {}) {
     const ang = (Math.atan2(dir.y, dir.x) * 180) / Math.PI - 90;
     return { c, rx: Math.max(3, (seg.hand / 3.4) * k), ry: (seg.hand / 2) * k, ang };
   }
+  // 足: 足首→つま先の関節から形を決める(つま先を動かすと足の向きが変わる)
   function footShape(view, side) {
-    const kn = toPx(joints[`knee${side}`], view);
     const an = toPx(joints[`ankle${side}`], view);
-    const dir = norm(sub(an, kn)); // すねの向き(下)
+    const to = toPx(joints[`toe${side}`], view);
+    const kn = toPx(joints[`knee${side}`], view);
     const footPx = seg.footLength * k;
     const ankPx = seg.ankle * k;
+    const v = sub(to, an);
+    const l = Math.hypot(v.x, v.y);
+    // 投影で足がほぼ点になる(真正面から見た足など)ときは、すねの向きを基準にする
+    const dir = l > 2 ? mul(v, 1 / l) : norm(sub(an, kn));
+    const ang = (Math.atan2(dir.y, dir.x) * 180) / Math.PI;
     if (view === 'front') {
-      // 正面: 足首の少し先に、すねに直交する楕円(奥行き縮み)
-      const c = add(an, mul(dir, ankPx * 0.6));
-      const ang = (Math.atan2(dir.y, dir.x) * 180) / Math.PI - 90;
-      return { kind: 'ellipse', c, rx: (footPx / 2) * 0.62, ry: Math.max(3, ankPx * 0.55), ang };
+      // 正面: 足首の少し先に、足の向きに沿った楕円(奥行きぶんは短く見える)
+      const along = Math.max(ankPx * 0.6, l * 0.5);
+      const c = add(an, mul(dir, along));
+      return { kind: 'ellipse', c, rx: along * 0.9, ry: Math.max(3, (footPx / 2) * 0.62), ang };
     }
-    // 側面: かかと→つま先の線(前方向へ)
-    let fwd = perp(dir);
-    const want = view === 'side-right' ? 1 : -1;
-    if (Math.sign(fwd.x) !== want) fwd = mul(fwd, -1);
-    const base = add(an, mul(dir, ankPx));
+    // 側面: かかと→つま先の線
+    const heelBack = Math.max(footPx * 0.3, l * 0.3);
     return {
       kind: 'line',
-      a: add(base, mul(fwd, -footPx * 0.3)),
-      b: add(base, mul(fwd, footPx * 0.7)),
+      a: add(an, mul(dir, -heelBack * 0.6)),
+      b: to,
       w: Math.max(4, ankPx),
     };
   }
@@ -201,6 +204,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const bones = el('g', { class: 'bones' });
     bones.append(el('circle', { class: 'ref head-ref' }), el('line', { class: 'neck-stub' }));
     for (const [a, b] of BONES) bones.append(el('line', { 'data-bone': `${a}-${b}` }));
+    for (const [a, b] of FOOT_BONES) bones.append(el('line', { class: 'ref foot-bone', 'data-bone': `${a}-${b}` }));
     for (const s of ['L', 'R']) {
       bones.append(
         el('line', { class: 'stub', 'data-stub': `wrist${s}` }),

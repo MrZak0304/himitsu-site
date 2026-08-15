@@ -9,6 +9,7 @@ import {
   loadPresets, savePreset, deletePreset, hasPreset, STORE_KEY,
 } from './core/presets-store.js';
 import { createPoseFigure } from './ui/posefig.js';
+import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS } from './core/pose3d.js';
 import { createPhotoFit } from './ui/photofit.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
@@ -89,11 +90,17 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const poseHint = h('p', 'hint pose-hint');
   const resetAll = h('button', 'ghost', '全体を初期位置に戻す');
   resetAll.type = 'button';
-  const resetOne = h('button', 'ghost', '関節を初期位置に戻す');
+  // 戻す関節はセレクトで選べる(直前に触った関節が自動で選ばれる。第13弾FB)
+  const jointSel = document.createElement('select');
+  jointSel.className = 'joint-select';
+  jointSel.setAttribute('aria-label', '初期位置に戻す関節');
+  for (const id of POSE_JOINTS) jointSel.append(new Option(POSE_LABELS[id], id));
+  const resetOne = h('button', 'ghost', 'この関節を戻す');
   resetOne.type = 'button';
-  resetOne.disabled = true;
+  const oneRow = h('div', 'pose-one-row');
+  oneRow.append(jointSel, resetOne);
   const poseButtons = h('div', 'pose-buttons');
-  poseButtons.append(resetOne, resetAll);
+  poseButtons.append(oneRow, resetAll);
   poseTools.append(poseHint, poseButtons);
   root.append(poseTools);
 
@@ -108,10 +115,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       interactive: poseState.on,
       initialJoints: poseState.on ? poseState.joints : null,
       onStatus: (t) => { poseHint.textContent = t; },
-      onJointPick: (id, label) => {
-        resetOne.disabled = false;
-        resetOne.textContent = `「${label}」を初期位置に戻す`;
-      },
+      onJointPick: (id) => { jointSel.value = id; },
       onPoseChange: (joints, posed) => {
         poseState.joints = posed ? joints : null;
         poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
@@ -135,7 +139,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseState.fig?.reset();
     poseState.joints = null;
   });
-  resetOne.addEventListener('click', () => poseState.fig?.resetJoint());
+  resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
   renderViews();
 
   root.append(h('h3', null, '各部の仕上がり寸法'));
