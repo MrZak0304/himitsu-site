@@ -150,7 +150,7 @@ function fleshWidths(g) {
   return {
     armW: Math.max(4, g.shoulderHalf * 0.5), // 上腕
     foreW: Math.max(3, g.shoulderHalf * 0.38), // 前腕
-    legW: Math.max(5, g.shoulderHalf * 0.8), // もも
+    legW: Math.max(5, g.shoulderHalf * 0.92), // もも
     shinW: Math.max(4, g.shoulderHalf * 0.55), // すね
     neckW: Math.max(3, g.shoulderHalf * 0.4),
   };
@@ -160,63 +160,72 @@ function fleshFront(seg, g) {
   const flesh = el('g', { class: 'flesh' });
   const { armW, foreW, legW, shinW, neckW } = fleshWidths(g);
   const torsoH = g.hipY - g.shoulderY;
-  // 頭(やや縦長の楕円)+首
+  const jawY = g.neckY; // あご下
+  // 頭(針金の頭ループを覆う大きさの楕円)
   flesh.append(
-    el('ellipse', { cx: g.cx, cy: g.top + g.headR, rx: g.headR * 0.86, ry: g.headR * 1.02 }),
-    el('line', { x1: g.cx, y1: g.neckY - 2, x2: g.cx, y2: g.shoulderY + 4, 'stroke-width': neckW }),
+    el('ellipse', { cx: g.cx, cy: g.top + g.headR, rx: g.headR * 0.98, ry: g.headR * 1.04 }),
   );
-  // 胴: 肩→(くびれ)ウエスト→腰→パンツラインの左右対称カーブ
-  const sw = g.shoulderHalf * 0.94;
-  const hw = Math.max(g.hipHalf * 1.35, sw * 0.75);
-  const waistY = g.shoulderY + torsoH * 0.58;
-  const ww = Math.min(sw, hw) * 0.78;
-  const crotchY = g.hipY + legW * 0.55;
-  // 左側は肩→腰へ下り、右側は腰→肩へ上る(制御点は左の鏡映を逆順に)
+  // 胴を首つきの一体アウトライン(単一の閉パス。2分割だと中央に継ぎ目が出る):
+  // 首(縦)→僧帽筋の傾斜→肩(三角筋の丸み)→脇→くびれ→腰→パンツライン→右側を鏡映で戻る
+  const nw = neckW * 0.5; // 首の半幅
+  const shTopY = g.shoulderY + armW * 0.4; // 肩(三角筋)の上面
+  const neckRun = shTopY - jawY;
+  const sw = g.shoulderHalf; // 肩先
+  const cw = sw * 0.88; // 脇(胸横)
+  const chestY = g.shoulderY + torsoH * 0.34;
+  const hw = Math.max(g.hipHalf * 1.35, sw * 0.72); // 腰の張り
+  const ww = Math.min(sw, hw) * 0.74; // ウエスト
+  const waistY = g.shoulderY + torsoH * 0.6;
+  const crotchY = g.hipY + legW * 0.75; // 内ももまで埋まる深さ
   flesh.append(el('path', {
-    d: `M ${g.cx - sw} ${g.shoulderY}`
-      + ` C ${g.cx - sw * 1.02} ${g.shoulderY + torsoH * 0.3} ${g.cx - ww * 1.05} ${waistY - torsoH * 0.08} ${g.cx - ww} ${waistY}`
-      + ` C ${g.cx - ww * 0.98} ${waistY + torsoH * 0.12} ${g.cx - hw} ${g.hipY - torsoH * 0.12} ${g.cx - hw} ${g.hipY}`
-      + ` Q ${g.cx - hw * 0.5} ${crotchY + legW * 0.35} ${g.cx} ${crotchY}`
-      + ` Q ${g.cx + hw * 0.5} ${crotchY + legW * 0.35} ${g.cx + hw} ${g.hipY}`
-      + ` C ${g.cx + hw} ${g.hipY - torsoH * 0.12} ${g.cx + ww * 0.98} ${waistY + torsoH * 0.12} ${g.cx + ww} ${waistY}`
-      + ` C ${g.cx + ww * 1.05} ${waistY - torsoH * 0.08} ${g.cx + sw * 1.02} ${g.shoulderY + torsoH * 0.3} ${g.cx + sw} ${g.shoulderY}`
-      + ' Z',
+    d: `M ${g.cx - nw} ${jawY - 2}`
+      + ` L ${g.cx - nw} ${jawY + neckRun * 0.4}`
+      + ` C ${g.cx - nw} ${jawY + neckRun * 0.85} ${g.cx - sw * 0.5} ${shTopY - armW * 0.3} ${g.cx - sw * 0.9} ${shTopY}`
+      + ` C ${g.cx - sw * 1.12} ${shTopY + armW * 0.45} ${g.cx - sw * 1.05} ${shTopY + armW * 1.05} ${g.cx - cw} ${chestY}`
+      + ` C ${g.cx - cw * 0.94} ${chestY + torsoH * 0.1} ${g.cx - ww * 1.04} ${waistY - torsoH * 0.07} ${g.cx - ww} ${waistY}`
+      + ` C ${g.cx - ww * 0.98} ${waistY + torsoH * 0.1} ${g.cx - hw} ${g.hipY - torsoH * 0.14} ${g.cx - hw} ${g.hipY}`
+      + ` Q ${g.cx - hw * 0.5} ${crotchY + legW * 0.3} ${g.cx} ${crotchY}`
+      + ` Q ${g.cx + hw * 0.5} ${crotchY + legW * 0.3} ${g.cx + hw} ${g.hipY}`
+      + ` C ${g.cx + hw} ${g.hipY - torsoH * 0.14} ${g.cx + ww * 0.98} ${waistY + torsoH * 0.1} ${g.cx + ww} ${waistY}`
+      + ` C ${g.cx + ww * 1.04} ${waistY - torsoH * 0.07} ${g.cx + cw * 0.94} ${chestY + torsoH * 0.1} ${g.cx + cw} ${chestY}`
+      + ` C ${g.cx + sw * 1.05} ${shTopY + armW * 1.05} ${g.cx + sw * 1.12} ${shTopY + armW * 0.45} ${g.cx + sw * 0.9} ${shTopY}`
+      + ` C ${g.cx + sw * 0.5} ${shTopY - armW * 0.3} ${g.cx + nw} ${jawY + neckRun * 0.85} ${g.cx + nw} ${jawY + neckRun * 0.4}`
+      + ` L ${g.cx + nw} ${jawY - 2} Z`,
   }));
-  // 肩の丸み
-  for (const side of [-1, 1]) {
-    flesh.append(el('circle', {
-      cx: g.cx + side * sw * 0.9, cy: g.shoulderY + armW * 0.35, r: armW * 0.6,
-    }));
-  }
   for (const side of [-1, 1]) {
     const sx = g.cx + side * g.shoulderHalf;
     const ex = sx + side * 6;
     const elbowY = g.shoulderY + seg.upperArm * g.k;
     const wx = ex + side * 4;
     const wristY = elbowY + seg.forearm * g.k;
-    // 腕: 上腕(太)→前腕(細)のテーパー+手
+    // 腕: 上腕(太)→前腕(細)のテーパー+ヒジの丸みでつなぐ+手は腕の延長線上
     flesh.append(
-      el('line', { x1: sx, y1: g.shoulderY, x2: ex, y2: elbowY, 'stroke-width': armW }),
+      el('line', { x1: sx, y1: g.shoulderY + armW * 0.4, x2: ex, y2: elbowY, 'stroke-width': armW }),
+      el('circle', { cx: ex, cy: elbowY, r: foreW * 0.62 }),
       el('line', { x1: ex, y1: elbowY, x2: wx, y2: wristY, 'stroke-width': foreW }),
       el('ellipse', {
-        cx: wx + side * (seg.hand / 2) * g.k * 0.4,
-        cy: wristY + (seg.hand / 2) * g.k,
-        rx: Math.max(3, (seg.hand / 3.2) * g.k),
-        ry: (seg.hand / 2) * g.k,
+        cx: wx + side * (seg.hand / 8) * g.k,
+        cy: wristY + (seg.hand / 2.3) * g.k,
+        rx: Math.max(3, (seg.hand / 3.6) * g.k),
+        ry: (seg.hand / 2.1) * g.k,
       }),
     );
-    // 脚: もも(太)→すね(細)のテーパー+足
+    // 脚: もも(太)→すね(細)のテーパー+ヒザの丸み+接地する足
+    // 足は正面視の奥行き縮みを表現して実寸より短く描く(実寸は側面図の注記が持つ)
     const hx = g.cx + side * g.hipHalf;
     const kneeY = g.hipY + seg.thigh * g.k;
     const ankleY = kneeY + seg.shin * g.k;
+    const footR = (seg.footLength / 2) * g.k * 0.62;
     flesh.append(
       el('line', { x1: hx, y1: g.hipY, x2: hx, y2: kneeY, 'stroke-width': legW }),
+      el('circle', { cx: hx, cy: kneeY, r: shinW * 0.62 }),
       el('line', { x1: hx, y1: kneeY, x2: hx, y2: ankleY, 'stroke-width': shinW }),
-      el('ellipse', {
-        cx: hx + side * (seg.footLength / 2) * g.k * 0.6,
-        cy: g.soleY - (seg.ankle / 2) * g.k,
-        rx: (seg.footLength / 2) * g.k * 1.05,
-        ry: Math.max(3, (seg.ankle / 2) * g.k * 1.15),
+      // 足: かかと(内側)→足首→つま先(外側)の、地面に接する丸みのある形
+      el('path', {
+        d: `M ${hx - side * footR * 0.5} ${g.soleY}`
+          + ` Q ${hx - side * footR * 0.55} ${g.soleY - seg.ankle * g.k} ${hx} ${ankleY + seg.ankle * g.k * 0.2}`
+          + ` Q ${hx + side * footR * 0.9} ${g.soleY - seg.ankle * g.k * 0.9} ${hx + side * footR * 1.05} ${g.soleY - 1}`
+          + ' Z',
       }),
     );
   }
@@ -225,7 +234,7 @@ function fleshFront(seg, g) {
 
 function fleshSide(seg, g) {
   const flesh = el('g', { class: 'flesh' });
-  const { armW, foreW, legW, shinW } = fleshWidths(g);
+  const { armW, foreW, legW, shinW, neckW } = fleshWidths(g);
   const bodyW = Math.max(6, g.shoulderHalf * 0.95); // 側面の胴の厚み
   const elbowY = g.shoulderY + seg.upperArm * g.k;
   const wristY = elbowY + seg.forearm * g.k;
@@ -235,11 +244,16 @@ function fleshSide(seg, g) {
   const waistY = (g.shoulderY + g.hipY) / 2;
   flesh.append(
     el('ellipse', {
-      cx: g.cx + g.headR * 0.25, cy: g.top + g.headR, rx: g.headR * 0.95, ry: g.headR * 1.02,
+      cx: g.cx + g.headR * 0.25, cy: g.top + g.headR * 0.97, rx: g.headR * 0.95, ry: g.headR,
+    }),
+    // 首(頭の後ろ寄りから斜めに)
+    el('line', {
+      x1: g.cx + g.headR * 0.12, y1: g.neckY - 2, x2: g.cx, y2: g.shoulderY + armW * 0.4,
+      'stroke-width': neckW,
     }),
     // 胴: 胸を前、腰を後ろに引いたゆるいS字
     el('path', {
-      d: `M ${g.cx} ${g.neckY - 2}`
+      d: `M ${g.cx} ${g.shoulderY}`
         + ` C ${g.cx + bodyW * 0.25} ${g.shoulderY + (waistY - g.shoulderY) * 0.6} ${g.cx - bodyW * 0.2} ${waistY} ${g.cx} ${g.hipY}`,
       fill: 'none', 'stroke-width': bodyW,
     }),
@@ -267,6 +281,8 @@ export function renderDiagram(result, view = 'front', { flesh = false } = {}) {
   const svg = el('svg', {
     viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
     role: 'img',
+    // 肉付け表示中は骨格線を薄くしてシルエットを主役にする(CSS側で .with-flesh .bones を減light)
+    class: flesh ? 'with-flesh' : '',
     'aria-label': `骨格図(${view === 'front' ? '正面' : view === 'side' ? '側面' : '背面'})`,
   });
   if (view === 'side') {

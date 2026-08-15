@@ -130,15 +130,23 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
       svg.append(line);
     }
     for (const id of Object.keys(joints)) {
-      const c = document.createElementNS(SVG_NS, 'circle');
-      c.dataset.joint = id;
-      c.setAttribute('r', 9);
-      c.append(titleEl(JOINT_LABELS[id]));
-      c.addEventListener('pointerdown', (ev) => startDrag(ev, id));
-      svg.append(c);
+      // 見た目の点(小)+タッチ用の当たり判定(大)の2枚重ね(スマホで動かしやすく)
+      const dot = document.createElementNS(SVG_NS, 'circle');
+      dot.dataset.joint = id;
+      dot.setAttribute('class', 'dot');
+      dot.setAttribute('r', 8);
+      const hit = document.createElementNS(SVG_NS, 'circle');
+      hit.dataset.joint = id;
+      hit.setAttribute('class', 'hit');
+      hit.setAttribute('r', 18);
+      hit.append(titleEl(JOINT_LABELS[id]));
+      hit.addEventListener('pointerdown', (ev) => startDrag(ev, id));
+      svg.append(dot, hit);
     }
     // 2タップフィット: 関節以外の場所のタップで頭頂→足先を指定して骨格全体を合わせる
     svg.addEventListener('pointerdown', onCanvasTap);
+    // ドラッグ中にページがスクロールしないよう、オーバーレイ上のタッチは常に既定動作を止める
+    svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
     redrawBones();
     return svg;
   }
@@ -226,19 +234,27 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   function startDrag(ev, id) {
     ev.preventDefault();
     ev.stopPropagation(); // 2タップフィットのタップ扱いにしない
-    const target = ev.currentTarget;
-    target.setPointerCapture(ev.pointerId);
+    const pointerId = ev.pointerId;
+    try {
+      ev.currentTarget.setPointerCapture(pointerId);
+    } catch { /* 一部ブラウザでは失敗するが window 監視で継続できる */ }
+    // 追跡は window で行う(点の外へ速く動かしても・キャプチャが効かなくても外れない)
     const move = (e) => {
+      if (e.pointerId !== pointerId) return;
+      e.preventDefault();
       joints[id] = svgPoint(e);
       redrawBones();
     };
-    const up = () => {
-      target.removeEventListener('pointermove', move);
-      target.removeEventListener('pointerup', up);
+    const up = (e) => {
+      if (e.pointerId !== pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', up);
       emit();
     };
-    target.addEventListener('pointermove', move);
-    target.addEventListener('pointerup', up);
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', up);
   }
 
   // dataUrl の画像を表示してテンプレート骨格を重ねる
