@@ -15,7 +15,7 @@ import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
 // 体型合わせモードで追加・言い換えする関節名
-const FIT_LABELS = { top: '頭頂', neck: 'あご' };
+const FIT_LABELS = { top: '頭頂', neck: 'あご', hip: '股(ここを動かすと骨格全体が移動)' };
 
 function el(name, attrs = {}, ...children) {
   const node = document.createElementNS(SVG_NS, name);
@@ -49,7 +49,8 @@ export function createPoseFigure(container, seg, opts = {}) {
   const k = g.k;
   // 股の描画位置。正面・右側面は左寄り(寸法注記を右に置く)、左側面は「前」が左向きなので
   // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
-  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : g.cx);
+  // 体型合わせ中の正面図は骨格を中央に置く(参考画像の初期位置=中央と揃える。第22弾FB「骨格の位置がズレる」)
+  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : (fitMode && view === 'front' ? VIEW_W / 2 : g.cx));
   const toPx = (p, view) => {
     const { u, v } = project(p, view);
     return { x: hipX(view) + u * k, y: g.hipY + v * k };
@@ -248,7 +249,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const dims = el('g', { class: 'dims' });
     const jointsG = el('g', { class: 'pose-joints' });
     if (interactive && (!fitMode || view === 'front')) {
-      const ids = fitMode ? ['top', 'neck', ...DRAGGABLE] : DRAGGABLE;
+      const ids = fitMode ? ['top', 'neck', 'hip', ...DRAGGABLE] : DRAGGABLE;
       for (const id of ids) {
         const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 22 });
         const t = el('title'); t.textContent = FIT_LABELS[id] ?? JOINT_LABELS[id]; hit.append(t);
@@ -501,7 +502,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       // 寸法注記(直立のときだけ)
       const dims = svg.querySelector('.dims');
       dims.replaceChildren();
-      if (!posed) appendDims(dims, view);
+      if (!posed && !fitMode) appendDims(dims, view);
     }
   }
 
@@ -558,6 +559,15 @@ export function createPoseFigure(container, seg, opts = {}) {
       if (fitMode) {
         // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
         const uv = fromPx(localPoint(svg, view, e), view);
+        if (id === 'hip') {
+          // 股=骨格全体の平行移動(参考画像に骨格を寄せる。第22弾FB「腰の位置も動かしたい」)
+          const dx = uv.u - joints.hip.x; const dy = uv.v - joints.hip.y;
+          const moved = {};
+          for (const [k2, p2] of Object.entries(joints)) moved[k2] = { x: p2.x + dx, y: p2.y + dy, z: p2.z };
+          joints = moved;
+          redraw();
+          return;
+        }
         joints = { ...joints, [id]: { x: uv.u, y: uv.v, z: joints[id].z } };
         if (id === 'hipL' || id === 'hipR') {
           // 骨盤は股を中点に保つ
