@@ -31,6 +31,11 @@ export function createPoseFigure(container, seg, opts = {}) {
   const interactive = opts.interactive !== false;
   const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
+  // 透かし画像(正面図の背面に半透明で重ねる。「画像から」と「芯材計算」を一体化する第1段階。第18弾FB)
+  //   overlay: { src, t:{x,y}(px), s(倍率), opacity }。dragTarget='overlay' のとき背景ドラッグ/ピンチは透かしを動かす
+  const overlay = opts.overlay ?? null;
+  let dragTarget = opts.dragTarget ?? 'view';
+  let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45 } : null;
   const rest = restPose(seg);
   const lengths = boneLengths(rest);
   let joints = opts.initialJoints ?? rest;
@@ -88,17 +93,17 @@ export function createPoseFigure(container, seg, opts = {}) {
     const ww = Math.min(sw, hw) * 0.74; // ウエスト
     const torsoH = Math.hypot(st.x - hp.x, st.y - hp.y);
     const at = (t, s) => add(add(hp, mul(up, t * torsoH)), mul(side, s)); // t: 0=股,1=首つけ根
-    const nw = W.neck * 0.5;
-    const shTop = 1 - (W.arm * 0.2) / torsoH;
+    const nw = W.neck * 0.44; // 首はやや細く
+    const shTop = 1 - (W.arm * 0.32) / torsoH; // 肩先は関節よりやや下(なで肩の傾斜)
     const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
     const jaw = 1 + neckLen / torsoH;
     const chest = 0.66; const waist = 0.4; const crotch = -(W.leg * 0.75) / torsoH;
     const cw = sw * 0.88;
     const L = (s) => -s; const R = (s) => s;
     const half = (S) =>
-      ` L ${P(at(jaw - (jaw - shTop) * 0.4, S(nw)))}`
-      + ` C ${P(at(jaw - (jaw - shTop) * 0.85, S(nw)))} ${P(at(shTop + 0.02, S(sw * 0.5)))} ${P(at(shTop, S(sw * 0.9)))}`
-      + ` C ${P(at(shTop - 0.06, S(sw * 1.12)))} ${P(at(shTop - 0.14, S(sw * 1.05)))} ${P(at(chest, S(cw)))}`
+      ` L ${P(at(jaw - (jaw - shTop) * 0.3, S(nw)))}`
+      + ` C ${P(at(jaw - (jaw - shTop) * 0.7, S(nw * 1.05)))} ${P(at(shTop + 0.05, S(sw * 0.45)))} ${P(at(shTop, S(sw * 0.95)))}`
+      + ` C ${P(at(shTop - 0.05, S(sw * 1.14)))} ${P(at(shTop - 0.14, S(sw * 1.06)))} ${P(at(chest, S(cw)))}`
       + ` C ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(waist, S(ww)))}`
       + ` C ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(0.14, S(hw)))} ${P(at(0, S(hw)))}`
       + ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(crotch, 0))}`;
@@ -107,8 +112,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(0, S(hw)))}`
       + ` C ${P(at(0.14, S(hw)))} ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(waist, S(ww)))}`
       + ` C ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(chest, S(cw)))}`
-      + ` C ${P(at(shTop - 0.14, S(sw * 1.05)))} ${P(at(shTop - 0.06, S(sw * 1.12)))} ${P(at(shTop, S(sw * 0.9)))}`
-      + ` C ${P(at(shTop + 0.02, S(sw * 0.5)))} ${P(at(jaw - (jaw - shTop) * 0.85, S(nw)))} ${P(at(jaw - (jaw - shTop) * 0.4, S(nw)))}`
+      + ` C ${P(at(shTop - 0.14, S(sw * 1.06)))} ${P(at(shTop - 0.05, S(sw * 1.14)))} ${P(at(shTop, S(sw * 0.95)))}`
+      + ` C ${P(at(shTop + 0.05, S(sw * 0.45)))} ${P(at(jaw - (jaw - shTop) * 0.7, S(nw * 1.05)))} ${P(at(jaw - (jaw - shTop) * 0.3, S(nw)))}`
       + ` L ${P(at(jaw, S(nw)))}`;
     return `M ${P(at(jaw, L(nw)))}${half(L)}${rightUp(R)} Z`;
   }
@@ -232,6 +237,11 @@ export function createPoseFigure(container, seg, opts = {}) {
       svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
     }
     const stage = el('g', { class: 'stage' });
+    if (view === 'front') {
+      const img = el('image', { class: 'overlay-img', preserveAspectRatio: 'xMidYMid meet' });
+      img.style.display = 'none';
+      stage.append(img);
+    }
     stage.append(flesh, bones, dims, jointsG);
     stages[view] = stage;
     svg.append(stage);
@@ -249,6 +259,21 @@ export function createPoseFigure(container, seg, opts = {}) {
   }
   const emitViewport = () => opts.onViewportChange?.(JSON.parse(JSON.stringify(viewport)));
 
+  function applyOverlay() {
+    const img = svgs.front?.querySelector('.overlay-img');
+    if (!img) return;
+    if (!overlayState?.src) { img.style.display = 'none'; return; }
+    const w = VIEW_W * overlayState.s; const h = VIEW_H * overlayState.s;
+    img.setAttribute('href', overlayState.src);
+    img.setAttribute('x', fmt(VIEW_W / 2 - w / 2 + overlayState.t.x));
+    img.setAttribute('y', fmt(VIEW_H / 2 - h / 2 + overlayState.t.y));
+    img.setAttribute('width', fmt(w));
+    img.setAttribute('height', fmt(h));
+    img.setAttribute('opacity', overlayState.opacity);
+    img.style.display = '';
+  }
+  const emitOverlay = () => opts.onOverlayChange?.(overlayState ? JSON.parse(JSON.stringify(overlayState)) : null);
+
   // 背景ドラッグ=パン、2本指=ピンチズーム(関節のドラッグは stopPropagation されるのでここへ来ない)
   const pointers = new Map();
   let pinchStart = null;
@@ -256,11 +281,15 @@ export function createPoseFigure(container, seg, opts = {}) {
     if (ev.target.classList?.contains('pose-hit')) return;
     ev.preventDefault();
     const svg = svgs[view];
+    // 「透かしを動かす」モードでは正面図の背景操作は透かし画像に対して行う
+    const onOverlay = dragTarget === 'overlay' && view === 'front' && overlayState?.src;
     pointers.set(ev.pointerId, svgPoint(svg, ev));
     let last = svgPoint(svg, ev);
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      pinchStart = { d: Math.hypot(a.x - b.x, a.y - b.y), s: viewport.s, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, t: { ...(viewport.t[view] ?? { x: 0, y: 0 }) } };
+      pinchStart = onOverlay
+        ? { d: Math.hypot(a.x - b.x, a.y - b.y), s: overlayState.s, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, t: { ...overlayState.t } }
+        : { d: Math.hypot(a.x - b.x, a.y - b.y), s: viewport.s, mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, t: { ...(viewport.t[view] ?? { x: 0, y: 0 }) } };
     }
     const move = (e) => {
       if (!pointers.has(e.pointerId)) return;
@@ -270,10 +299,19 @@ export function createPoseFigure(container, seg, opts = {}) {
       if (pointers.size >= 2 && pinchStart) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
-        const ns = Math.min(3, Math.max(0.3, (pinchStart.s * d) / (pinchStart.d || 1)));
+        const ns = Math.min(4, Math.max(0.2, (pinchStart.s * d) / (pinchStart.d || 1)));
         // 中点を固定してズーム
         const m = pinchStart.mid;
         const t = pinchStart.t;
+        if (onOverlay) {
+          // 透かしは中心基準の配置なので、中点固定は中心座標で計算する
+          const c0 = { x: VIEW_W / 2 + t.x, y: VIEW_H / 2 + t.y };
+          const rel = { x: (m.x - c0.x) / pinchStart.s, y: (m.y - c0.y) / pinchStart.s };
+          overlayState.s = ns;
+          overlayState.t = { x: m.x - rel.x * ns - VIEW_W / 2, y: m.y - rel.y * ns - VIEW_H / 2 };
+          applyOverlay();
+          return;
+        }
         const local = { x: (m.x - t.x) / pinchStart.s, y: (m.y - t.y) / pinchStart.s };
         viewport.s = ns;
         viewport.t[view] = { x: m.x - local.x * ns, y: m.y - local.y * ns };
@@ -281,6 +319,13 @@ export function createPoseFigure(container, seg, opts = {}) {
         return;
       }
       if (e.pointerId !== ev.pointerId) return;
+      if (onOverlay) {
+        // 透かしは stage(表示倍率)の中に置くので、移動量は表示倍率で割る
+        overlayState.t = { x: overlayState.t.x + (p.x - last.x) / viewport.s, y: overlayState.t.y + (p.y - last.y) / viewport.s };
+        last = p;
+        applyOverlay();
+        return;
+      }
       const t = viewport.t[view] ?? { x: 0, y: 0 };
       viewport.t[view] = { x: t.x + (p.x - last.x), y: t.y + (p.y - last.y) };
       last = p;
@@ -293,7 +338,7 @@ export function createPoseFigure(container, seg, opts = {}) {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
         window.removeEventListener('pointercancel', up);
-        emitViewport();
+        if (onOverlay) emitOverlay(); else emitViewport();
       }
     };
     window.addEventListener('pointermove', move, { passive: false });
@@ -401,7 +446,14 @@ export function createPoseFigure(container, seg, opts = {}) {
       torso.setAttribute('d', view === 'front' ? torsoFrontPath(view) : torsoSidePath(view));
       for (const line of svg.querySelectorAll('.flesh line[data-seg]')) {
         const [a, b] = line.dataset.seg.split('-');
-        setLine(line, toPx(joints[a], view), toPx(joints[b], view));
+        let pa = toPx(joints[a], view); const pb = toPx(joints[b], view);
+        // 上腕は肩関節から少し下(腕の太さの半分)から描き始め、丸い端が肩の上に盛り上がらないようにする
+        // (第18弾FB「肩と首まわりの違和感」: 肩線の上に腕の丸みが出て肩パッドのように見えていた)
+        if (line.classList.contains('upper')) {
+          const d = norm(sub(pb, pa));
+          pa = add(pa, mul(d, W.arm * 0.5));
+        }
+        setLine(line, pa, pb);
         line.setAttribute('stroke-width', line.classList.contains('upper') ? W.arm
           : line.classList.contains('lower') ? W.fore
             : line.classList.contains('thigh') ? W.leg : W.shin);
@@ -419,8 +471,9 @@ export function createPoseFigure(container, seg, opts = {}) {
       }
       const neck = svg.querySelector('.flesh .neck');
       setLine(neck, toPx(joints.neck, view), toPx(joints.spineTop, view));
-      neck.setAttribute('stroke-width', W.neck);
-      setEllipse(svg.querySelector('.head-flesh'), { c: hg.c, rx: hg.r * 0.98, ry: hg.r * 1.04, ang: 0 });
+      neck.setAttribute('stroke-width', W.neck * 0.88);
+      // 頭は参考輪郭(頭高)より一回り大きく(髪のボリューム分。第18弾FB)
+      setEllipse(svg.querySelector('.head-flesh'), { c: add(hg.c, mul(hg.dir, hg.r * 0.06)), rx: hg.r * 1.06, ry: hg.r * 1.1, ang: 0 });
       // 関節
       for (const c of svg.querySelectorAll('circle[data-joint]')) {
         const p = toPx(joints[c.dataset.joint], view);
@@ -512,6 +565,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     }
     redraw();
     applyViewport();
+    applyOverlay();
   }
 
   mount();
@@ -542,6 +596,21 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     fitAll, zoomIn: () => zoomBy(1.25), zoomOut: () => zoomBy(0.8), resetView,
+    // 透かし画像
+    setOverlay(src) {
+      overlayState = { src, t: { x: 0, y: 0 }, s: 1, opacity: 0.45 };
+      applyOverlay();
+      emitOverlay();
+    },
+    clearOverlay() { overlayState = null; applyOverlay(); emitOverlay(); },
+    hasOverlay: () => !!overlayState?.src,
+    overlayZoom(f) {
+      if (!overlayState) return;
+      overlayState.s = Math.min(4, Math.max(0.2, overlayState.s * f));
+      applyOverlay();
+      emitOverlay();
+    },
+    setDragTarget(t) { dragTarget = t === 'overlay' ? 'overlay' : 'view'; },
     getJoints: () => joints,
     isPosed: () => isPosed(joints, rest),
     setFlesh(on) {

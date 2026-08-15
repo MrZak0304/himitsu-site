@@ -351,3 +351,17 @@ a { color: var(--thread); }
 .twist-row label { font-size: 0.9rem; min-width: 6em; }
 .twist-row .twist-range { flex: 1; min-width: 8em; accent-color: var(--felt); }
 .twist-row .twist-zero { padding: 5px 10px; font-size: 0.8rem; white-space: nowrap; }
+
+/* ポーズ: 透かし画像 */
+.overlay-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.overlay-row > * { flex: 1; min-width: 7em; }
+.overlay-row .overlay-pick {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 6px; font-size: 0.88rem; border-radius: 999px; cursor: pointer;
+  border: 1.5px dashed var(--felt); color: var(--felt-dark); background: transparent; text-align: center;
+}
+.overlay-row .overlay-file { position: absolute; opacity: 0; width: 0; height: 0; min-width: 0; }
+.overlay-row .toggle { padding: 8px 6px; font-size: 0.88rem; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.overlay-row .toggle[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+.overlay-row button { padding: 8px 6px; font-size: 0.88rem; }
+.overlay-row button:disabled { opacity: 0.45; cursor: default; }
