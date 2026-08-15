@@ -246,15 +246,19 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   // 関節を動かす。骨盤は常に連結を保つ(2026-08-15 PDフィードバック第10弾):
   //   股(中心)を動かす → 骨盤の左右端と両脚も一緒に平行移動
   //   骨盤の端を動かす → 股(中心)はつねに左右端の中点
-  const PELVIS_FOLLOWERS = ['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR'];
+  //   足首を動かす → かかとも一緒に動く(第17弾FB「腰と脚部の連動が不十分」: かかと追加後に
+  //   股ドラッグの追従対象から漏れていた)
+  const PELVIS_FOLLOWERS = ['hipL', 'hipR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'heelL', 'heelR'];
+  const FOLLOWERS = { hip: PELVIS_FOLLOWERS, ankleL: ['heelL'], ankleR: ['heelR'] };
   function moveJoint(id, p) {
-    if (id === 'hip') {
-      const dx = p.x - joints.hip.x;
-      const dy = p.y - joints.hip.y;
-      for (const f of PELVIS_FOLLOWERS) {
+    const followers = FOLLOWERS[id];
+    if (followers) {
+      const dx = p.x - joints[id].x;
+      const dy = p.y - joints[id].y;
+      for (const f of followers) {
         if (joints[f]) joints[f] = { x: joints[f].x + dx, y: joints[f].y + dy };
       }
-      joints.hip = p;
+      joints[id] = p;
       return;
     }
     joints[id] = p;

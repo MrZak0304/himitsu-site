@@ -122,8 +122,10 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     input.min = '-90'; input.max = '90'; input.step = '1';
     input.value = String(poseState[key] ?? 0);
     const val = h('span', 'adj-value', `${poseState[key] ?? 0}°`);
-    row.append(lab, input, val);
-    return { row, input, val };
+    const zero = h('button', 'ghost twist-zero', '0°に戻す');
+    zero.type = 'button';
+    row.append(lab, input, val, zero);
+    return { row, input, val, zero };
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
@@ -181,6 +183,19 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   });
   bindTwist('twistUpper', twistUp, (d) => poseState.fig?.twistUpper(d));
   bindTwist('twistLower', twistLo, (d) => poseState.fig?.twistLower(d));
+  // 各ひねりの隣の「0°に戻す」(第17弾FB)
+  for (const [key, t, apply] of [
+    ['twistUpper', twistUp, (d) => poseState.fig?.twistUpper(d)],
+    ['twistLower', twistLo, (d) => poseState.fig?.twistLower(d)],
+  ]) {
+    t.zero.addEventListener('click', () => {
+      const cur = poseState[key] ?? 0;
+      if (cur !== 0) apply(-cur);
+      poseState[key] = 0;
+      t.input.value = '0';
+      t.val.textContent = '0°';
+    });
+  }
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
   fitBtn.addEventListener('click', () => poseState.fig?.fitAll());
   zoomInBtn.addEventListener('click', () => poseState.fig?.zoomIn());
