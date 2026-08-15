@@ -8,7 +8,6 @@ import { ratiosFromJoints } from './core/skeleton2d.js';
 import {
   loadPresets, savePreset, deletePreset, hasPreset, STORE_KEY,
 } from './core/presets-store.js';
-import { renderThreeViews } from './ui/diagram.js';
 import { createPoseFigure } from './ui/posefig.js';
 import { createPhotoFit } from './ui/photofit.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
@@ -66,21 +65,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       `推奨アルミ線径 ${result.wireDiameterMm}mm(2本撚り)`),
   );
 
-  const fleshRow = h('div', 'flesh-row');
-  const fleshLabel = h('label', 'flesh-toggle');
-  const fleshCb = document.createElement('input');
-  fleshCb.type = 'checkbox';
-  fleshCb.className = 'flesh-checkbox';
-  fleshCb.checked = showFlesh;
-  fleshCb.addEventListener('change', () => {
-    showFlesh = fleshCb.checked;
-    renderCalc();
-    renderPhoto();
-  });
-  fleshLabel.append(fleshCb, h('span', null, '肉付けイメージを表示'));
-  fleshRow.append(fleshLabel);
-
-  // ポーズモード(三面図の連動ポーズ)。root ごとに状態を持つ
+  // 表示切り替え: 大きめのトグルボタン(チェックボックスは触りづらい→2026-08-15 PDフィードバック第12弾)
   const poseState = poseStates.get(root) ?? { on: false, joints: null, sig: null };
   poseStates.set(root, poseState);
   // 寸法(体型・サイズ)が変わったら保持していたポーズは捨てる(骨長が合わなくなるため)
@@ -89,55 +74,68 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseState.joints = null;
     poseState.sig = sig;
   }
-  const poseLabel = h('label', 'flesh-toggle');
-  const poseCb = document.createElement('input');
-  poseCb.type = 'checkbox';
-  poseCb.className = 'pose-checkbox';
-  poseCb.checked = poseState.on;
-  poseLabel.append(poseCb, h('span', null, 'ポーズを取る(関節をドラッグ)'));
-  fleshRow.append(poseLabel);
-  root.append(fleshRow);
+  const toggleRow = h('div', 'toggle-row');
+  const fleshBtn = h('button', 'toggle flesh-toggle-btn', '肉付けイメージ');
+  fleshBtn.type = 'button';
+  fleshBtn.setAttribute('aria-pressed', String(showFlesh));
+  const poseBtn = h('button', 'toggle pose-toggle-btn', 'ポーズを取る');
+  poseBtn.type = 'button';
+  poseBtn.setAttribute('aria-pressed', String(poseState.on));
+  toggleRow.append(fleshBtn, poseBtn);
+  root.append(toggleRow);
+
+  // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
+  const poseTools = h('div', 'pose-tools');
+  const poseHint = h('p', 'hint pose-hint');
+  const resetAll = h('button', 'ghost', '全体を初期位置に戻す');
+  resetAll.type = 'button';
+  const resetOne = h('button', 'ghost', '関節を初期位置に戻す');
+  resetOne.type = 'button';
+  resetOne.disabled = true;
+  const poseButtons = h('div', 'pose-buttons');
+  poseButtons.append(resetOne, resetAll);
+  poseTools.append(poseHint, poseButtons);
+  root.append(poseTools);
 
   const views = h('div', 'views');
   root.append(views);
-  const poseHint = h('p', 'hint pose-hint');
-  const poseReset = h('button', 'ghost', 'ポーズをリセット');
-  poseReset.type = 'button';
-  const poseTools = h('div', 'pose-tools');
-  poseTools.append(poseHint, poseReset);
-  root.append(poseTools);
 
+  const GUIDE_IDLE = '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
+  const GUIDE_POSED = 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。';
   const renderViews = () => {
-    if (poseState.on) {
-      const fig = createPoseFigure(views, result.segments, {
-        flesh: showFlesh,
-        initialJoints: poseState.joints,
-        onStatus: (t) => { poseHint.textContent = t; },
-        onPoseChange: (joints, posed) => {
-          poseState.joints = posed ? joints : null;
-          poseHint.textContent = posed
-            ? 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。'
-            : '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
-        },
-      });
-      poseState.fig = fig;
-      poseHint.textContent = poseState.joints
-        ? 'ポーズ中: 骨の長さは変わらないので切り出し寸法はそのままです。図は「どこで曲げるか」の指示になります。'
-        : '関節をドラッグしてポーズを付けられます。どの面で動かしても他の面が連動します。';
-      poseTools.hidden = false;
-    } else {
-      views.replaceChildren(renderThreeViews(result, { flesh: showFlesh }));
-      poseTools.hidden = true;
-    }
+    const fig = createPoseFigure(views, result.segments, {
+      flesh: showFlesh,
+      interactive: poseState.on,
+      initialJoints: poseState.on ? poseState.joints : null,
+      onStatus: (t) => { poseHint.textContent = t; },
+      onJointPick: (id, label) => {
+        resetOne.disabled = false;
+        resetOne.textContent = `「${label}」を初期位置に戻す`;
+      },
+      onPoseChange: (joints, posed) => {
+        poseState.joints = posed ? joints : null;
+        poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
+      },
+    });
+    poseState.fig = fig;
+    poseTools.hidden = !poseState.on;
+    if (poseState.on) poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
   };
-  poseCb.addEventListener('change', () => {
-    poseState.on = poseCb.checked;
+  fleshBtn.addEventListener('click', () => {
+    showFlesh = !showFlesh;
+    renderCalc();
+    renderPhoto();
+  });
+  poseBtn.addEventListener('click', () => {
+    poseState.on = !poseState.on;
+    poseBtn.setAttribute('aria-pressed', String(poseState.on));
     renderViews();
   });
-  poseReset.addEventListener('click', () => {
+  resetAll.addEventListener('click', () => {
     poseState.fig?.reset();
     poseState.joints = null;
   });
+  resetOne.addEventListener('click', () => poseState.fig?.resetJoint());
   renderViews();
 
   root.append(h('h3', null, '各部の仕上がり寸法'));

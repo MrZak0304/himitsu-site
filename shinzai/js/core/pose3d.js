@@ -191,6 +191,32 @@ export function dragJoint(joints, lengths, id, uv, view) {
 
 const MIRROR = { hipL: 'hipR', hipR: 'hipL', shoulderL: 'shoulderR', shoulderR: 'shoulderL' };
 
+// 関節1つを初期位置に戻す(2026-08-15 PDフィードバック第12弾)。
+// 「親から見た方向」を直立(rest)のときの方向に戻し、子孫は同じ回転で追従する。
+// 親が動いていてもその関節から先だけが直立時の向きに戻る。剛体バーの端は反対側も戻る。
+export function resetJoint(joints, lengths, rest, id) {
+  const parent = PARENT[id];
+  if (!parent) return joints;
+  const restRel = sub(rest[id], rest[parent]);
+  const rl = len(restRel);
+  if (rl < 1e-9) return joints;
+  const k = lengths[id] / rl;
+  const target = add(joints[parent], { x: restRel.x * k, y: restRel.y * k, z: restRel.z * k });
+  const rot = rotationBetween(sub(joints[id], joints[parent]), sub(target, joints[parent]));
+  const out = { ...joints };
+  const oldSelf = joints[id];
+  out[id] = target;
+  for (const d of descendants(id)) out[d] = add(target, rot(sub(joints[d], oldSelf)));
+  const mirror = MIRROR[id];
+  if (mirror) {
+    const oldM = joints[mirror];
+    const newM = sub(add(joints[parent], joints[parent]), target);
+    out[mirror] = newM;
+    for (const d of descendants(mirror)) out[d] = add(newM, rot(sub(joints[d], oldM)));
+  }
+  return normalizeLengths(out, lengths);
+}
+
 // 首の接続しろ(頭への差し込み)の先端。neck から top 方向へ頭高の1/3
 export function neckStubEnd(joints, headCm) {
   const dir = sub(joints.top, joints.neck);

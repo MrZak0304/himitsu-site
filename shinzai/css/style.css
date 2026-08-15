@@ -184,39 +184,40 @@ details[open] summary { margin-bottom: 6px; }
   color: var(--thread);
   padding-bottom: 4px;
 }
-/* ポーズモード(三面図の連動ポーズ) */
-.pose-svg { width: 100%; height: auto; display: block; touch-action: none; }
+/* 三面図(統一レンダラー: 通常表示・ポーズモード共通) */
+.pose-svg { width: 100%; height: auto; display: block; }
+.pose-svg:not(.static) { touch-action: none; }
 .pose-svg .bones line { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.pose-svg .head-ref { fill: none; stroke: var(--ink); stroke-dasharray: 5 4; stroke-width: 1.5; opacity: 0.55; }
-.pose-svg .capsules { display: none; }
-.pose-svg.with-flesh .capsules { display: block; opacity: 0.9; }
-.pose-svg.with-flesh .capsules line { stroke: #e6c9a5; stroke-linecap: round; }
-.pose-svg.with-flesh .capsules line.flat { stroke-linecap: butt; }
-.pose-svg .neck-stub { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.pose-svg.with-flesh .head-flesh { fill: #e6c9a5; }
-.pose-svg.with-flesh .bones { opacity: 0.35; }
+.pose-svg .bones .ref {
+  fill: none; stroke: var(--ink); stroke-dasharray: 5 4; stroke-width: 1.5; opacity: 0.55;
+}
+.pose-svg .neck-stub, .pose-svg .stub { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+/* 肉付けシルエット(粘土色)。表示中は針金を薄く */
+.pose-svg .flesh { display: none; }
+.pose-svg.with-flesh .flesh { display: block; opacity: 0.9; }
+.pose-svg.with-flesh .bones { opacity: 0.25; }
+.pose-svg .flesh path, .pose-svg .flesh line { stroke: #e6c9a5; stroke-linecap: round; stroke-linejoin: round; }
+.pose-svg .flesh .torso { fill: #e6c9a5; stroke: #e6c9a5; stroke-width: 1; }
+.pose-svg .flesh circle, .pose-svg .flesh ellipse { fill: #e6c9a5; stroke: none; }
+/* 関節(ドラッグ)。当たり判定は見た目より大きく */
 .pose-svg .pose-dot { fill: var(--thread); stroke: #fff; stroke-width: 1.5; pointer-events: none; }
 .pose-svg .pose-hit { fill: transparent; stroke: none; cursor: grab; touch-action: none; }
-.pose-tools { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 6px 0; }
-.pose-tools .hint { flex: 1; min-width: 12em; margin: 0; }
-.flesh-row { display: flex; gap: 18px; flex-wrap: wrap; }
-
-/* 肉付けイメージ(粘土色のシルエット) */
-.flesh { opacity: 0.9; }
-.with-flesh .bones { opacity: 0.25; } /* 肉付け表示中は針金を薄くしてシルエットを主役に */
-.flesh circle, .flesh ellipse { fill: #e6c9a5; stroke: none; }
-.flesh path, .flesh line { stroke: #e6c9a5; stroke-linecap: round; stroke-linejoin: round; }
-.flesh path[d*="Z"] { fill: #e6c9a5; }
-.flesh-row { margin: 8px 0 4px; }
-.flesh-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  color: var(--felt-dark);
+/* 表示切り替えのトグルボタン(チェックボックスより大きく) */
+.toggle-row { display: flex; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.toggle-row .toggle {
+  flex: 1; min-width: 9em;
+  background: #faf6e9; color: #857a6a;
+  border: 1.5px dashed var(--stitch); box-shadow: none;
+  padding: 10px 8px; font-size: 0.92rem;
 }
-.flesh-checkbox { min-width: 0; width: 18px; height: 18px; accent-color: var(--felt); }
+.toggle-row .toggle[aria-pressed="true"] {
+  background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold;
+}
+.pose-tools { margin: 4px 0 8px; }
+.pose-tools .hint { margin: 0 0 6px; }
+.pose-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.pose-buttons button { flex: 1; min-width: 9em; padding: 9px 8px; }
+.pose-buttons button:disabled { opacity: 0.45; cursor: default; }
 
 .bones line, .bones circle, .bones ellipse {
   stroke: var(--ink);
