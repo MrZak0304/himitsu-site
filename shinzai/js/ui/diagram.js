@@ -68,14 +68,18 @@ function geometry(seg) {
   };
 }
 
+// 骨組み=アルミ芯の形。頭・手・足は芯で作らない前提のため線に含めず、
+// 位置の目安として点線の参考輪郭(.ref)で示す(2026-08-15 PDフィードバック。
+// 「画像から」のテンプレート骨格と同じ構成)。
+
 // 正面・背面共通の骨組み(左右対称)
 function frontBones(seg, g) {
   const bones = el('g', { class: 'bones' });
   bones.append(
-    el('circle', { cx: g.cx, cy: g.top + g.headR, r: g.headR, fill: 'none' }),
+    // 頭の参考輪郭(芯ではない)
+    el('circle', { class: 'ref', cx: g.cx, cy: g.top + g.headR, r: g.headR, fill: 'none' }),
     el('line', { x1: g.cx, y1: g.neckY, x2: g.cx, y2: g.hipY }),
     el('line', { x1: g.cx - g.shoulderHalf, y1: g.shoulderY, x2: g.cx + g.shoulderHalf, y2: g.shoulderY }),
-    el('line', { x1: g.cx - g.hipHalf, y1: g.hipY, x2: g.cx + g.hipHalf, y2: g.hipY }),
   );
   for (const side of [-1, 1]) {
     const sx = g.cx + side * g.shoulderHalf;
@@ -86,7 +90,9 @@ function frontBones(seg, g) {
     bones.append(
       el('line', { x1: sx, y1: g.shoulderY, x2: ex, y2: elbowY }),
       el('line', { x1: ex, y1: elbowY, x2: wx, y2: wristY }),
+      // 手の参考輪郭
       el('ellipse', {
+        class: 'ref',
         cx: wx + side * (seg.hand / 2) * g.k * 0.4,
         cy: wristY + (seg.hand / 2) * g.k,
         rx: Math.max(3, (seg.hand / 3) * g.k),
@@ -98,9 +104,12 @@ function frontBones(seg, g) {
     const kneeY = g.hipY + seg.thigh * g.k;
     const ankleY = kneeY + seg.shin * g.k;
     bones.append(
-      el('line', { x1: hx, y1: g.hipY, x2: hx, y2: kneeY }),
+      // 脚は股(背骨の下端)から斜めに出す(「画像から」の骨格と同じ形)
+      el('line', { x1: g.cx, y1: g.hipY, x2: hx, y2: kneeY }),
       el('line', { x1: hx, y1: kneeY, x2: hx, y2: ankleY }),
+      // 足の参考輪郭
       el('ellipse', {
+        class: 'ref',
         cx: hx + side * (seg.footLength / 2) * g.k * 0.6,
         cy: g.soleY - (seg.ankle / 2) * g.k,
         rx: (seg.footLength / 2) * g.k,
@@ -117,7 +126,9 @@ function sideBones(seg, g) {
   const bones = el('g', { class: 'bones' });
   const footPx = seg.footLength * g.k;
   bones.append(
-    el('circle', { cx: g.cx + g.headR * 0.25, cy: g.top + g.headR, r: g.headR, fill: 'none' }),
+    el('circle', {
+      class: 'ref', cx: g.cx + g.headR * 0.25, cy: g.top + g.headR, r: g.headR, fill: 'none',
+    }),
     el('line', { x1: g.cx, y1: g.neckY, x2: g.cx, y2: g.hipY }),
   );
   const elbowY = g.shoulderY + seg.upperArm * g.k;
@@ -126,6 +137,7 @@ function sideBones(seg, g) {
     el('line', { x1: g.cx, y1: g.shoulderY, x2: g.cx - 5, y2: elbowY }),
     el('line', { x1: g.cx - 5, y1: elbowY, x2: g.cx - 2, y2: wristY }),
     el('ellipse', {
+      class: 'ref',
       cx: g.cx - 2, cy: wristY + (seg.hand / 2) * g.k,
       rx: Math.max(3, (seg.hand / 3) * g.k), ry: (seg.hand / 2) * g.k, fill: 'none',
     }),
@@ -135,9 +147,8 @@ function sideBones(seg, g) {
   bones.append(
     el('line', { x1: g.cx, y1: g.hipY, x2: g.cx + 3, y2: kneeY }),
     el('line', { x1: g.cx + 3, y1: kneeY, x2: g.cx, y2: ankleY }),
-    // 足: かかと〜つま先(進行方向=右)
-    el('line', { x1: g.cx - footPx * 0.3, y1: g.soleY, x2: g.cx + footPx * 0.7, y2: g.soleY }),
-    el('line', { x1: g.cx, y1: ankleY, x2: g.cx, y2: g.soleY }),
+    // 足の参考輪郭: かかと〜つま先(進行方向=右)
+    el('line', { class: 'ref', x1: g.cx - footPx * 0.3, y1: g.soleY, x2: g.cx + footPx * 0.7, y2: g.soleY }),
   );
   return bones;
 }
@@ -168,7 +179,7 @@ function fleshFront(seg, g) {
   // 胴を首つきの一体アウトライン(単一の閉パス。2分割だと中央に継ぎ目が出る):
   // 首(縦)→僧帽筋の傾斜→肩(三角筋の丸み)→脇→くびれ→腰→パンツライン→右側を鏡映で戻る
   const nw = neckW * 0.5; // 首の半幅
-  const shTopY = g.shoulderY + armW * 0.4; // 肩(三角筋)の上面
+  const shTopY = g.shoulderY + armW * 0.2; // 肩(三角筋)の上面(肩バーの針金が収まる高さ)
   const neckRun = shTopY - jawY;
   const sw = g.shoulderHalf; // 肩先
   const cw = sw * 0.88; // 脇(胸横)
@@ -233,41 +244,57 @@ function fleshFront(seg, g) {
 }
 
 function fleshSide(seg, g) {
+  // 側面は「背骨=軸が体のやや後ろ寄りを通る直立姿勢」の一体輪郭で描く。
+  // 軸(針金)は真っ直ぐのまま体の中に収まる=肉付け図と芯の矛盾を作らない
+  // (2026-08-15 PDフィードバック第6弾)。
   const flesh = el('g', { class: 'flesh' });
   const { armW, foreW, legW, shinW, neckW } = fleshWidths(g);
-  const bodyW = Math.max(6, g.shoulderHalf * 0.95); // 側面の胴の厚み
-  const elbowY = g.shoulderY + seg.upperArm * g.k;
-  const wristY = elbowY + seg.forearm * g.k;
+  const d = Math.max(8, g.shoulderHalf * 1.15); // 体の厚み(前後幅)の基準
+  const cx = g.cx;
+  const jawY = g.neckY;
+  const shTopY = g.shoulderY + armW * 0.2;
+  const torsoH = g.hipY - g.shoulderY;
+  const chestY = g.shoulderY + torsoH * 0.3;
+  const waistY = g.shoulderY + torsoH * 0.62;
   const kneeY = g.hipY + seg.thigh * g.k;
   const ankleY = kneeY + seg.shin * g.k;
+  const calfY = kneeY + (ankleY - kneeY) * 0.3;
+  const buttY = g.hipY + legW * 0.2;
+  const underButtY = g.hipY + legW * 0.85;
   const footPx = seg.footLength * g.k;
-  const waistY = (g.shoulderY + g.hipY) / 2;
+  const nw = neckW * 0.55;
+  const elbowY = g.shoulderY + seg.upperArm * g.k;
+  const wristY = elbowY + seg.forearm * g.k;
+  // 頭(前寄りの楕円)
+  flesh.append(el('ellipse', {
+    cx: cx + g.headR * 0.18, cy: g.top + g.headR, rx: g.headR * 0.98, ry: g.headR * 1.04,
+  }));
+  // 首前→胸→腹→もも前→すね前→つま先→かかと→ふくらはぎ→もも裏→お尻→背中→首うしろ
+  flesh.append(el('path', {
+    d: `M ${cx + nw} ${jawY - 2}`
+      + ` C ${cx + nw} ${jawY + (shTopY - jawY) * 0.7} ${cx + d * 0.5} ${chestY - torsoH * 0.12} ${cx + d * 0.52} ${chestY}`
+      + ` C ${cx + d * 0.5} ${chestY + torsoH * 0.14} ${cx + d * 0.34} ${waistY - torsoH * 0.06} ${cx + d * 0.33} ${waistY}`
+      + ` C ${cx + d * 0.32} ${waistY + torsoH * 0.14} ${cx + d * 0.3} ${g.hipY - torsoH * 0.08} ${cx + d * 0.26} ${g.hipY + legW * 0.3}`
+      + ` C ${cx + d * 0.2} ${underButtY + (kneeY - underButtY) * 0.4} ${cx + shinW * 0.65} ${kneeY - (kneeY - underButtY) * 0.2} ${cx + shinW * 0.6} ${kneeY}`
+      + ` C ${cx + shinW * 0.55} ${kneeY + (ankleY - kneeY) * 0.4} ${cx + shinW * 0.4} ${ankleY - (ankleY - kneeY) * 0.2} ${cx + shinW * 0.38} ${ankleY}`
+      + ` Q ${cx + footPx * 0.55} ${g.soleY - seg.ankle * g.k * 0.5} ${cx + footPx * 0.72} ${g.soleY - 1}`
+      + ` L ${cx - footPx * 0.28} ${g.soleY - 1}`
+      + ` Q ${cx - shinW * 0.5} ${ankleY + (g.soleY - ankleY) * 0.3} ${cx - shinW * 0.45} ${ankleY}`
+      + ` C ${cx - shinW * 0.95} ${calfY + (ankleY - calfY) * 0.4} ${cx - shinW * 1.0} ${calfY} ${cx - shinW * 0.7} ${kneeY - (kneeY - underButtY) * 0.15}`
+      + ` C ${cx - d * 0.28} ${underButtY + (kneeY - underButtY) * 0.2} ${cx - d * 0.32} ${underButtY} ${cx - d * 0.4} ${underButtY - legW * 0.25}`
+      + ` C ${cx - d * 0.62} ${buttY + legW * 0.3} ${cx - d * 0.58} ${buttY - legW * 0.2} ${cx - d * 0.38} ${waistY + torsoH * 0.08}`
+      + ` C ${cx - d * 0.36} ${waistY - torsoH * 0.05} ${cx - d * 0.5} ${chestY + torsoH * 0.1} ${cx - d * 0.48} ${chestY}`
+      + ` C ${cx - d * 0.46} ${chestY - torsoH * 0.1} ${cx - nw * 1.6} ${shTopY} ${cx - nw * 1.1} ${jawY + (shTopY - jawY) * 0.4}`
+      + ` L ${cx - nw * 1.1} ${jawY - 2} Z`,
+  }));
+  // 腕(体の輪郭の上に重ねる)+手の参考位置
   flesh.append(
+    el('line', { x1: cx, y1: g.shoulderY + armW * 0.3, x2: cx - 5, y2: elbowY, 'stroke-width': armW }),
+    el('circle', { cx: cx - 5, cy: elbowY, r: foreW * 0.62 }),
+    el('line', { x1: cx - 5, y1: elbowY, x2: cx - 2, y2: wristY, 'stroke-width': foreW }),
     el('ellipse', {
-      cx: g.cx + g.headR * 0.25, cy: g.top + g.headR * 0.97, rx: g.headR * 0.95, ry: g.headR,
-    }),
-    // 首(頭の後ろ寄りから斜めに)
-    el('line', {
-      x1: g.cx + g.headR * 0.12, y1: g.neckY - 2, x2: g.cx, y2: g.shoulderY + armW * 0.4,
-      'stroke-width': neckW,
-    }),
-    // 胴: 胸を前、腰を後ろに引いたゆるいS字
-    el('path', {
-      d: `M ${g.cx} ${g.shoulderY}`
-        + ` C ${g.cx + bodyW * 0.25} ${g.shoulderY + (waistY - g.shoulderY) * 0.6} ${g.cx - bodyW * 0.2} ${waistY} ${g.cx} ${g.hipY}`,
-      fill: 'none', 'stroke-width': bodyW,
-    }),
-    el('line', { x1: g.cx, y1: g.shoulderY, x2: g.cx - 5, y2: elbowY, 'stroke-width': armW }),
-    el('line', { x1: g.cx - 5, y1: elbowY, x2: g.cx - 2, y2: wristY, 'stroke-width': foreW }),
-    el('ellipse', {
-      cx: g.cx - 2, cy: wristY + (seg.hand / 2) * g.k,
-      rx: Math.max(3, (seg.hand / 3.2) * g.k), ry: (seg.hand / 2) * g.k,
-    }),
-    el('line', { x1: g.cx, y1: g.hipY, x2: g.cx + 3, y2: kneeY, 'stroke-width': legW }),
-    el('line', { x1: g.cx + 3, y1: kneeY, x2: g.cx, y2: ankleY, 'stroke-width': shinW }),
-    el('path', {
-      d: `M ${g.cx - footPx * 0.3} ${g.soleY - 2} L ${g.cx + footPx * 0.7} ${g.soleY - 2}`,
-      fill: 'none', 'stroke-width': Math.max(4, seg.ankle * g.k),
+      cx: cx - 2, cy: wristY + (seg.hand / 2.3) * g.k,
+      rx: Math.max(3, (seg.hand / 3.6) * g.k), ry: (seg.hand / 2.1) * g.k,
     }),
   );
   return flesh;

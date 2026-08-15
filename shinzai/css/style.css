@@ -207,6 +207,12 @@ details[open] summary { margin-bottom: 6px; }
   stroke-linecap: round;
   fill: none;
 }
+/* 参考輪郭(頭・手・足はアルミ芯で作らないため点線で示す) */
+.bones .ref {
+  stroke-dasharray: 5 4;
+  stroke-width: 1.5;
+  opacity: 0.55;
+}
 .dim line { stroke: var(--thread); stroke-width: 1.5; }
 .dim text { fill: var(--thread); font-size: 13px; font-family: inherit; }
 
@@ -234,6 +240,10 @@ td .note { font-size: 0.75rem; color: #857a6a; }
   touch-action: none;
 }
 .photofit-overlay line { stroke: #5f7f9e; stroke-width: 2.5; stroke-linecap: round; }
+/* 2タップ指定が済むまで骨格は非表示(タップマーカーだけ見せる) */
+.photofit-overlay.unfitted line,
+.photofit-overlay.unfitted .dot,
+.photofit-overlay.unfitted .hit { display: none; }
 .photofit-overlay circle { touch-action: none; }
 .photofit-overlay .dot {
   fill: rgba(162, 84, 63, 0.85);

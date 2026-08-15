@@ -3,7 +3,6 @@
 // 画像は端末内でのみ扱い、外部送信・保存はしない(不変条件)。
 
 import { PROPORTION_PRESETS } from '../core/proportions.js';
-import { detectFigureBox } from '../core/imagefit.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -62,13 +61,18 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   // 2タップフィットの受付状態。フィット完了後は false にして、微調整中の誤タップで
   // 頭頂指定に戻らないようにする(2026-08-14 PDフィードバック第4弾)。再開は rearm()。
   let armed = true;
+  // 骨格は頭頂→足先/腰の指定が済むまで表示しない(2026-08-15 PDフィードバック第6弾:
+  // デフォルト配置の点がタップの邪魔になるため)。
+  let fitted = false;
 
   const anchorLabel = () => (tapAnchor === 'hip' ? '腰(股)' : '足先');
+  const startGuide = () =>
+    `画像の頭頂をタップしてください(1回目=頭頂 → 2回目=${anchorLabel()}。骨格はそのあとに表示されます)。`;
   const tapGuide = () =>
     `骨格がずれているときは、画像を直接タップ: 1回目=頭頂 → 2回目=${anchorLabel()} で骨格全体がその範囲に合います。細かい位置は点をドラッグ。`;
 
   function emit() {
-    if (joints) onChange({ ...joints });
+    if (joints && fitted) onChange({ ...joints });
   }
 
   function layoutTemplate(width, height, box = null) {
@@ -80,28 +84,6 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     joints = {};
     for (const [id, p] of Object.entries(tpl)) {
       joints[id] = { x: cx + p.x * figH, y: figTop + p.y * figH };
-    }
-  }
-
-  // 前景検出でテンプレートの初期位置を画像内の人物に合わせる(失敗時は null → 既定配置)
-  function detectBox(img, w, h) {
-    try {
-      const sw = 160;
-      const sh = Math.max(1, Math.round((sw * img.naturalHeight) / img.naturalWidth));
-      const canvas = document.createElement('canvas');
-      canvas.width = sw;
-      canvas.height = sh;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.drawImage(img, 0, 0, sw, sh);
-      const box = detectFigureBox(ctx.getImageData(0, 0, sw, sh));
-      if (!box.found) return null;
-      return {
-        figTop: (box.top / sh) * h,
-        figH: ((box.bottom - box.top) / sh) * h,
-        cx: (box.centerX / sw) * w,
-      };
-    } catch {
-      return null;
     }
   }
 
@@ -182,6 +164,8 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     });
     tapTop = null;
     armed = false; // 以後のタップは無効。微調整はドラッグ、やり直しは rearm()
+    fitted = true;
+    svg.classList.remove('unfitted'); // 指定完了 → 骨格を表示
     redrawBones();
     onStatus('骨格を合わせました。細かい位置は点をドラッグで調整してください。');
     emit();
@@ -192,7 +176,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     tapTop = null;
     armed = true; // 基準を変えた=合わせ直したいはず
     if (svg) clearTapMarker();
-    if (joints) onStatus(tapGuide());
+    if (joints) onStatus(fitted ? tapGuide() : startGuide());
   }
 
   // 「タップで合わせ直す」: 2タップフィットの受付を再開する
@@ -273,10 +257,11 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
         container.append(img);
         tapTop = null;
         armed = true;
-        layoutTemplate(w, h, detectBox(img, w, h));
+        fitted = false;
+        layoutTemplate(w, h); // 位置は仮。2タップ完了までは非表示のまま
         container.append(buildOverlay(w, h));
-        onStatus(tapGuide());
-        emit();
+        svg.classList.add('unfitted');
+        onStatus(startGuide());
         resolvePromise();
       };
       img.onerror = () => rejectPromise(new Error('画像を読み込めませんでした'));
@@ -284,5 +269,10 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     });
   }
 
-  return { loadImage, setTapAnchor, rearm, getJoints: () => (joints ? { ...joints } : null) };
+  return {
+    loadImage,
+    setTapAnchor,
+    rearm,
+    getJoints: () => (joints && fitted ? { ...joints } : null),
+  };
 }

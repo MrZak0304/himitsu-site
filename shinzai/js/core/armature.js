@@ -101,41 +101,38 @@ export function computeArmature({
     footLength: round1(s.footLength),
   };
 
-  // ループの経路長の目安(頭=周回、手足=折り返し)
-  const headLoop = s.head * 2.6; // 頭部を一周するループの周長 ≒ 楕円周
-  const handLoop = s.hand * 2; // 手先の折り返し
-  const footLoop = s.footLength * 2; // 足先の折り返し
+  // 頭・手・足はアルミ芯で作らない前提(パテ等で造形。2026-08-15 PDフィードバック)。
+  // 芯は 背骨(首〜股)+腕(手首まで)+脚(足首まで)の3系統。
   const spineLen = s.hipTop - s.head; // あご下(首)〜股
   const legInsert = spineLen / 2; // 脚線を胴に固定する差し込み分
 
   const cut = (finishedCm, joins) =>
     round1(finishedCm * opts.strands * opts.twistFactor + opts.joinMarginCm * joins);
 
-  // v0 の骨格モデル: 参考画像と同じ「2本撚り×3系統」構成
   const cutList = [
     {
       id: 'trunk',
-      name: '体幹線(頭ループ+背骨)',
-      finishedCm: round1(headLoop + spineLen),
-      cutCm: cut(headLoop + spineLen, 1),
+      name: '体幹線(背骨: 首〜股)',
+      finishedCm: round1(spineLen),
+      cutCm: cut(spineLen, 1),
       count: 1,
-      note: '頭のループを作って首〜股までねじり下ろす。股で脚線と接合',
+      note: '首(あご下)〜股。頭はアルミ芯で作らずパテ等で造形する想定。股で脚線と接合',
     },
     {
       id: 'arms',
-      name: '腕線(手先〜肩〜手先)',
-      finishedCm: round1(s.shoulderWidth + 2 * (s.upperArm + s.forearm) + 2 * handLoop),
-      cutCm: cut(s.shoulderWidth + 2 * (s.upperArm + s.forearm) + 2 * handLoop, 1),
+      name: '腕線(手首〜肩〜手首)',
+      finishedCm: round1(s.shoulderWidth + 2 * (s.upperArm + s.forearm)),
+      cutCm: cut(s.shoulderWidth + 2 * (s.upperArm + s.forearm), 1),
       count: 1,
-      note: '1本で左右の腕を作り、肩の位置で背骨に接合。手先は折り返してループに',
+      note: '1本で左右の腕を作り、肩の位置で背骨に接合。手はパテ造形(芯に含めない)',
     },
     {
       id: 'leg',
-      name: '脚線(股〜足先)',
-      finishedCm: round1(legInsert + s.thigh + s.shin + s.ankle + footLoop),
-      cutCm: cut(legInsert + s.thigh + s.shin + s.ankle + footLoop, 1),
+      name: '脚線(股〜足首)',
+      finishedCm: round1(legInsert + s.thigh + s.shin),
+      cutCm: cut(legInsert + s.thigh + s.shin, 1),
       count: 2,
-      note: '左右で2本。上端は胴の中ほどまで差し込んで接合。足先は折り返してループに',
+      note: '左右で2本。上端は胴の中ほどまで差し込んで接合。足はパテ造形(芯は足首まで)',
     },
   ];
 
