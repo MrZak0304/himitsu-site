@@ -25,7 +25,8 @@ export const PARENT = {
 // 描画用の骨(線)の一覧
 export const BONES = [
   ['hip', 'spineTop'], ['spineTop', 'neck'],
-  ['shoulderL', 'shoulderR'],
+  // 肩バーは首のつけ根で分かれる左右独立の2本(片肩だけ上げ下げできる。第20弾FB)。腕線の接合点=首のつけ根
+  ['spineTop', 'shoulderL'], ['spineTop', 'shoulderR'],
   ['shoulderL', 'elbowL'], ['elbowL', 'wristL'],
   ['shoulderR', 'elbowR'], ['elbowR', 'wristR'],
   ['hipL', 'hipR'],
@@ -155,7 +156,7 @@ export function unproject(uv, view, orig) {
 // 関節 id を、投影面 view 上の位置 uv に向けて動かす(FK)。
 //   ・骨長は維持: 親→id の方向だけが変わり、長さは lengths[id] のまま
 //   ・id の子孫は同じ回転で追従(平行移動ではなく、親関節まわりの回転)
-//   ・肩バー/骨盤バー(spineTop/hip の子)は他方の端も対称に扱わず独立(片肩上げ等ができる)
+//   ・骨盤バーは剛体(反対側が鏡映で追従)、肩は左右独立(片肩上げ等ができる)
 export function dragJoint(joints, lengths, id, uv, view) {
   const parent = PARENT[id];
   if (!parent) return joints; // root は動かさない
@@ -200,7 +201,8 @@ export function dragJoint(joints, lengths, id, uv, view) {
   return normalizeLengths(out, lengths);
 }
 
-const MIRROR = { hipL: 'hipR', hipR: 'hipL', shoulderL: 'shoulderR', shoulderR: 'shoulderL' };
+// 剛体バー(片端を動かすと反対側が鏡映で追従)は骨盤のみ。肩は左右独立(第20弾FB)
+const MIRROR = { hipL: 'hipR', hipR: 'hipL' };
 
 // 関節1つを初期位置に戻す(2026-08-15 PDフィードバック第12弾)。
 // 「親から見た方向」を直立(rest)のときの方向に戻し、子孫は同じ回転で追従する。

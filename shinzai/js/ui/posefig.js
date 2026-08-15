@@ -76,7 +76,9 @@ export function createPoseFigure(container, seg, opts = {}) {
     return { c: add(add(n, mul(dir, headR)), { x: fwd * headR * 0.18, y: 0 }), r: headR, dir };
   }
 
-  // 胴の輪郭(正面/背面系): 首→僧帽筋→肩→脇→くびれ→腰→股 を関節から組み立てる
+  // 胴の輪郭(正面/背面系): 首→僧帽筋→肩→脇→くびれ→腰→股 を関節から組み立てる。
+  // 肩は「肩の関節点=三角筋の丸みの中心」になるよう、関節点まわりに半径 W.arm×0.55 の丸みを持たせ、
+  // 上腕カプセル(関節点から始まる)と一体に見えるようにする(第20弾FB: 肉付けの肩と操作点のずれ)。
   function torsoFrontPath(view) {
     const st = toPx(joints.spineTop, view);
     const hp = toPx(joints.hip, view);
@@ -87,35 +89,48 @@ export function createPoseFigure(container, seg, opts = {}) {
     const hr = toPx(joints.hipR, view);
     const up = norm(sub(st, hp)); // 背骨の向き(上)
     const side = perp(up); // 体の左右方向(画面で右手側)
-    const spread = (a, b) => Math.abs((a.x - b.x) * side.x + (a.y - b.y) * side.y) / 2;
-    const sw = Math.max(spread(sl, sr), W.neck); // 肩の半幅(投影後)
-    const hw = Math.max(spread(hl, hr) * 1.35, sw * 0.5, W.leg * 0.9); // 腰の張り
-    const ww = Math.min(sw, hw) * 0.74; // ウエスト
+    const along = (p) => (p.x - hp.x) * up.x + (p.y - hp.y) * up.y; // 背骨方向の座標(px)
+    const across = (p) => (p.x - hp.x) * side.x + (p.y - hp.y) * side.y; // 左右方向の座標(px、右が+)
     const torsoH = Math.hypot(st.x - hp.x, st.y - hp.y);
     const at = (t, s) => add(add(hp, mul(up, t * torsoH)), mul(side, s)); // t: 0=股,1=首つけ根
-    const nw = W.neck * 0.44; // 首はやや細く
-    const shTop = 1 - (W.arm * 0.32) / torsoH; // 肩先は関節よりやや下(なで肩の傾斜)
+    // 肩の関節点(実位置)を胴の局所座標で
+    const shL = { t: along(sl) / torsoH, s: across(sl) };
+    const shR = { t: along(sr) / torsoH, s: across(sr) };
+    const swBase = Math.max(Math.abs(shL.s), Math.abs(shR.s), W.neck); // 肩の半幅
+    const hw = Math.max(Math.abs(across(hl) - across(hr)) / 2 * 1.35, swBase * 0.5, W.leg * 0.9); // 腰の張り
+    const ww = Math.min(swBase, hw) * 0.74; // ウエスト
+    const nw = W.neck * 0.44; // 首の半幅
     const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
     const jaw = 1 + neckLen / torsoH;
     const chest = 0.66; const waist = 0.4; const crotch = -(W.leg * 0.75) / torsoH;
-    const cw = sw * 0.88;
-    const L = (s) => -s; const R = (s) => s;
-    const half = (S) =>
-      ` L ${P(at(jaw - (jaw - shTop) * 0.3, S(nw)))}`
-      + ` C ${P(at(jaw - (jaw - shTop) * 0.7, S(nw * 1.05)))} ${P(at(shTop + 0.05, S(sw * 0.45)))} ${P(at(shTop, S(sw * 0.95)))}`
-      + ` C ${P(at(shTop - 0.05, S(sw * 1.14)))} ${P(at(shTop - 0.14, S(sw * 1.06)))} ${P(at(chest, S(cw)))}`
-      + ` C ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(waist, S(ww)))}`
-      + ` C ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(0.14, S(hw)))} ${P(at(0, S(hw)))}`
-      + ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(crotch, 0))}`;
-    // 左側を下り、右側を鏡映で上る
-    const rightUp = (S) =>
-      ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(0, S(hw)))}`
-      + ` C ${P(at(0.14, S(hw)))} ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(waist, S(ww)))}`
-      + ` C ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(chest, S(cw)))}`
-      + ` C ${P(at(shTop - 0.14, S(sw * 1.06)))} ${P(at(shTop - 0.05, S(sw * 1.14)))} ${P(at(shTop, S(sw * 0.95)))}`
-      + ` C ${P(at(shTop + 0.05, S(sw * 0.45)))} ${P(at(jaw - (jaw - shTop) * 0.7, S(nw * 1.05)))} ${P(at(jaw - (jaw - shTop) * 0.3, S(nw)))}`
-      + ` L ${P(at(jaw, S(nw)))}`;
-    return `M ${P(at(jaw, L(nw)))}${half(L)}${rightUp(R)} Z`;
+    const r = W.arm * 0.55; // 肩の丸み(半径、px)
+    const rt = r / torsoH;
+    // 片側の輪郭: 首→僧帽筋→肩の丸み(関節点を中心に上→外→下)→脇→くびれ→腰→股
+    // S: 符号(左=-1, 右=+1)、sh: その側の肩関節(t,s)
+    const sideDown = (S, sh) => {
+      const a = Math.abs(sh.s); // 肩関節の横位置(絶対値)
+      const cw = Math.max(a * 0.86, nw * 2.2); // 脇(胸横)
+      return ` L ${P(at(jaw - (jaw - sh.t - rt) * 0.3, S(nw)))}`
+        + ` C ${P(at(jaw - (jaw - sh.t - rt) * 0.75, S(nw * 1.05)))} ${P(at(sh.t + rt * 1.15, S(a * 0.45)))} ${P(at(sh.t + rt, S(a)))}` // 僧帽筋→肩の丸みの頂点
+        + ` C ${P(at(sh.t + rt, S(a + r * 0.55)))} ${P(at(sh.t - rt * 0.1, S(a + r)))} ${P(at(sh.t - rt * 0.55, S(a + r * 0.9)))}` // 丸み(外側)
+        + ` C ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(chest, S(cw)))}` // 脇へ
+        + ` C ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(waist, S(ww)))}`
+        + ` C ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(0.14, S(hw)))} ${P(at(0, S(hw)))}`
+        + ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(crotch, 0))}`;
+    };
+    const sideUp = (S, sh) => {
+      const a = Math.abs(sh.s);
+      const cw = Math.max(a * 0.86, nw * 2.2);
+      return ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(0, S(hw)))}`
+        + ` C ${P(at(0.14, S(hw)))} ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(waist, S(ww)))}`
+        + ` C ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(chest, S(cw)))}`
+        + ` C ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(sh.t - rt * 0.55, S(a + r * 0.9)))}`
+        + ` C ${P(at(sh.t - rt * 0.1, S(a + r)))} ${P(at(sh.t + rt, S(a + r * 0.55)))} ${P(at(sh.t + rt, S(a)))}`
+        + ` C ${P(at(sh.t + rt * 1.15, S(a * 0.45)))} ${P(at(jaw - (jaw - sh.t - rt) * 0.75, S(nw * 1.05)))} ${P(at(jaw - (jaw - sh.t - rt) * 0.3, S(nw)))}`
+        + ` L ${P(at(jaw, S(nw)))}`;
+    };
+    const L = (v) => -v; const R = (v) => v;
+    return `M ${P(at(jaw, L(nw)))}${sideDown(L, shL)}${sideUp(R, shR)} Z`;
   }
 
   // 胴の輪郭(側面): 背骨の局所座標系(前方向=fwd)で胸・腹・尻のカーブ
@@ -448,13 +463,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       torso.setAttribute('d', view === 'front' ? torsoFrontPath(view) : torsoSidePath(view));
       for (const line of svg.querySelectorAll('.flesh line[data-seg]')) {
         const [a, b] = line.dataset.seg.split('-');
-        let pa = toPx(joints[a], view); const pb = toPx(joints[b], view);
-        // 上腕は肩関節から少し下(腕の太さの半分)から描き始め、丸い端が肩の上に盛り上がらないようにする
-        // (第18弾FB「肩と首まわりの違和感」: 肩線の上に腕の丸みが出て肩パッドのように見えていた)
-        if (line.classList.contains('upper')) {
-          const d = norm(sub(pb, pa));
-          pa = add(pa, mul(d, W.arm * 0.5));
-        }
+        const pa = toPx(joints[a], view); const pb = toPx(joints[b], view);
+        // 上腕は肩関節から描き始める(関節点=肩の丸みの中心。胴の輪郭側が関節点まわりの丸みを持つ)
         setLine(line, pa, pb);
         line.setAttribute('stroke-width', line.classList.contains('upper') ? W.arm
           : line.classList.contains('lower') ? W.fore
