@@ -85,9 +85,11 @@
         <select id="photoScale"></select>
       </div>
       <div class="mode-row" role="radiogroup" aria-label="画像の写り">
-        <label class="mode"><input type="radio" name="tapAnchor" value="sole" checked>足先まで写っている</label>
-        <label class="mode"><input type="radio" name="tapAnchor" value="hip">腰(股)まで写っている</label>
+        <label class="mode"><input type="radio" name="tapAnchor" value="soleL" checked>左の足先まで</label>
+        <label class="mode"><input type="radio" name="tapAnchor" value="soleR">右の足先まで</label>
+        <label class="mode"><input type="radio" name="tapAnchor" value="hip">腰(股)まで</label>
       </div>
+      <p class="hint">2回目にタップする場所を選びます(左右は画面に向かって)。ポーズ画像で左右の足の高さが違うときは、地面についている方の足先を選んでください。</p>
       <p id="photoTapHint" class="hint" role="status"></p>
       <button type="button" id="photoRefit" class="ghost" hidden>タップで合わせ直す</button>
       <div id="photoBox" class="photofit-box"></div>

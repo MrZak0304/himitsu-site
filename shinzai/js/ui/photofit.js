@@ -70,7 +70,9 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   let tapTop = null; // 2タップフィット: 1回目(頭頂)のタップ位置
   // 2回目のタップの基準。足先が描かれていないイラスト向けに「腰(股)」も選べる
   // (2026-08-14 PDフィードバック第3弾)。hip のときは 頭頂〜股=全高の半分 の比率則から全身を逆算する。
-  let tapAnchor = 'sole'; // 'sole' | 'hip'
+  // 2回目のタップ基準: 'soleL'=左の足先 / 'soleR'=右の足先 / 'hip'=腰(股)
+  // (2026-08-15 PDフィードバック第11弾: ポーズ画像では左右の足の高さが違うので、どちらの足かを選ばせる)
+  let tapAnchor = 'soleL';
   // 2タップフィットの受付状態。フィット完了後は false にして、微調整中の誤タップで
   // 頭頂指定に戻らないようにする(2026-08-14 PDフィードバック第4弾)。再開は rearm()。
   let armed = true;
@@ -78,7 +80,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   // デフォルト配置の点がタップの邪魔になるため)。
   let fitted = false;
 
-  const anchorLabel = () => (tapAnchor === 'hip' ? '腰(股)' : '足先');
+  const anchorLabel = () => ({ hip: '腰(股)', soleL: '左の足先', soleR: '右の足先' }[tapAnchor]);
   const startGuide = () =>
     `画像の頭頂をタップしてください(1回目=頭頂 → 2回目=${anchorLabel()}。骨格はそのあとに表示されます)。`;
   const tapGuide = () =>
@@ -170,11 +172,15 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
     const span = p.y - tapTop.y;
     // 腰(股)基準なら 頭頂〜股=全高×hipTop から全身の高さを逆算(脚は画面外でも比率で補完される)
     const figH = tapAnchor === 'hip' ? span / base.hipTop : span;
+    // 横位置: 足先基準なら「その足のくるぶし」がタップ位置に来るように中心を決める
+    const tpl = templateJoints(base);
+    const anchorX = tapAnchor === 'hip' ? 0
+      : tapAnchor === 'soleL' ? tpl.ankleL.x : tpl.ankleR.x;
     const vb = svg.viewBox.baseVal;
     layoutTemplate(vb.width, vb.height, {
       figTop: tapTop.y,
       figH,
-      cx: (tapTop.x + p.x) / 2,
+      cx: tapAnchor === 'hip' ? (tapTop.x + p.x) / 2 : p.x - anchorX * figH,
     });
     tapTop = null;
     armed = false; // 以後のタップは無効。微調整はドラッグ、やり直しは rearm()
@@ -186,7 +192,7 @@ export function createPhotoFit(container, onChange, onStatus = () => {}) {
   }
 
   function setTapAnchor(anchor) {
-    tapAnchor = anchor === 'hip' ? 'hip' : 'sole';
+    tapAnchor = ['hip', 'soleL', 'soleR'].includes(anchor) ? anchor : 'soleL';
     tapTop = null;
     armed = true; // 基準を変えた=合わせ直したいはず
     if (svg) clearTapMarker();

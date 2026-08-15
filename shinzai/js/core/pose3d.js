@@ -164,6 +164,9 @@ export function dragJoint(joints, lengths, id, uv, view) {
   rel3[perpAxis] = perp;
   const out = { ...joints };
   const newPos = add(joints[parent], rel3);
+  // 骨盤バー・肩バーは剛体: 片端を動かすと反対側は親(股/首のつけ根)を中心に鏡映で追従し、
+  // バーは常に背骨を通る(2026-08-15 PDフィードバック第11弾「腰と胴体の連動」)。
+  const mirror = MIRROR[id];
   // 子孫を回転で追従: from→to の回転を子孫の(親からの相対)ベクトルに適用
   const rot = rotationBetween(from, sub(newPos, joints[parent]));
   const oldSelf = joints[id];
@@ -172,7 +175,28 @@ export function dragJoint(joints, lengths, id, uv, view) {
     const rel = sub(joints[d], oldSelf);
     out[d] = add(newPos, rot(rel));
   }
+  if (mirror) {
+    // 反対側の端: 親を中心に鏡映(同じ回転を反対側にも適用するのと同値)
+    const pParent3 = joints[parent];
+    const oldM = joints[mirror];
+    const newM = sub(add(pParent3, pParent3), newPos); // 2*parent - newPos
+    out[mirror] = newM;
+    for (const d of descendants(mirror)) {
+      const rel = sub(joints[d], oldM);
+      out[d] = add(newM, rot(rel));
+    }
+  }
   return normalizeLengths(out, lengths);
+}
+
+const MIRROR = { hipL: 'hipR', hipR: 'hipL', shoulderL: 'shoulderR', shoulderR: 'shoulderL' };
+
+// 首の接続しろ(頭への差し込み)の先端。neck から top 方向へ頭高の1/3
+export function neckStubEnd(joints, headCm) {
+  const dir = sub(joints.top, joints.neck);
+  const l = len(dir) || 1;
+  const s = headCm / 3;
+  return add(joints.neck, { x: (dir.x / l) * s, y: (dir.y / l) * s, z: (dir.z / l) * s });
 }
 
 // ベクトル a を b の向きに合わせる回転(ロドリゲス)。a,b は非ゼロ

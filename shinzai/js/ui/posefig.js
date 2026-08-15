@@ -4,7 +4,8 @@
 // ポーズ中の肉付けは立ち姿用シルエットが追従できないためカプセル表示に切り替える。
 
 import {
-  restPose, boneLengths, dragJoint, project, isPosed, BONES, DRAGGABLE, JOINT_LABELS,
+  restPose, boneLengths, dragJoint, project, isPosed, neckStubEnd,
+  BONES, DRAGGABLE, JOINT_LABELS,
 } from '../core/pose3d.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -58,11 +59,14 @@ export function createPoseFigure(container, seg, opts = {}) {
     const fleshG = el('g', { class: 'flesh capsules' });
     const bonesG = el('g', { class: 'bones' });
     const jointsG = el('g', { class: 'pose-joints' });
-    // 頭の参考輪郭
-    bonesG.append(el('circle', { class: 'ref head-ref' }));
+    // 頭の参考輪郭+首の接続しろ(頭への差し込み)
+    bonesG.append(el('circle', { class: 'ref head-ref' }), el('line', { class: 'neck-stub' }));
     for (const [a, b] of BONES) {
       bonesG.append(el('line', { 'data-bone': `${a}-${b}` }));
-      fleshG.append(el('line', { 'data-capsule': `${a}-${b}` }));
+      // 胴・肩バー・骨盤バーは端を丸めない(頭や関節を飲み込まないように)
+      const flat = (a === 'hip' && b === 'spineTop') || (a === 'shoulderL' && b === 'shoulderR')
+        || (a === 'hipL' && b === 'hipR');
+      fleshG.append(el('line', { 'data-capsule': `${a}-${b}`, class: flat ? 'flat' : '' }));
     }
     fleshG.append(el('circle', { class: 'head-flesh' }));
     for (const id of DRAGGABLE) {
@@ -102,6 +106,11 @@ export function createPoseFigure(container, seg, opts = {}) {
       for (const c of svg.querySelectorAll('.head-ref, .head-flesh')) {
         c.setAttribute('cx', hc.x); c.setAttribute('cy', hc.y); c.setAttribute('r', hc.r);
       }
+      const stub = svg.querySelector('.neck-stub');
+      const n = toPx(joints.neck, view);
+      const s = toPx(neckStubEnd(joints, seg.head), view);
+      stub.setAttribute('x1', n.x); stub.setAttribute('y1', n.y);
+      stub.setAttribute('x2', s.x); stub.setAttribute('y2', s.y);
       for (const c of svg.querySelectorAll('circle[data-joint]')) {
         const p = toPx(joints[c.dataset.joint], view);
         c.setAttribute('cx', p.x); c.setAttribute('cy', p.y);
@@ -109,18 +118,20 @@ export function createPoseFigure(container, seg, opts = {}) {
     }
   }
 
-  // カプセル(ポーズ中の簡易肉付け)の太さ: 部位ごとに肩幅基準
+  // カプセル(ポーズ中の簡易肉付け)の太さ。
+  // 基準は「肩幅」と「頭の大きさ×1.5」の小さい方: 肩幅だけ広げても胴や首が
+  // 太りすぎて頭を飲み込まないようにする(2026-08-15 PDフィードバック第11弾)。
   function capsuleWidth(a, b) {
-    const sh = seg.shoulderWidth * k;
-    if (a === 'hip' && b === 'spineTop') return sh * 0.9; // 胴
-    if (a === 'spineTop' && b === 'neck') return sh * 0.28; // 首
-    if (a === 'shoulderL' && b === 'shoulderR') return sh * 0.35;
-    if (a === 'hipL' && b === 'hipR') return sh * 0.6;
-    if (a.startsWith('shoulder')) return sh * 0.3; // 上腕
-    if (a.startsWith('elbow')) return sh * 0.24; // 前腕
-    if (a.startsWith('hip')) return sh * 0.42; // もも
-    if (a.startsWith('knee')) return sh * 0.32; // すね
-    return sh * 0.3;
+    const unit = Math.min(seg.shoulderWidth, seg.head * 1.5) * k;
+    if (a === 'hip' && b === 'spineTop') return unit * 0.85; // 胴
+    if (a === 'spineTop' && b === 'neck') return unit * 0.26; // 首
+    if (a === 'shoulderL' && b === 'shoulderR') return unit * 0.3;
+    if (a === 'hipL' && b === 'hipR') return unit * 0.55;
+    if (a.startsWith('shoulder')) return unit * 0.3; // 上腕
+    if (a.startsWith('elbow')) return unit * 0.24; // 前腕
+    if (a.startsWith('hip')) return unit * 0.42; // もも
+    if (a.startsWith('knee')) return unit * 0.32; // すね
+    return unit * 0.3;
   }
 
   function svgPoint(svg, ev) {

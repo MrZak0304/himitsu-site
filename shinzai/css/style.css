@@ -191,6 +191,8 @@ details[open] summary { margin-bottom: 6px; }
 .pose-svg .capsules { display: none; }
 .pose-svg.with-flesh .capsules { display: block; opacity: 0.9; }
 .pose-svg.with-flesh .capsules line { stroke: #e6c9a5; stroke-linecap: round; }
+.pose-svg.with-flesh .capsules line.flat { stroke-linecap: butt; }
+.pose-svg .neck-stub { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
 .pose-svg.with-flesh .head-flesh { fill: #e6c9a5; }
 .pose-svg.with-flesh .bones { opacity: 0.35; }
 .pose-svg .pose-dot { fill: var(--thread); stroke: #fff; stroke-width: 1.5; pointer-events: none; }
