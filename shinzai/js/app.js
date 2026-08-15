@@ -10,7 +10,6 @@ import {
 } from './core/presets-store.js';
 import { createPoseFigure } from './ui/posefig.js';
 import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS } from './core/pose3d.js';
-import { createPhotoFit } from './ui/photofit.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
 
@@ -21,6 +20,8 @@ let showFlesh = false; // 肉付けイメージの表示(両タブ共通)
 const poseStates = new WeakMap(); // 出力領域ごとのポーズ状態(計算タブ/画像からタブで独立)
 // 参考画像(キャラクターの設定で選ぶ。芯材計算タブの正面図の背面に表示。第18〜19弾FB)
 const refImage = { overlay: null, dragTarget: 'view' };
+// 参考画像から取り込んだ体型(比率セット)。null ならプリセット(第2段階=一体化)
+let importedRatios = null;
 
 // ---- タブ ----
 
@@ -131,7 +132,17 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
-  poseTools.append(poseHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
+  // 体型合わせ(第2段階=一体化): 正面図の関節を参考画像に合わせて自由に動かし、比率を取り込む
+  const fitRow = h('div', 'fit-row');
+  const fitBtnT = h('button', 'toggle fit-toggle-btn', '体型を合わせる(骨を伸縮)');
+  fitBtnT.type = 'button'; fitBtnT.setAttribute('aria-pressed', String(!!poseState.fit));
+  const importBtn = h('button', 'fit-import-btn', 'この骨格を体型に取り込む');
+  importBtn.type = 'button';
+  fitRow.append(fitBtnT, importBtn);
+  const fitHint = h('p', 'hint fit-hint',
+    '「体型を合わせる」をオンにすると、正面図の関節(頭頂・あご・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます。参考画像のキャラクターに合わせてから「この骨格を体型に取り込む」を押すと、頭身・胴・肩幅・腕・脚の比率が体型に反映されて寸法が再計算されます(骨の長さを変えるので、通常のポーズ操作とは分けています)。'
+    + (IS_FREE ? ' 無料版では取り込み1回につき広告が1回表示されます(モバイル版)。' : ''));
+  poseTools.append(poseHint, fitRow, fitHint, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -143,7 +154,8 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     const fig = createPoseFigure(views, result.segments, {
       flesh: showFlesh,
       interactive: poseState.on,
-      initialJoints: poseState.on ? poseState.joints : null,
+      mode: poseState.on && poseState.fit ? 'fit' : 'pose',
+      initialJoints: poseState.on ? (poseState.fit ? poseState.fitJoints : poseState.joints) : null,
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
@@ -153,18 +165,49 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       dragTarget: root.id === 'calcOutput' ? refImage.dragTarget : 'view',
       onOverlayChange: (ov) => { if (root.id === 'calcOutput') { refImage.overlay = ov; syncRefButtons(); } },
       onPoseChange: (joints, posed) => {
+        if (poseState.fit) { poseState.fitJoints = posed ? joints : null; return; }
         poseState.joints = posed ? joints : null;
         poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
       },
     });
     poseState.fig = fig;
     poseTools.hidden = !poseState.on;
-    if (poseState.on) poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
+    const fitOn = !!poseState.fit;
+    fitBtnT.setAttribute('aria-pressed', String(fitOn));
+    importBtn.hidden = !fitOn;
+    // 体型合わせ中はポーズ専用の操作(ひねり・関節リセット)を隠す
+    for (const n of [twistUp.row, twistLo.row, poseButtons]) n.hidden = fitOn;
+    if (poseState.on) {
+      poseHint.textContent = fitOn
+        ? '体型合わせ中: 正面図の点を参考画像のキャラクターに合わせてください(骨の長さは自由に変わります)。合わせ終わったら「この骨格を体型に取り込む」。'
+        : (poseState.joints ? GUIDE_POSED : GUIDE_IDLE);
+    }
   };
+  fitBtnT.addEventListener('click', () => {
+    poseState.fit = !poseState.fit;
+    renderViews();
+  });
+  importBtn.addEventListener('click', () => {
+    const fig = poseState.fig;
+    if (!fig) return;
+    const errBox = $('calcError');
+    try {
+      const px = fig.getFrontJointsPx();
+      const base = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
+      const ratios = ratiosFromJoints(px, base);
+      poseState.fit = false;
+      poseState.fitJoints = null;
+      poseState.joints = null; // 骨長が変わるのでポーズは直立から
+      setImportedRatios(ratios); // renderCalc → 再描画
+      errBox.hidden = true;
+    } catch (e) {
+      errBox.hidden = false;
+      errBox.textContent = `体型の取り込みに失敗しました: ${e.message}`;
+    }
+  });
   fleshBtn.addEventListener('click', () => {
     showFlesh = !showFlesh;
     renderCalc();
-    renderPhoto();
   });
   poseBtn.addEventListener('click', () => {
     poseState.on = !poseState.on;
@@ -252,13 +295,9 @@ function fillSelects() {
     if (LIMITS.presetKeys && !LIMITS.presetKeys.includes(key)) continue;
     presetSel.append(new Option(preset.label, key));
   }
-  for (const id of ['scale', 'photoScale']) {
-    const sel = $(id);
-    for (const d of SCALE_CHOICES) {
-      sel.append(new Option(`1/${d}`, String(d)));
-    }
-    sel.value = '8';
-  }
+  const sel = $('scale');
+  for (const d of SCALE_CHOICES) sel.append(new Option(`1/${d}`, String(d)));
+  sel.value = '8';
 }
 
 // 「完成品のサイズから」/「設定の身長から」の選択(2026-08-14 PDフィードバック)
@@ -271,15 +310,24 @@ function syncModeRows() {
   $('targetHeightRow').hidden = calcByHeight;
   $('heightRow').hidden = !calcByHeight;
   $('scaleRow').hidden = !calcByHeight;
-  const photoByHeight = sizeMode('photoSizeMode') === 'height';
-  $('photoTargetRow').hidden = photoByHeight;
-  $('photoHeightRow').hidden = !photoByHeight;
-  $('photoScaleRow').hidden = !photoByHeight;
 }
 
 function activeCustomRatios() {
-  if (!LIMITS.adjustments || !isAdjusted(adjustments)) return null;
-  return applyAdjustments(PROPORTION_PRESETS[$('preset').value].ratios, adjustments);
+  const base = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
+  const adj = LIMITS.adjustments ? adjustments : {};
+  if (!importedRatios && !isAdjusted(adj)) return null;
+  return applyAdjustments(base, adj);
+}
+
+function syncImportedNote() {
+  $('importedNote').hidden = !importedRatios;
+}
+
+function setImportedRatios(ratios) {
+  importedRatios = ratios;
+  syncImportedNote();
+  buildAdjustSliders();
+  renderCalc();
 }
 
 function readCalcInput() {
@@ -317,7 +365,7 @@ function renderCalc() {
 function buildAdjustSliders() {
   const box = $('adjustSliders');
   box.replaceChildren();
-  const baseRatios = PROPORTION_PRESETS[$('preset').value].ratios;
+  const baseRatios = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
   const format = (def, v) => (def.absolute ? `${Number(v).toFixed(1)}頭身` : `${Math.round(v * 100)}%`);
   for (const def of ADJUSTMENT_DEFS) {
     const row = h('div', 'row');
@@ -361,6 +409,7 @@ function currentSaveData() {
     adjustments: { ...adjustments },
     scaleDen: $('scale').value,
     targetHeightCm: Number($('targetHeight').value),
+    importedRatios: importedRatios ? { ...importedRatios } : null,
   };
 }
 
@@ -398,6 +447,8 @@ function loadSaved(item) {
   }
   if (Number.isFinite(d.targetHeightCm)) $('targetHeight').value = d.targetHeightCm;
   adjustments = { ...DEFAULT_ADJUSTMENTS, ...(d.adjustments ?? {}) };
+  importedRatios = d.importedRatios && typeof d.importedRatios === 'object' ? { ...d.importedRatios } : null;
+  syncImportedNote();
   buildAdjustSliders();
   syncModeRows();
   $('saveName').value = item.name;
@@ -437,55 +488,6 @@ function renderPresetList() {
     li.append(loadBtn, delBtn);
     list.append(li);
   }
-}
-
-// ---- 画像から ----
-
-let photoFit = null;
-
-function renderPhoto() {
-  const joints = photoFit?.getJoints();
-  if (!joints) return;
-  const out = $('photoOutput');
-  const errBox = $('photoError');
-  errBox.hidden = true;
-  try {
-    const base = PROPORTION_PRESETS['female-adult'].ratios;
-    const customRatios = ratiosFromJoints(joints, base);
-    const byHeight = sizeMode('photoSizeMode') === 'height';
-    const input = byHeight
-      ? {
-        modelHeightCm: Number($('photoHeight').value),
-        scaleDenominator: Number($('photoScale').value),
-        customRatios,
-      }
-      : (() => {
-        const targetH = Number($('photoTarget').value);
-        return { modelHeightCm: targetH, targetHeightCm: targetH, customRatios };
-      })();
-    renderResultInto(out, computeArmature(input), { showScale: byHeight });
-  } catch (e) {
-    out.hidden = true;
-    errBox.hidden = false;
-    errBox.textContent = e.message;
-  }
-}
-
-// 画像読み込みの共通経路(ファイル選択・デバッグフックの両方から使う)
-function loadPhotoImage(dataUrl) {
-  return photoFit.loadImage(dataUrl).then(() => {
-    $('photoRefit').hidden = false;
-  }).catch((e) => {
-    $('photoError').hidden = false;
-    $('photoError').textContent = e.message;
-  });
-}
-
-function onPhotoFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => loadPhotoImage(reader.result);
-  reader.readAsDataURL(file);
 }
 
 // ---- 材料・設定 ----
@@ -574,9 +576,6 @@ function main() {
   for (const radio of document.querySelectorAll('input[name=sizeMode]')) {
     radio.addEventListener('change', () => { syncModeRows(); renderCalc(); });
   }
-  for (const radio of document.querySelectorAll('input[name=photoSizeMode]')) {
-    radio.addEventListener('change', () => { syncModeRows(); renderPhoto(); });
-  }
   $('scale').addEventListener('change', renderCalc);
   for (const id of ['height', 'targetHeight']) {
     $(id).addEventListener('input', renderCalc);
@@ -586,35 +585,19 @@ function main() {
     renderCalc();
   });
   $('adjustReset').addEventListener('click', resetAdjustments);
+  $('importedReset').addEventListener('click', () => setImportedRatios(null));
+  syncImportedNote();
   $('saveBtn').addEventListener('click', onSave);
-
-  photoFit = createPhotoFit($('photoBox'), renderPhoto,
-    (text) => { $('photoTapHint').textContent = text; });
-  $('photoFile').addEventListener('change', (e) => onPhotoFile(e.target.files?.[0]));
-  for (const id of ['photoTarget', 'photoHeight']) {
-    $(id).addEventListener('input', renderPhoto);
-  }
-  $('photoScale').addEventListener('change', renderPhoto);
-  for (const radio of document.querySelectorAll('input[name=tapAnchor]')) {
-    radio.addEventListener('change', () => photoFit.setTapAnchor(radio.value));
-  }
-  $('photoRefit').addEventListener('click', () => {
-    photoFit.rearm();
-    $('photoOutput').hidden = true; // 骨格を消すのに合わせて古い寸法も消す
-    $('photoError').hidden = true;
-  });
 
   if (IS_FREE) {
     $('adjustPanel').hidden = true;
     $('adjustLocked').hidden = false;
-    $('photoAdNote').hidden = false;
   }
 
   renderCalc();
 
   // スモークテスト用の開発フック(画像入力をdataURLで直接流し込む)
   window.__debug = {
-    loadPhoto: loadPhotoImage,
     setOverlay: (dataUrl) => setRefImage(dataUrl),
   };
 }

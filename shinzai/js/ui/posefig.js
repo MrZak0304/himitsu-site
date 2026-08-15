@@ -14,6 +14,8 @@ import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
+// 体型合わせモードで追加・言い換えする関節名
+const FIT_LABELS = { top: '頭頂', neck: 'あご' };
 
 function el(name, attrs = {}, ...children) {
   const node = document.createElementNS(SVG_NS, name);
@@ -27,8 +29,11 @@ const fmt = (n) => Math.round(n * 100) / 100;
 // opts: { flesh, interactive, initialJoints, viewport, onStatus, onPoseChange, onJointPick, onViewportChange }
 // viewport: 表示位置・倍率 { s, t: { front:{x,y}, 'side-left':{x,y}, 'side-right':{x,y} } }
 //   (ポーズで図からはみ出すときに見やすい位置へ調整できる。2026-08-15 PD要望)
+// opts.mode: 'pose'(既定。骨の長さ固定・FK)| 'fit'(体型合わせ: 正面図の関節を自由に動かして参考画像に合わせる。
+//   骨の長さは変わる。取り込み用に getFrontJointsPx() で正面投影の関節位置を返す)
 export function createPoseFigure(container, seg, opts = {}) {
   const interactive = opts.interactive !== false;
+  const fitMode = opts.mode === 'fit';
   const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
   // 透かし画像(正面図の背面に半透明で重ねる。「画像から」と「芯材計算」を一体化する第1段階。第18弾FB)
@@ -242,15 +247,17 @@ export function createPoseFigure(container, seg, opts = {}) {
     }
     const dims = el('g', { class: 'dims' });
     const jointsG = el('g', { class: 'pose-joints' });
-    if (interactive) {
-      for (const id of DRAGGABLE) {
+    if (interactive && (!fitMode || view === 'front')) {
+      const ids = fitMode ? ['top', 'neck', ...DRAGGABLE] : DRAGGABLE;
+      for (const id of ids) {
         const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 22 });
-        const t = el('title'); t.textContent = JOINT_LABELS[id]; hit.append(t);
+        const t = el('title'); t.textContent = FIT_LABELS[id] ?? JOINT_LABELS[id]; hit.append(t);
         hit.addEventListener('pointerdown', (ev) => startDrag(ev, id, view));
         jointsG.append(el('circle', { class: 'pose-dot', 'data-joint': id, r: 6 }), hit);
       }
       svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
     }
+    if (fitMode && view !== 'front') svg.classList.add('fit-side');
     const stage = el('g', { class: 'stage' });
     if (view === 'front') {
       const img = el('image', { class: 'overlay-img', preserveAspectRatio: 'xMidYMid meet' });
@@ -540,11 +547,26 @@ export function createPoseFigure(container, seg, opts = {}) {
     const pointerId = ev.pointerId;
     try { ev.currentTarget.setPointerCapture(pointerId); } catch { /* window監視で継続 */ }
     lastJoint = id;
-    opts.onJointPick?.(id, JOINT_LABELS[id]);
-    opts.onStatus?.(`「${JOINT_LABELS[id]}」を動かしています(骨の長さは変わりません。他の面も連動します)`);
+    const label = FIT_LABELS[id] ?? JOINT_LABELS[id];
+    opts.onJointPick?.(id, label);
+    opts.onStatus?.(fitMode
+      ? `「${label}」を動かしています。参考画像の${label}の位置に合わせてください(体型合わせ中は骨の長さが変わります)`
+      : `「${label}」を動かしています(骨の長さは変わりません。他の面も連動します)`);
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
+      if (fitMode) {
+        // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
+        const uv = fromPx(localPoint(svg, view, e), view);
+        joints = { ...joints, [id]: { x: uv.u, y: uv.v, z: joints[id].z } };
+        if (id === 'hipL' || id === 'hipR') {
+          // 骨盤は股を中点に保つ
+          const other = id === 'hipL' ? 'hipR' : 'hipL';
+          joints.hip = { x: (joints[id].x + joints[other].x) / 2, y: (joints[id].y + joints[other].y) / 2, z: joints.hip.z };
+        }
+        redraw();
+        return;
+      }
       joints = dragJoint(joints, lengths, id, fromPx(localPoint(svg, view, e), view), view);
       redraw();
     };
@@ -596,6 +618,16 @@ export function createPoseFigure(container, seg, opts = {}) {
       opts.onPoseChange?.(joints, isPosed(joints, rest));
     },
     lastJoint: () => lastJoint,
+    // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
+    getFrontJointsPx() {
+      const out = {};
+      for (const id of Object.keys(joints)) out[id] = toPx(joints[id], 'front');
+      // かかと=くるぶしの足首高ぶん下(足裏の位置)。skeleton2d の全高基準に使う
+      out.heelL = { x: out.ankleL.x, y: out.ankleL.y + seg.ankle * k };
+      out.heelR = { x: out.ankleR.x, y: out.ankleR.y + seg.ankle * k };
+      out.chin = out.neck;
+      return out;
+    },
     // ひねり(差分角度)。upper=上半身(肩)、lower=骨盤+脚(腰)を背骨軸まわりに回す
     twist(deltaDeg) { this.twistUpper(deltaDeg); },
     twistUpper(deltaDeg) {

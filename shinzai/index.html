@@ -48,7 +48,8 @@
           <button type="button" id="refClear" class="ghost overlay-clear" disabled>消す</button>
         </div>
       </div>
-      <p class="hint">参考画像(立ち絵など)は骨格図の正面図の背面に半透明で表示されます。「参考画像を動かす」をオンにすると正面図の背景ドラッグ・2本指で画像の位置と大きさを合わせられます。画像は端末内でのみ処理されます。</p>
+      <p class="hint">参考画像(立ち絵など)は骨格図の正面図の背面に半透明で表示されます。「参考画像を動かす」をオンにすると正面図の背景ドラッグ・2本指で画像の位置と大きさを合わせられます。合わせたら「ポーズを取る」→「体型を合わせる」で骨格を画像に重ね、体型を取り込めます。画像は端末内でのみ処理され、送信・保存されません。</p>
+      <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
 
       <details id="adjustPanel">
         <summary>体型を調整する(マイ体型)</summary>
@@ -66,48 +67,6 @@
 
     <p id="calcError" class="error" hidden></p>
     <section class="card" id="calcOutput"></section>
-  </section>
-
-  <!-- 画像から -->
-  <section class="tab" data-tab="photo" hidden>
-    <section class="card">
-      <h2>画像から骨格を割り当て</h2>
-      <p class="hint">キャラクターの立ち絵などの画像に骨格を重ね、点をドラッグして関節に合わせてください。画像は端末内でのみ処理され、送信・保存されません。</p>
-      <p class="hint">点の色分け: <span class="legend-dot torso">●</span>頭・胴(頭頂/あご/股) <span class="legend-dot arm">●</span>腕(肩/ヒジ/手首) <span class="legend-dot leg">●</span>脚(ヒザ/くるぶし)。点を押すと名前が表示されます。</p>
-      <p class="hint">寸法は画像上の長さから計算します。奥や手前に伸びた腕・脚は実際より短く写るため、<strong>正面向きの立ち絵</strong>で合わせるのがおすすめです。画像に写っていない部位(手・足の先、奥行きで縮んだ部位)は体型プリセットの比率で補完します。</p>
-      <p id="photoAdNote" class="hint" hidden>無料版では骨格の生成1枚につき広告が1回表示されます(モバイル版のみ)。</p>
-      <div class="row">
-        <label for="photoFile">画像</label>
-        <input type="file" id="photoFile" accept="image/*">
-      </div>
-      <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
-        <label class="mode"><input type="radio" name="photoSizeMode" value="target" checked>完成品のサイズから</label>
-        <label class="mode"><input type="radio" name="photoSizeMode" value="height">設定の身長から</label>
-      </div>
-      <div class="row" id="photoTargetRow">
-        <label for="photoTarget">完成サイズ(cm)</label>
-        <input type="number" id="photoTarget" value="20" min="1" max="200" step="0.5">
-      </div>
-      <div class="row" id="photoHeightRow" hidden>
-        <label for="photoHeight">身長(cm)</label>
-        <input type="number" id="photoHeight" value="160" min="1" max="1000" step="1">
-      </div>
-      <div class="row" id="photoScaleRow" hidden>
-        <label for="photoScale">スケール</label>
-        <select id="photoScale"></select>
-      </div>
-      <div class="mode-row" role="radiogroup" aria-label="画像の写り">
-        <label class="mode"><input type="radio" name="tapAnchor" value="heelL" checked>左のかかとまで</label>
-        <label class="mode"><input type="radio" name="tapAnchor" value="heelR">右のかかとまで</label>
-        <label class="mode"><input type="radio" name="tapAnchor" value="hip">腰(股)まで</label>
-      </div>
-      <p class="hint">2回目にタップする場所を選びます(左右は画面に向かって)。<strong>かかとの点は足裏の位置=全身の高さの基準</strong>になります。ポーズ画像で左右の足の高さが違うときは、地面についている方のかかとを選んでください。</p>
-      <p id="photoTapHint" class="hint" role="status"></p>
-      <button type="button" id="photoRefit" class="ghost" hidden>タップで合わせ直す</button>
-      <div id="photoBox" class="photofit-box"></div>
-    </section>
-    <p id="photoError" class="error" hidden></p>
-    <section class="card" id="photoOutput" hidden></section>
   </section>
 
   <!-- 保存データ -->
@@ -144,7 +103,6 @@
 
 <nav class="tabbar" aria-label="メニュー">
   <button type="button" data-tab="calc" aria-selected="true">芯材計算</button>
-  <button type="button" data-tab="photo" aria-selected="false">画像から</button>
   <button type="button" data-tab="save" aria-selected="false">保存</button>
   <button type="button" data-tab="materials" aria-selected="false">材料</button>
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
