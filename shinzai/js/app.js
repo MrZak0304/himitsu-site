@@ -177,7 +177,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       fitLocked: fitOn && fitState.locked,
       initialJoints: fitOn ? fitState.joints : (poseState.on ? poseState.joints : null),
       onStatus: (t) => { poseHint.textContent = t; },
-      onJointPick: (id) => { jointSel.value = id; },
+      onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
@@ -561,7 +561,7 @@ function setRefImage(dataUrl) {
   syncRefButtons();
   // 画像を選んだら、そのまま「参考画像に骨格を合わせる」に入る(最初にやることを1つにする。第30弾FB)
   if (!fitState.on) {
-    fitFlash = '参考画像を選びました。背景ドラッグ・2本指で画像を合わせ、正面図の点(頭頂・あご・肩・股・ヒザ・足首…)をキャラクターに重ねてください。';
+    fitFlash = '参考画像を選びました。背景ドラッグ・2本指で画像を合わせ、正面図の点(頭頂・首のつけ根・肩・股・ヒザ・足首…)をキャラクターに重ねてください。';
     enterFit(false);
   }
 }

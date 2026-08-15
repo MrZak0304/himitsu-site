@@ -15,7 +15,7 @@ import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 const SVG_NS = 'http://www.w3.org/2000/svg';
 const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
 // 体型合わせモードで追加・言い換えする関節名
-const FIT_LABELS = { top: '頭頂', neck: 'あご', hip: '股(ロック解除中は骨格全体、ロック中は骨盤だけ移動)' };
+const FIT_LABELS = { top: '頭頂(上下で頭の大きさ)', neck: 'あご', hip: '股(ロック解除中は骨格全体、ロック中は骨盤だけ移動)', spineTop: '首のつけ根(頭・首もついてくる)' };
 const POSE_LABELS = { hip: '股(骨格全体を移動)' };
 
 function el(name, attrs = {}, ...children) {
@@ -254,7 +254,8 @@ export function createPoseFigure(container, seg, opts = {}) {
     const jointsG = el('g', { class: 'pose-joints' });
     if (interactive && (!fitMode || view === 'front')) {
       // ポーズ中も股は掴める(骨格全体の平行移動。第30弾FB: 位置を直したいのに何も起きない/回転する)
-      const ids = fitMode ? ['top', 'neck', 'hip', ...DRAGGABLE] : ['hip', ...DRAGGABLE];
+      // 骨格合わせの「あご」の点は廃止(首の軸が斜めになって不自然。第31弾FB)。首は常に首のつけ根の真上
+      const ids = fitMode ? ['top', 'hip', ...DRAGGABLE] : ['hip', ...DRAGGABLE];
       for (const id of ids) {
         const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 22 });
         const t = el('title'); t.textContent = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id]; hit.append(t);
@@ -576,6 +577,23 @@ export function createPoseFigure(container, seg, opts = {}) {
           const ids = fitLocked ? ['hip', 'hipL', 'hipR'] : Object.keys(joints);
           const moved = { ...joints };
           for (const k2 of ids) moved[k2] = { x: joints[k2].x + dx, y: joints[k2].y + dy, z: joints[k2].z };
+          joints = moved;
+          redraw();
+          return;
+        }
+        if (id === 'top' || id === 'spineTop') {
+          // 首の軸は常に垂直: 頭頂は首のつけ根の真上で上下だけ(頭の大きさ)、首のつけ根を動かすと頭・首もついてくる。
+          // あごの位置は頭頂〜首のつけ根の間の割合を保つ(首の長さの比率は変えない)
+          const frac = (joints.neck.y - joints.top.y) / Math.max(1e-6, joints.spineTop.y - joints.top.y);
+          const moved = { ...joints };
+          if (id === 'top') {
+            moved.top = { x: joints.spineTop.x, y: Math.min(uv.v, joints.spineTop.y - 0.5), z: joints.top.z };
+          } else {
+            const dx = uv.u - joints.spineTop.x;
+            moved.spineTop = { x: uv.u, y: uv.v, z: joints.spineTop.z };
+            moved.top = { x: joints.top.x + dx, y: Math.min(joints.top.y, uv.v - 0.5), z: joints.top.z };
+          }
+          moved.neck = { x: moved.spineTop.x, y: moved.top.y + frac * (moved.spineTop.y - moved.top.y), z: joints.neck.z };
           joints = moved;
           redraw();
           return;
