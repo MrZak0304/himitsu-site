@@ -311,6 +311,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     // 「参考画像を動かす」モードでは正面図の背景操作は参考画像に対して行う
     const onOverlay = dragTarget === 'overlay' && view === 'front' && overlayState?.src;
     if (!interactive && !onOverlay) return; // 通常表示では図は動かさない
+    if (fitLocked) return; // 位置ロック中は背景操作(パン/ピンチ)で図も画像も動かさない(第26弾FB)
     pointers.set(ev.pointerId, svgPoint(svg, ev));
     let last = svgPoint(svg, ev);
     if (pointers.size === 2) {
@@ -594,8 +595,9 @@ export function createPoseFigure(container, seg, opts = {}) {
       window.removeEventListener('pointercancel', up);
       opts.onStatus?.(statusText);
       opts.onPoseChange?.(joints, isPosed(joints, rest)); // ポーズモードでは案内文(寸法不変)がこちらで上書きされる
-      // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)
-      if (!allJointsVisible()) fitAll();
+      // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)。
+      // 骨格合わせ中は行わない(参考画像との位置関係を勝手に動かさない。第26弾FB)
+      if (!fitMode && !allJointsVisible()) fitAll();
     };
     window.addEventListener('pointermove', move, { passive: false });
     window.addEventListener('pointerup', up);

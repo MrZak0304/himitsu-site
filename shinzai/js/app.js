@@ -169,6 +169,9 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseTools.hidden = !(poseState.on || fitOn);
     // 骨格合わせ中はポーズ専用の操作(ひねり・関節リセット・ポーズ切替)を隠し、表示位置の操作だけ残す
     for (const n of [twistUp.row, twistLo.row, poseButtons]) n.hidden = fitOn;
+    // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
+    viewRow.hidden = fitOn && fitState.locked;
+    viewHint.hidden = fitOn && fitState.locked;
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
@@ -542,6 +545,10 @@ function initFit() {
     fitState.locked = !fitState.locked;
     calcFig()?.setFitLocked(fitState.locked);
     sync();
+    // 表示位置ボタンの表示切替のため再描画(骨格の位置は fitState.joints から復元される)
+    const fig = calcFig();
+    if (fig) fitState.joints = fig.getJoints();
+    renderCalc();
   });
   $('fitImport').addEventListener('click', () => {
     const fig = calcFig();
