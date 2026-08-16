@@ -85,7 +85,17 @@ export function createPoseFigure(container, seg, opts = {}) {
   const bodyMul = lerp3(0.86, 1, 1.16, Math.min(2, Math.max(0, vol.body)));
   const muscleMul = lerp3(1, 1.12, 1.25, Math.min(2, Math.max(0, vol.muscle)));
   const bulgeMul = lerp3(1, 1.7, 2.4, Math.min(2, Math.max(0, vol.muscle)));
-  const bustAmt = Math.min(1, Math.max(0, vol.bust));
+  const bustAmt = Math.min(2, Math.max(0, vol.bust)); // 0〜2(1超は特大。第56弾FB)
+  // バストの形状パラメータ(第55弾FB): proj=張り出し倍率, apex=頂点の高さ(0上〜1下), top=上側の丸み, bot=下側の丸み, tip=尖り
+  const BUST_SHAPES = {
+    bowl: { proj: 1.0, apex: 0.55, top: 0.5, bot: 0.85, tip: 0.1 },
+    plate: { proj: 0.6, apex: 0.5, top: 0.6, bot: 0.6, tip: 0.05 },
+    pyramid: { proj: 1.05, apex: 0.5, top: 0.15, bot: 0.5, tip: 0.6 },
+    hemi: { proj: 1.15, apex: 0.5, top: 0.85, bot: 0.9, tip: 0 },
+    goat: { proj: 1.0, apex: 0.8, top: 0.3, bot: 0.75, tip: 0.3 },
+    cone: { proj: 1.25, apex: 0.5, top: 0.1, bot: 0.4, tip: 0.8 },
+  };
+  const bshape = BUST_SHAPES[vol.bustShape] ?? BUST_SHAPES.bowl;
   const limbMul = bodyMul * muscleMul;
   const W = {
     arm: Math.max(4, unit * 0.3 * limbMul), fore: Math.max(3, unit * 0.24 * limbMul),
@@ -250,10 +260,11 @@ export function createPoseFigure(container, seg, opts = {}) {
       ], [ww * 0.5, ww * 0.5, thighTopHalf * 0.6, thighTopHalf * 0.7, thighTopHalf * 0.7, thighTopHalf * 0.6]);
       // バスト(正面): 人体模型を参考に、肩線のやや下・胸の中央寄りに丸み2つ。単色シルエットでは内側の形が見えないので
       // わずかに濃い影として描く(大きいときは輪郭も少し外へ)。第53弾FB
-      const bustR = shHalf * (0.22 + 0.36 * bustAmt);
+      // 大きいほど半径が増え、外へ・下へ(重さ)。輪郭は胸ブロックの外に張り出し、下側の丸みを影(三日月)で示す
+      const bustR = shHalf * (0.22 + 0.32 * bustAmt) * (0.85 + 0.15 * bshape.proj);
       const bust = bustAmt > 0.02 ? [-1, 1].map((sgn) => {
-        const c = cAt(-torsoH * (0.24 + 0.08 * bustAmt), sgn * shHalf * (0.36 + 0.06 * bustAmt));
-        return { c, rx: bustR, ry: bustR * 1.02, ang: (Math.atan2(chestSide.y, chestSide.x) * 180) / Math.PI };
+        const c = cAt(-torsoH * (0.2 + 0.1 * bustAmt + 0.08 * bshape.apex), sgn * shHalf * (0.34 + 0.12 * bustAmt));
+        return { c, rx: bustR * (1 - 0.1 * bshape.tip), ry: bustR * (1.02 + 0.1 * bshape.apex + 0.06 * bustAmt), ang: (Math.atan2(chestSide.y, chestSide.x) * 180) / Math.PI };
       }) : [];
       return { chest, abdomen, pelvis, bust };
     }
@@ -267,20 +278,32 @@ export function createPoseFigure(container, seg, opts = {}) {
     // 側面の胸: 首の付け根から背中側へなだらかに(僧帽筋)。前面は鎖骨あたりから胸(バスト)の膨らみへ続き、
     // 下でまた胴へ戻る一続きの曲線にする(別パーツの丸を付けない。第54弾FB 手描き指示)
     const sAt = (t, s2) => add(add(st, mul(up, t)), mul(fwd, s2));
-    const out = d * (0.04 + 0.5 * bustAmt); // バストの張り出し量
-    const tA = -torsoH * (0.24 + 0.1 * bustAmt); // 膨らみの頂点の高さ
-    const tU = -torsoH * 0.44; // アンダー(胴へ戻る高さ)
+    // 形状パラメータで前面曲線を作る(真っ直ぐ伸びる区間を作らない。第55弾FB)。
+    // 大きいほど張り出すが、縦幅も張り出しに応じて広げて丸みを保つ(尖った突起にしない。第57弾FB)
     const fTop = d * 0.42; // 鎖骨あたりの前面
     const fBot = d * 0.36; // 胸の下端の前面
+    const tC = -W.arm * 0.2; // 鎖骨〜上胸(膨らみの始まり)
+    let out = Math.min(d * 0.95, d * (0.04 + 0.42 * bustAmt) * bshape.proj); // 張り出し量(上限あり)
+    // 縦幅: 少なくとも張り出しの 1.5 倍(丸み)。アンダーは下がるが胸ブロック下端までに収める
+    const spanMin = out * 1.5;
+    const tUBase = -torsoH * (0.44 + 0.05 * Math.min(1, bustAmt / 2));
+    let tU = Math.min(tUBase, tC - spanMin);
+    const tUlimit = -torsoH * 0.62;
+    if (tU < tUlimit) { tU = tUlimit; out = Math.min(out, (tC - tU) / 1.5); }
+    const chestBot = Math.min(-torsoH * 0.52, tU - d * 0.06);
+    const tA = tC + (tU - tC) * (0.4 + 0.35 * bshape.apex) - torsoH * 0.02 * bustAmt; // 頂点の高さ(形状で上下、大きいほど少し下)
+    const tipPull = 1 - 0.3 * bshape.tip * (1 - 0.4 * Math.min(1, bustAmt / 2)); // 尖り(大きいほど弱める)
     const chest = `M ${P(sAt(neckLen2 * 0.5, -W.neck * 0.5))}`
       + ` L ${P(sAt(neckLen2 * 0.5, W.neck * 0.45))}`
-      + ` Q ${P(sAt(W.arm * 0.1, fTop))} ${P(sAt(-W.arm * 0.2, fTop))}` // 鎖骨〜上胸
-      + ` C ${P(sAt(tA * 0.45, fTop + out * 0.25))} ${P(sAt(tA * 0.8, fTop + out))} ${P(sAt(tA, fTop + out))}` // 膨らみの頂点へ
-      + ` C ${P(sAt(tA + (tU - tA) * 0.45, fTop + out * 0.98))} ${P(sAt(tU - torsoH * 0.02, fBot + out * 0.15))} ${P(sAt(tU, fBot))}` // 下は丸く戻る
-      + ` L ${P(sAt(-torsoH * 0.52 + d * 0.12, fBot))}`
-      + ` Q ${P(sAt(-torsoH * 0.52, fBot))} ${P(sAt(-torsoH * 0.52, fBot - d * 0.12))}`
-      + ` L ${P(sAt(-torsoH * 0.52, -d * 0.36 + d * 0.12))}`
-      + ` Q ${P(sAt(-torsoH * 0.52, -d * 0.36))} ${P(sAt(-torsoH * 0.52 + d * 0.12, -d * 0.36))}`
+      + ` Q ${P(sAt(W.arm * 0.1, fTop))} ${P(sAt(tC, fTop))}` // 鎖骨〜上胸
+      // 上側: なだらかに膨らむ(top大ほど丸い)。頂点で尖り具合を制御
+      + ` C ${P(sAt(tC + (tA - tC) * 0.35, fTop + out * (0.15 + 0.5 * bshape.top)))} ${P(sAt(tA + (tC - tA) * 0.4, fTop + out * tipPull))} ${P(sAt(tA, fTop + out))}`
+      // 下側: 丸く戻る(bot大ほど下ぶくれ)
+      + ` C ${P(sAt(tA + (tU - tA) * 0.4, fTop + out * tipPull))} ${P(sAt(tU + (tA - tU) * 0.3, fBot + out * (0.2 + 0.6 * bshape.bot)))} ${P(sAt(tU, fBot))}`
+      + ` L ${P(sAt(chestBot + d * 0.12, fBot))}`
+      + ` Q ${P(sAt(chestBot, fBot))} ${P(sAt(chestBot, fBot - d * 0.12))}`
+      + ` L ${P(sAt(chestBot, -d * 0.36 + d * 0.12))}`
+      + ` Q ${P(sAt(chestBot, -d * 0.36))} ${P(sAt(chestBot + d * 0.12, -d * 0.36))}`
       + ` L ${P(sAt(-W.arm * 0.4, -d * 0.5))}` // 背中
       + ` Q ${P(sAt(W.arm * 0.12, -d * 0.5))} ${P(sAt(neckLen2 * 0.25, -W.neck * 0.7))}` // 僧帽筋
       + ' Z';
@@ -371,6 +394,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       el('path', { class: 'torso part-chest' }),
       el('ellipse', { class: 'bust', 'data-i': 0 }),
       el('ellipse', { class: 'bust', 'data-i': 1 }),
+      el('path', { class: 'bust-shade', 'data-i': 0 }),
+      el('path', { class: 'bust-shade', 'data-i': 1 }),
     );
     flesh.append(limbs(sides[0]), torsoG, limbs(sides[1]));
     flesh.append(el('line', { class: 'neck' }), el('ellipse', { class: 'head-flesh' }));
@@ -657,6 +682,15 @@ export function createPoseFigure(container, seg, opts = {}) {
       svg.querySelectorAll('.flesh .bust').forEach((b, i) => {
         const e = parts.bust?.[i];
         if (e) { setEllipse(b, e); b.style.display = ''; } else b.style.display = 'none';
+      });
+      // 下側の丸みの影(三日月): 外弧=楕円の下半分、内弧=浅い弧
+      svg.querySelectorAll('.flesh .bust-shade').forEach((sh, i) => {
+        const e = parts.bust?.[i];
+        if (!e || view !== 'front') { sh.style.display = 'none'; return; }
+        const L = { x: e.c.x - e.rx, y: e.c.y }; const R = { x: e.c.x + e.rx, y: e.c.y };
+        sh.setAttribute('d', `M ${P(L)} A ${fmt(e.rx)} ${fmt(e.ry)} 0 0 0 ${P(R)} A ${fmt(e.rx)} ${fmt(e.ry * 0.5)} 0 0 1 ${P(L)} Z`);
+        sh.setAttribute('transform', `rotate(${fmt(e.ang ?? 0)} ${fmt(e.c.x)} ${fmt(e.c.y)})`);
+        sh.style.display = '';
       });
       for (const path of svg.querySelectorAll('.flesh path[data-seg]')) {
         const [a, b] = path.dataset.seg.split('-');
