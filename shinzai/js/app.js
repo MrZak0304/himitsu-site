@@ -25,6 +25,25 @@ let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
 const uiAids = { axisLock: false, mirror: false, big: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
+// 肉付けの色・透け具合(第38弾FB)。端末内に保存
+const FLESH_COLORS = [
+  { key: 'skin', label: '肌色', value: '#e6c9a5' },
+  { key: 'gray', label: 'グレー', value: '#9a9a9a' },
+  { key: 'blue', label: '青', value: '#6f9fd8' },
+  { key: 'green', label: '緑', value: '#7fb77e' },
+  { key: 'red', label: '赤', value: '#d97a7a' },
+];
+const fleshStyle = (() => {
+  try { const j = JSON.parse(localStorage.getItem('shinzaiMaker.flesh') || 'null'); if (j && typeof j === 'object') return { color: j.color || '#e6c9a5', opacity: Number.isFinite(j.opacity) ? j.opacity : 0.65 }; } catch { /* ignore */ }
+  return { color: '#e6c9a5', opacity: 0.65 };
+})();
+function saveFleshStyle() { try { localStorage.setItem('shinzaiMaker.flesh', JSON.stringify(fleshStyle)); } catch { /* ignore */ } }
+function applyFleshStyle() {
+  for (const v of document.querySelectorAll('.views')) {
+    v.style.setProperty('--flesh', fleshStyle.color);
+    v.style.setProperty('--flesh-op', String(fleshStyle.opacity));
+  }
+}
 
 // ---- タブ ----
 
@@ -90,6 +109,30 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   poseBtn.setAttribute('aria-pressed', String(poseState.on));
   toggleRow.append(fleshBtn, poseBtn);
   root.append(toggleRow);
+  // 肉付けの色・透け具合(肉付けONのときだけ表示)
+  const fleshOpts = h('div', 'flesh-opts');
+  fleshOpts.hidden = !showFlesh;
+  const swatches = h('div', 'swatches');
+  for (const c of FLESH_COLORS) {
+    const b = h('button', 'swatch');
+    b.type = 'button'; b.title = c.label; b.setAttribute('aria-label', `肉付けの色: ${c.label}`);
+    b.style.background = c.value; b.dataset.color = c.value;
+    b.setAttribute('aria-pressed', String(fleshStyle.color === c.value));
+    b.addEventListener('click', () => {
+      fleshStyle.color = c.value; saveFleshStyle(); applyFleshStyle();
+      for (const x of swatches.querySelectorAll('.swatch')) x.setAttribute('aria-pressed', String(x.dataset.color === c.value));
+    });
+    swatches.append(b);
+  }
+  const opLabel = h('span', 'op-label', '透け具合');
+  const opRange = document.createElement('input');
+  opRange.type = 'range'; opRange.min = '20'; opRange.max = '100'; opRange.step = '5'; opRange.className = 'flesh-opacity';
+  opRange.value = String(Math.round(fleshStyle.opacity * 100));
+  opRange.setAttribute('aria-label', '肉付けの透け具合(不透明度%)');
+  opRange.addEventListener('input', () => { fleshStyle.opacity = Number(opRange.value) / 100; applyFleshStyle(); });
+  opRange.addEventListener('change', saveFleshStyle);
+  fleshOpts.append(h('span', '', '肉付けの色'), swatches, opLabel, opRange);
+  root.append(fleshOpts);
 
   // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
   const poseTools = h('div', 'pose-tools');
@@ -313,6 +356,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   zoomOutBtn.addEventListener('click', () => poseState.fig?.zoomOut());
   viewResetBtn.addEventListener('click', () => poseState.fig?.resetView());
   renderViews();
+  applyFleshStyle();
 
   root.append(h('h3', null, '各部の仕上がり寸法'));
   const segTable = document.createElement('table');

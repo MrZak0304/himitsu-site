@@ -80,17 +80,20 @@ export function createPoseFigure(container, seg, opts = {}) {
   //   もも: つけ根が太く、ヒザへ細る / すね: ふくらはぎ(上寄り)が張り、足首へ細る
   //   上腕: 肩側が太くヒジへ / 前腕: ヒジ下が張り、手首へ細る
   const LIMB_PROFILE = {
-    thigh: { w0: W.leg * 1.12, w1: W.shin * 0.95, tb: 0.28, bulge: W.leg * 0.08 },
+    thigh: { w0: W.leg * 1.12, w1: W.shin * 0.95, tb: 0.28, bulge: W.leg * 0.08, ext0: W.leg * 0.55 }, // ext0: つけ根を骨盤の中へ延ばして重ねる
     shin: { w0: W.shin * 0.9, w1: W.shin * 0.55, tb: 0.3, bulge: W.shin * 0.3 },
     upper: { w0: W.arm * 1.05, w1: W.fore * 0.92, tb: 0.35, bulge: W.arm * 0.1 },
     lower: { w0: W.fore * 0.95, w1: W.fore * 0.6, tb: 0.28, bulge: W.fore * 0.22 },
   };
   // 2点を結ぶテーパー形(片側 N 点ずつの多角形。角は stroke-linejoin round で丸まる)
-  function limbPath(pa, pb, prof) {
-    const d = { x: pb.x - pa.x, y: pb.y - pa.y };
-    const L = Math.hypot(d.x, d.y);
-    if (L < 1e-6) return '';
-    const u = { x: d.x / L, y: d.y / L };
+  function limbPath(pa0, pb, prof) {
+    const d0 = { x: pb.x - pa0.x, y: pb.y - pa0.y };
+    const L0 = Math.hypot(d0.x, d0.y);
+    if (L0 < 1e-6) return '';
+    const u = { x: d0.x / L0, y: d0.y / L0 };
+    const ext = prof.ext0 ?? 0;
+    const pa = { x: pa0.x - u.x * ext, y: pa0.y - u.y * ext };
+    const L = L0 + ext;
     const n = { x: -u.y, y: u.x };
     const N = 8;
     const left = []; const right = [];
@@ -149,7 +152,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const nw = W.neck * 0.44; // 首の半幅
     const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
     const jaw = 1 + neckLen / torsoH;
-    const chest = 0.66; const waist = 0.4; const crotch = -(W.leg * 0.75) / torsoH;
+    const chest = 0.66; const waist = 0.4; const crotch = -(W.leg * 0.8) / torsoH;
     const r = W.arm * 0.55; // 肩の丸み(半径、px)
     const rt = r / torsoH;
     // 片側の輪郭: 首→僧帽筋→肩の丸み(関節点を中心に上→外→下)→脇→くびれ→腰→股
@@ -163,12 +166,14 @@ export function createPoseFigure(container, seg, opts = {}) {
         + ` C ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(chest, S(cw)))}` // 脇へ
         + ` C ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(waist, S(ww)))}`
         + ` C ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(0.14, S(hw)))} ${P(at(0, S(hw)))}`
-        + ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(crotch, 0))}`;
+        // 骨盤の底: V字でなく丸いU字(もものつけ根に重なる。第38弾FB「腰と足の接続が不自然」)
+        + ` C ${P(at(crotch * 0.55, S(hw)))} ${P(at(crotch, S(hw * 0.62)))} ${P(at(crotch, S(hw * 0.14)))}`;
     };
     const sideUp = (S, sh) => {
       const a = Math.abs(sh.s);
       const cw = Math.max(a * 0.86, nw * 2.2);
-      return ` Q ${P(at(crotch - 0.03, S(hw * 0.5)))} ${P(at(0, S(hw)))}`
+      return ` L ${P(at(crotch, S(hw * 0.14)))}`
+        + ` C ${P(at(crotch, S(hw * 0.62)))} ${P(at(crotch * 0.55, S(hw)))} ${P(at(0, S(hw)))}`
         + ` C ${P(at(0.14, S(hw)))} ${P(at(waist - 0.1, S(ww * 0.98)))} ${P(at(waist, S(ww)))}`
         + ` C ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(chest, S(cw)))}`
         + ` C ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(sh.t - rt * 0.55, S(a + r * 0.9)))}`
@@ -597,7 +602,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const ankleY = kneeY + seg.shin * k;
     if (view === 'front') {
       // 注記が枠内に収まるよう、右端からの余白を確保(「腰〜足先 10.6cm」のような桁増えでも切れない)
-      const rightX = Math.min(g.cx + Math.max(g.shoulderHalf, g.hipHalf) + 52, VIEW_W - 92);
+      const rightX = Math.min(g.cx + Math.max(g.shoulderHalf, g.hipHalf) + 52, VIEW_W - 106);
       dims.append(
         dimLineH(g.top - 14, g.cx - g.shoulderHalf, g.cx + g.shoulderHalf, `肩幅 ${seg.shoulderWidth}cm`),
         dimLineV(rightX, g.top, g.hipY, `頭〜腰 ${seg.headTopToHip}cm`),
