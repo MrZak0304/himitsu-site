@@ -198,6 +198,7 @@ details[open] summary { margin-bottom: 6px; }
 .pose-svg.with-flesh .bones { opacity: 0.25; }
 .pose-svg .flesh path, .pose-svg .flesh line { stroke: #e6c9a5; stroke-linecap: round; stroke-linejoin: round; }
 .pose-svg .flesh .torso { fill: #e6c9a5; stroke: #e6c9a5; stroke-width: 1; }
+.pose-svg .flesh .limb { fill: #e6c9a5; stroke: #e6c9a5; stroke-width: 1.5; }
 .pose-svg .flesh circle, .pose-svg .flesh ellipse { fill: #e6c9a5; stroke: none; }
 /* 関節(ドラッグ)。当たり判定は見た目より大きく */
 .pose-svg .pose-dot { fill: var(--thread); stroke: #fff; stroke-width: 1.5; pointer-events: none; }

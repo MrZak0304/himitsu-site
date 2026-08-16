@@ -76,6 +76,36 @@ export function createPoseFigure(container, seg, opts = {}) {
     neck: Math.max(3, unit * 0.24), depth: Math.max(8, unit * 0.62),
   };
   const headR = g.headR;
+  // 手足の太さプロファイル: [始点の幅, 終点の幅, ふくらみの位置(0〜1), ふくらみ量](いずれも幅=直径px)
+  //   もも: つけ根が太く、ヒザへ細る / すね: ふくらはぎ(上寄り)が張り、足首へ細る
+  //   上腕: 肩側が太くヒジへ / 前腕: ヒジ下が張り、手首へ細る
+  const LIMB_PROFILE = {
+    thigh: { w0: W.leg * 1.12, w1: W.shin * 0.95, tb: 0.28, bulge: W.leg * 0.08 },
+    shin: { w0: W.shin * 0.9, w1: W.shin * 0.55, tb: 0.3, bulge: W.shin * 0.3 },
+    upper: { w0: W.arm * 1.05, w1: W.fore * 0.92, tb: 0.35, bulge: W.arm * 0.1 },
+    lower: { w0: W.fore * 0.95, w1: W.fore * 0.6, tb: 0.28, bulge: W.fore * 0.22 },
+  };
+  // 2点を結ぶテーパー形(片側 N 点ずつの多角形。角は stroke-linejoin round で丸まる)
+  function limbPath(pa, pb, prof) {
+    const d = { x: pb.x - pa.x, y: pb.y - pa.y };
+    const L = Math.hypot(d.x, d.y);
+    if (L < 1e-6) return '';
+    const u = { x: d.x / L, y: d.y / L };
+    const n = { x: -u.y, y: u.x };
+    const N = 8;
+    const left = []; const right = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const st = t * t * (3 - 2 * t); // smoothstep
+      const g2 = Math.exp(-(((t - prof.tb) / 0.3) ** 2));
+      const w = prof.w0 + (prof.w1 - prof.w0) * st + prof.bulge * g2;
+      const c = { x: pa.x + u.x * L * t, y: pa.y + u.y * L * t };
+      left.push({ x: c.x + n.x * w / 2, y: c.y + n.y * w / 2 });
+      right.push({ x: c.x - n.x * w / 2, y: c.y - n.y * w / 2 });
+    }
+    const pts = [...left, ...right.reverse()];
+    return `M ${pts.map((p) => `${fmt(p.x)} ${fmt(p.y)}`).join(' L ')} Z`;
+  }
 
   // ---- 幾何ヘルパー(2D px) ----
   const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
@@ -239,14 +269,15 @@ export function createPoseFigure(container, seg, opts = {}) {
     const sides = view === 'side-right' ? ['L', 'R'] : ['R', 'L'];
     const limbs = (s) => {
       const g2 = el('g', { class: 'limbs', 'data-side': s });
+      // 手足はテーパー+ふくらみのある形(直線的なカプセルだと人型に見えない。第37弾FB)
       g2.append(
-        el('line', { class: `limb upper`, 'data-seg': `shoulder${s}-elbow${s}` }),
-        el('circle', { class: 'joint-round', 'data-at': `elbow${s}`, r: W.fore * 0.62 }),
-        el('line', { class: `limb lower`, 'data-seg': `elbow${s}-wrist${s}` }),
+        el('path', { class: `limb upper`, 'data-seg': `shoulder${s}-elbow${s}` }),
+        el('circle', { class: 'joint-round', 'data-at': `elbow${s}`, r: W.fore * 0.5 }),
+        el('path', { class: `limb lower`, 'data-seg': `elbow${s}-wrist${s}` }),
         el('ellipse', { class: 'hand', 'data-side': s }),
-        el('line', { class: `limb thigh`, 'data-seg': `hip${s}-knee${s}` }),
-        el('circle', { class: 'joint-round', 'data-at': `knee${s}`, r: W.shin * 0.62 }),
-        el('line', { class: `limb shin`, 'data-seg': `knee${s}-ankle${s}` }),
+        el('path', { class: `limb thigh`, 'data-seg': `hip${s}-knee${s}` }),
+        el('circle', { class: 'joint-round', 'data-at': `knee${s}`, r: W.shin * 0.5 }),
+        el('path', { class: `limb shin`, 'data-seg': `knee${s}-ankle${s}` }),
         el('ellipse', { class: 'foot-e', 'data-side': s }),
         el('line', { class: 'foot-l', 'data-side': s }),
       );
@@ -524,14 +555,14 @@ export function createPoseFigure(container, seg, opts = {}) {
       // 肉付け
       const torso = svg.querySelector('.flesh .torso');
       torso.setAttribute('d', view === 'front' ? torsoFrontPath(view) : torsoSidePath(view));
-      for (const line of svg.querySelectorAll('.flesh line[data-seg]')) {
-        const [a, b] = line.dataset.seg.split('-');
+      for (const path of svg.querySelectorAll('.flesh path[data-seg]')) {
+        const [a, b] = path.dataset.seg.split('-');
         const pa = toPx(joints[a], view); const pb = toPx(joints[b], view);
         // 上腕は肩関節から描き始める(関節点=肩の丸みの中心。胴の輪郭側が関節点まわりの丸みを持つ)
-        setLine(line, pa, pb);
-        line.setAttribute('stroke-width', line.classList.contains('upper') ? W.arm
-          : line.classList.contains('lower') ? W.fore
-            : line.classList.contains('thigh') ? W.leg : W.shin);
+        const prof = path.classList.contains('upper') ? LIMB_PROFILE.upper
+          : path.classList.contains('lower') ? LIMB_PROFILE.lower
+            : path.classList.contains('thigh') ? LIMB_PROFILE.thigh : LIMB_PROFILE.shin;
+        path.setAttribute('d', limbPath(pa, pb, prof));
       }
       for (const c of svg.querySelectorAll('.flesh .joint-round')) {
         const p = toPx(joints[c.dataset.at], view);
@@ -565,7 +596,8 @@ export function createPoseFigure(container, seg, opts = {}) {
     const kneeY = g.hipY + seg.thigh * k;
     const ankleY = kneeY + seg.shin * k;
     if (view === 'front') {
-      const rightX = g.cx + Math.max(g.shoulderHalf, g.hipHalf) + 52;
+      // 注記が枠内に収まるよう、右端からの余白を確保(「腰〜足先 10.6cm」のような桁増えでも切れない)
+      const rightX = Math.min(g.cx + Math.max(g.shoulderHalf, g.hipHalf) + 52, VIEW_W - 92);
       dims.append(
         dimLineH(g.top - 14, g.cx - g.shoulderHalf, g.cx + g.shoulderHalf, `肩幅 ${seg.shoulderWidth}cm`),
         dimLineV(rightX, g.top, g.hipY, `頭〜腰 ${seg.headTopToHip}cm`),
