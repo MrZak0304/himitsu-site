@@ -43,6 +43,8 @@ export function createPoseFigure(container, seg, opts = {}) {
   //   overlay: { src, t:{x,y}(px), s(倍率), opacity }。dragTarget='overlay' のとき背景ドラッグ/ピンチは透かしを動かす
   const overlay = opts.overlay ?? null;
   let dragTarget = opts.dragTarget ?? 'view';
+  let axisLock = !!opts.axisLock; // まっすぐ動かす(ドラッグ開始時の主方向に固定。第33弾FB)
+  let bigView = !!opts.big; // 大きく表示(枠を画面高さに合わせ、はみ出す分は切る=slice。第33弾FB)
   let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45 } : null;
   const rest = restPose(seg);
   const lengths = boneLengths(rest);
@@ -212,7 +214,8 @@ export function createPoseFigure(container, seg, opts = {}) {
   function buildView(view) {
     const svg = el('svg', {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
-      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}`,
+      preserveAspectRatio: bigView && interactive ? 'xMidYMid slice' : 'xMidYMid meet',
+      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView && interactive ? ' big' : ''}`,
       role: 'img',
       'aria-label': `骨格図(${VIEWS.find((v) => v[0] === view)[1]})`,
     });
@@ -564,6 +567,11 @@ export function createPoseFigure(container, seg, opts = {}) {
   }
 
   function svgPoint(svg, ev) {
+    const m = svg.getScreenCTM?.();
+    if (m && typeof DOMPoint === 'function') {
+      const q = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(m.inverse());
+      return { x: q.x, y: q.y };
+    }
     const r = svg.getBoundingClientRect();
     return { x: ((ev.clientX - r.left) / r.width) * VIEW_W, y: ((ev.clientY - r.top) / r.height) * VIEW_H };
   }
@@ -592,12 +600,25 @@ export function createPoseFigure(container, seg, opts = {}) {
       : id === 'hip'
         ? '骨格全体を移動しました(骨の長さ・ポーズはそのまま)。首や胴の長さを直すには「骨格の位置・長さを直す」を押してください'
         : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
+    const start = localPoint(svg, view, ev);
+    let lockedAxis = null;
+    // 方向ロック: 最初の数pxの動きで縦/横を決め、以後その軸だけ動かす
+    const applyLock = (lp) => {
+      if (!axisLock) return lp;
+      if (!lockedAxis) {
+        const dx = lp.x - start.x; const dy = lp.y - start.y;
+        if (Math.hypot(dx, dy) < 6) return start;
+        lockedAxis = Math.abs(dx) >= Math.abs(dy) ? 'x' : 'y';
+      }
+      return lockedAxis === 'x' ? { x: lp.x, y: start.y } : { x: start.x, y: lp.y };
+    };
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
+      const local = applyLock(localPoint(svg, view, e));
       if (fitMode) {
         // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
-        const uv = fromPx(localPoint(svg, view, e), view);
+        const uv = fromPx(local, view);
         if (id === 'hip') {
           const dx = uv.u - joints.hip.x; const dy = uv.v - joints.hip.y;
           // 股=骨格全体の平行移動(参考画像に骨格を寄せる。第22弾FB)。
@@ -645,7 +666,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       }
       if (id === 'hip') {
         // ポーズ中の股=骨格全体の平行移動(その面の2軸だけ動かす)
-        const uv = fromPx(localPoint(svg, view, e), view);
+        const uv = fromPx(local, view);
         const nh = unproject(uv, view, joints.hip);
         const d = { x: nh.x - joints.hip.x, y: nh.y - joints.hip.y, z: nh.z - joints.hip.z };
         const moved = {};
@@ -654,7 +675,7 @@ export function createPoseFigure(container, seg, opts = {}) {
         redraw();
         return;
       }
-      joints = dragJoint(joints, lengths, id, fromPx(localPoint(svg, view, e), view), view);
+      joints = dragJoint(joints, lengths, id, fromPx(local, view), view);
       redraw();
     };
     const up = (e) => {
@@ -749,6 +770,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       applyOverlay();
       emitOverlay();
     },
+    setAxisLock(v) { axisLock = !!v; },
     setDragTarget(t) {
       dragTarget = t === 'overlay' ? 'overlay' : 'view';
       svgs.front?.classList.toggle('overlay-drag', dragTarget === 'overlay');

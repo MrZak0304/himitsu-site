@@ -414,3 +414,14 @@ a { color: var(--thread); }
 .fit-actions .fit-lock-btn[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
 .fit-actions .fit-done-btn { order: -1; }
 .fit-done-msg { margin: 6px 0; padding: 6px 8px; border-radius: 8px; background: rgba(90, 140, 90, 0.12); }
+
+/* 操作の補助(第33弾FB) */
+.aid-buttons { display: flex; gap: 6px; margin: 4px 0; }
+.aid-buttons .toggle { flex: 1 1 45%; padding: 8px 6px; font-size: 0.85rem; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.aid-buttons .toggle[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+/* 大きく表示: 図の枠を横幅いっぱい+画面高さに合わせ、はみ出す分は切る(slice)。拡大/縮小/背景ドラッグで見たい所へ */
+.views.big .view { max-width: none; flex-basis: 100%; }
+.views.big .view svg.pose-svg.big { height: min(78dvh, 760px); width: 100%; }
+/* 長押しでテキスト選択・吹き出しが出ないように(iOS。第33弾FB「選択扱いになる」) */
+.views, .pose-tools, .toggle-row, .pose-svg, .pose-svg * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.pose-svg image { pointer-events: none; }

@@ -24,6 +24,7 @@ const refImage = { overlay: null, dragTarget: 'view' };
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
+const uiAids = { axisLock: false, big: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 
 // ---- タブ ----
 
@@ -114,6 +115,13 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const zoomOutBtn = mkBtn('縮小', 'view-zoom-out');
   const viewResetBtn = mkBtn('表示位置を戻す', 'view-reset');
   viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
+  // 操作の補助: まっすぐ動かす(縦横ロック)・大きく表示(第33弾FB)
+  const aidRow = h('div', 'aid-buttons');
+  const axisBtn = h('button', 'toggle axis-lock-btn', 'まっすぐ動かす(縦横ロック)');
+  axisBtn.type = 'button'; axisBtn.setAttribute('aria-pressed', String(uiAids.axisLock));
+  const bigBtn = h('button', 'toggle big-view-btn', '大きく表示');
+  bigBtn.type = 'button'; bigBtn.setAttribute('aria-pressed', String(uiAids.big));
+  aidRow.append(axisBtn, bigBtn);
   // 詳しい説明は折りたたみ(縦長対策。第27弾FB)
   const help = document.createElement('details');
   help.className = 'pose-help';
@@ -159,7 +167,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   fitActions.hidden = true;
   const fitDone = h('p', 'hint fit-done-msg', '');
   fitDone.hidden = true;
-  poseTools.append(poseHint, fitNote, fitActions, toFitRow, twistUp.row, twistLo.row, poseButtons, viewRow, viewHint);
+  poseTools.append(poseHint, fitNote, fitActions, toFitRow, twistUp.row, twistLo.row, poseButtons, viewRow, aidRow, viewHint);
   root.append(poseTools);
 
   const views = h('div', 'views');
@@ -187,6 +195,8 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
+      axisLock: uiAids.axisLock,
+      big: uiAids.big,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
       overlay: root.id === 'calcOutput' ? refImage.overlay : null,
@@ -211,8 +221,10 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseHint.classList.toggle('fit-banner', fitOn);
     toFitRow.hidden = !(isCalc && !fitOn); // ポーズモードでのみ表示
     // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
-    viewRow.hidden = fitOn && fitState.locked;
+    // 位置ロック中でも拡大/縮小/収めるは使える(図と画像が一緒に動くので位置関係は崩れない。第33弾FB「操作範囲を大きく」)。
+    // 背景ドラッグ・2本指は引き続き無効(fitLocked)
     viewHint.hidden = fitOn && fitState.locked;
+    views.classList.toggle('big', uiAids.big && (poseState.on || fitOn));
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
@@ -277,6 +289,18 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   }
   resetOne.addEventListener('click', () => poseState.fig?.resetJoint(jointSel.value));
   fitBtn.addEventListener('click', () => poseState.fig?.fitAll());
+  axisBtn.addEventListener('click', () => {
+    uiAids.axisLock = !uiAids.axisLock;
+    axisBtn.setAttribute('aria-pressed', String(uiAids.axisLock));
+    poseState.fig?.setAxisLock(uiAids.axisLock);
+  });
+  bigBtn.addEventListener('click', () => {
+    uiAids.big = !uiAids.big;
+    bigBtn.setAttribute('aria-pressed', String(uiAids.big));
+    // 骨格合わせ中は関節位置を保って作り直す
+    if (fitState.on && poseState.fig) fitState.joints = poseState.fig.getJoints();
+    renderViews();
+  });
   zoomInBtn.addEventListener('click', () => poseState.fig?.zoomIn());
   zoomOutBtn.addEventListener('click', () => poseState.fig?.zoomOut());
   viewResetBtn.addEventListener('click', () => poseState.fig?.resetView());
