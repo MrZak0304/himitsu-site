@@ -44,6 +44,11 @@ export function createPoseFigure(container, seg, opts = {}) {
   const overlay = opts.overlay ?? null;
   let dragTarget = opts.dragTarget ?? 'view';
   let axisLock = !!opts.axisLock; // まっすぐ動かす(ドラッグ開始時の主方向に固定。第33弾FB)
+  let mirrorMove = !!opts.mirror; // 左右対称に動かす(腕・脚の反対側も同時に。第35弾FB)
+  const MIRROR_PAIR = {
+    shoulderL: 'shoulderR', shoulderR: 'shoulderL', elbowL: 'elbowR', elbowR: 'elbowL', wristL: 'wristR', wristR: 'wristL',
+    kneeL: 'kneeR', kneeR: 'kneeL', ankleL: 'ankleR', ankleR: 'ankleL', toeL: 'toeR', toeR: 'toeL',
+  };
   let bigView = !!opts.big; // 大きく表示(枠を画面高さに合わせ、はみ出す分は切る=slice。第33弾FB)
   let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45 } : null;
   const rest = restPose(seg);
@@ -183,11 +188,19 @@ export function createPoseFigure(container, seg, opts = {}) {
     const ang = (Math.atan2(dir.y, dir.x) * 180) / Math.PI - 90;
     return { c, rx: Math.max(3, (seg.hand / 3.4) * k), ry: (seg.hand / 2) * k, ang };
   }
+  // かかと(3D, cm): 足首からすねの延長方向へ足首高さぶん下。足裏=かかと→つま先(直立で水平。第35弾FB「側面の足の角度」)
+  function heel3(side) {
+    const an = joints[`ankle${side}`]; const kn = joints[`knee${side}`];
+    const d = { x: an.x - kn.x, y: an.y - kn.y, z: an.z - kn.z };
+    const l = Math.hypot(d.x, d.y, d.z) || 1;
+    return { x: an.x + (d.x / l) * seg.ankle, y: an.y + (d.y / l) * seg.ankle, z: an.z + (d.z / l) * seg.ankle };
+  }
   // 足: 足首→つま先の関節から形を決める(つま先を動かすと足の向きが変わる)
   function footShape(view, side) {
     const an = toPx(joints[`ankle${side}`], view);
     const to = toPx(joints[`toe${side}`], view);
     const kn = toPx(joints[`knee${side}`], view);
+    const he = toPx(heel3(side), view);
     const footPx = seg.footLength * k;
     const ankPx = seg.ankle * k;
     const v = sub(to, an);
@@ -201,11 +214,13 @@ export function createPoseFigure(container, seg, opts = {}) {
       const c = add(an, mul(dir, along));
       return { kind: 'ellipse', c, rx: along * 0.9, ry: Math.max(3, (footPx / 2) * 0.62), ang };
     }
-    // 側面: かかと→つま先の線
-    const heelBack = Math.max(footPx * 0.3, l * 0.3);
+    // 側面: 足裏の線(かかと→つま先。直立では水平)。かかとの後ろに少し出す
+    const sv = sub(to, he); const sl = Math.hypot(sv.x, sv.y);
+    const sdir = sl > 1e-6 ? mul(sv, 1 / sl) : dir;
+    const heelBack = footPx * 0.3;
     return {
       kind: 'line',
-      a: add(an, mul(dir, -heelBack * 0.6)),
+      a: add(he, mul(sdir, -heelBack)),
       b: to,
       w: Math.max(4, ankPx),
     };
@@ -481,6 +496,11 @@ export function createPoseFigure(container, seg, opts = {}) {
       // 骨格
       for (const line of svg.querySelectorAll('line[data-bone]')) {
         const [a, b] = line.dataset.bone.split('-');
+        if (a.startsWith('ankle')) {
+          // 足の参考線は「かかと→つま先」(足裏)。足首→かかとは接続しろで描く
+          setLine(line, toPx(heel3(a.slice(5)), view), toPx(joints[b], view));
+          continue;
+        }
         setLine(line, toPx(joints[a], view), toPx(joints[b], view));
       }
       const hg = headGeom(view);
@@ -491,11 +511,9 @@ export function createPoseFigure(container, seg, opts = {}) {
         // 接続しろ: 手首の先(手長4割)・足首の先(足裏+つま先側)
         const e = toPx(joints[`elbow${s}`], view); const w = toPx(joints[`wrist${s}`], view);
         setLine(svg.querySelector(`.stub[data-stub=wrist${s}]`), w, add(w, mul(norm(sub(w, e)), seg.hand * 0.4 * k)));
-        // 足首の先の接続しろは足(足首→つま先)の中に沿わせる=足を動かしても露出しない(第16弾FB)
-        const an = toPx(joints[`ankle${s}`], view); const to = toPx(joints[`toe${s}`], view);
-        const fv = sub(to, an); const fvLen = Math.hypot(fv.x, fv.y);
-        const stubLen = Math.min(seg.ankle * k, fvLen * 0.6);
-        setLine(svg.querySelector(`.stub[data-stub=ankle${s}]`), an, fvLen > 1e-6 ? add(an, mul(fv, stubLen / fvLen)) : an);
+        // 足首の先の接続しろは足首→かかと(すねの延長。足の中に収まる=足を動かしても露出しない)
+        const an = toPx(joints[`ankle${s}`], view); const he = toPx(heel3(s), view);
+        setLine(svg.querySelector(`.stub[data-stub=ankle${s}]`), an, add(an, mul(sub(he, an), 0.9)));
         setEllipse(svg.querySelector(`.hand-ref[data-side=${s}]`), handEllipse(view, s));
         const f = footShape(view, s);
         const fe = svg.querySelector(`.foot-ref-e[data-side=${s}]`);
@@ -582,6 +600,22 @@ export function createPoseFigure(container, seg, opts = {}) {
     return { x: (p.x - t.x) / viewport.s, y: (p.y - t.y) / viewport.s };
   }
 
+  // 左右対称: 骨格合わせでは反対側を体の中心線(股のx)で鏡映した位置に置く
+  function mirrorFit(id) {
+    const pair = MIRROR_PAIR[id];
+    if (!mirrorMove || !pair) return;
+    const cx = joints.hip.x;
+    joints = { ...joints, [pair]: { x: 2 * cx - joints[id].x, y: joints[id].y, z: joints[pair].z } };
+  }
+  // 左右対称: ポーズでは、動かした関節の結果位置を中心線で鏡映した点を目標に反対側もFKで動かす(側面図では同じ位置)
+  function mirrorPose(id, view) {
+    const pair = MIRROR_PAIR[id];
+    if (!mirrorMove || !pair) return;
+    const p = project(joints[id], view);
+    const target = view === 'front' ? { u: 2 * project(joints.hip, view).u - p.u, v: p.v } : { u: p.u, v: p.v };
+    joints = dragJoint(joints, lengths, pair, target, view);
+  }
+
   let lastJoint = null;
   function startDrag(ev, id, view) {
     ev.preventDefault();
@@ -658,10 +692,12 @@ export function createPoseFigure(container, seg, opts = {}) {
         if (id === 'shoulderL' || id === 'shoulderR') {
           // 肩は左右(幅)だけ動かし、高さは首のつけ根の線に揃える(取り込み後に肩線がずれない。第32弾FB)
           joints = { ...joints, [id]: { x: uv.u, y: joints.spineTop.y, z: joints[id].z } };
+          mirrorFit(id);
           redraw();
           return;
         }
         joints = { ...joints, [id]: { x: uv.u, y: uv.v, z: joints[id].z } };
+        mirrorFit(id);
         if (id === 'hipL' || id === 'hipR') {
           // 骨盤は股を中点に保つ
           const other = id === 'hipL' ? 'hipR' : 'hipL';
@@ -685,6 +721,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       // (直線と円の交点は2点のみ)。指の動きを軸に固定するだけにとどめる(直線移動は骨格合わせ・股=全体移動で有効)
       const uv = fromPx(local, view);
       joints = dragJoint(joints, lengths, id, uv, view);
+      mirrorPose(id, view);
       redraw();
     };
     const up = (e) => {
@@ -780,6 +817,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       emitOverlay();
     },
     setAxisLock(v) { axisLock = !!v; },
+    setMirror(v) { mirrorMove = !!v; },
     setDragTarget(t) {
       dragTarget = t === 'overlay' ? 'overlay' : 'view';
       svgs.front?.classList.toggle('overlay-drag', dragTarget === 'overlay');

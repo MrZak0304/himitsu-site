@@ -24,7 +24,7 @@ const refImage = { overlay: null, dragTarget: 'view' };
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
-const uiAids = { axisLock: false, big: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
+const uiAids = { axisLock: false, mirror: false, big: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 
 // ---- タブ ----
 
@@ -121,7 +121,9 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   axisBtn.type = 'button'; axisBtn.setAttribute('aria-pressed', String(uiAids.axisLock));
   const bigBtn = h('button', 'toggle big-view-btn', '大きく表示');
   bigBtn.type = 'button'; bigBtn.setAttribute('aria-pressed', String(uiAids.big));
-  aidRow.append(axisBtn, bigBtn);
+  const mirrorBtn = h('button', 'toggle mirror-btn', '左右対称に動かす');
+  mirrorBtn.type = 'button'; mirrorBtn.setAttribute('aria-pressed', String(uiAids.mirror));
+  aidRow.append(axisBtn, mirrorBtn, bigBtn);
   // 詳しい説明は折りたたみ(縦長対策。第27弾FB)
   const help = document.createElement('details');
   help.className = 'pose-help';
@@ -196,6 +198,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
       axisLock: uiAids.axisLock,
+      mirror: uiAids.mirror,
       big: uiAids.big,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
@@ -293,6 +296,11 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     uiAids.axisLock = !uiAids.axisLock;
     axisBtn.setAttribute('aria-pressed', String(uiAids.axisLock));
     poseState.fig?.setAxisLock(uiAids.axisLock);
+  });
+  mirrorBtn.addEventListener('click', () => {
+    uiAids.mirror = !uiAids.mirror;
+    mirrorBtn.setAttribute('aria-pressed', String(uiAids.mirror));
+    poseState.fig?.setMirror(uiAids.mirror);
   });
   bigBtn.addEventListener('click', () => {
     uiAids.big = !uiAids.big;

@@ -416,7 +416,8 @@ a { color: var(--thread); }
 .fit-done-msg { margin: 6px 0; padding: 6px 8px; border-radius: 8px; background: rgba(90, 140, 90, 0.12); }
 
 /* 操作の補助(第33弾FB) */
-.aid-buttons { display: flex; gap: 6px; margin: 4px 0; }
+.aid-buttons { display: flex; gap: 6px; margin: 4px 0; flex-wrap: wrap; }
+.aid-buttons .mirror-btn { flex: 1 1 100%; }
 .aid-buttons .toggle { flex: 1 1 45%; padding: 8px 6px; font-size: 0.85rem; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
 .aid-buttons .toggle[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
 /* 大きく表示: 図の枠を横幅いっぱい+画面高さに合わせ、はみ出す分は切る(slice)。拡大/縮小/背景ドラッグで見たい所へ */
