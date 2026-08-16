@@ -24,7 +24,7 @@ const refImage = { overlay: null, dragTarget: 'view' };
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
-const uiAids = { axisLock: false, mirror: false, big: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
+const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 // 肉付けの色・透け具合(第38弾FB)。端末内に保存
 const FLESH_COLORS = [
   { key: 'skin', label: '肌色', value: '#e6c9a5' },
@@ -207,8 +207,11 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   fitDoneBtn.type = 'button';
   const fitCancelBtn = h('button', 'ghost fit-cancel-btn', '取り込まずに終える');
   fitCancelBtn.type = 'button';
+  // 腕・脚の関節は既定で「回す(持ち上げる)」。長さを変えるときだけON(第45弾FB「腕が伸びる」)
+  const fitFreeBtn = h('button', 'toggle fit-free-btn', '長さも動かす(腕・脚を伸縮)');
+  fitFreeBtn.type = 'button';
   const fitActions = h('div', 'fit-actions');
-  fitActions.append(fitLockBtn, fitDoneBtn, fitCancelBtn);
+  fitActions.append(fitLockBtn, fitDoneBtn, fitCancelBtn, fitFreeBtn);
   fitActions.hidden = true;
   const fitDone = h('p', 'hint fit-done-msg', '');
   fitDone.hidden = true;
@@ -242,6 +245,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       viewport: poseState.on ? poseState.viewport : null,
       axisLock: uiAids.axisLock,
       mirror: uiAids.mirror,
+      fitFree: uiAids.fitFree,
       big: uiAids.big,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
@@ -263,6 +267,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     fitNote.hidden = !fitOn;
     fitActions.hidden = !fitOn;
     fitLockBtn.setAttribute('aria-pressed', String(fitState.locked));
+    fitFreeBtn.setAttribute('aria-pressed', String(uiAids.fitFree));
     fitLockBtn.textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
     poseHint.classList.toggle('fit-banner', fitOn);
     toFitRow.hidden = !(isCalc && !fitOn); // ポーズモードでのみ表示
@@ -286,6 +291,11 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   });
   toFitBtn.addEventListener('click', () => enterFit(true));
   fitLockBtn.addEventListener('click', () => $('fitLock').click());
+  fitFreeBtn.addEventListener('click', () => {
+    uiAids.fitFree = !uiAids.fitFree;
+    fitFreeBtn.setAttribute('aria-pressed', String(uiAids.fitFree));
+    poseState.fig?.setFitFree(uiAids.fitFree);
+  });
   fitDoneBtn.addEventListener('click', () => $('fitImport').click());
   fitCancelBtn.addEventListener('click', () => { if (fitState.on) $('fitToggle').click(); });
   // 骨格合わせに入る直前の一言は、合わせ中バナーに合流させる(バナーが2枚重ならないように)
