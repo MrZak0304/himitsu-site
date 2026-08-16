@@ -426,3 +426,7 @@ a { color: var(--thread); }
 /* 長押しでテキスト選択・吹き出しが出ないように(iOS。第33弾FB「選択扱いになる」) */
 .views, .pose-tools, .toggle-row, .pose-svg, .pose-svg * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .pose-svg image { pointer-events: none; }
+
+/* iOS Safari は 16px 未満のフォーム部品にフォーカスするとページを自動ズームし、横スクロールが発生する(第36弾FBのスクショ)。
+   セレクト・入力は 16px 以上に固定 */
+input, select, textarea, .pose-one-row .joint-select { font-size: max(16px, 1em); }

@@ -699,9 +699,15 @@ export function createPoseFigure(container, seg, opts = {}) {
         joints = { ...joints, [id]: { x: uv.u, y: uv.v, z: joints[id].z } };
         mirrorFit(id);
         if (id === 'hipL' || id === 'hipR') {
-          // 骨盤は股を中点に保つ
           const other = id === 'hipL' ? 'hipR' : 'hipL';
-          joints.hip = { x: (joints[id].x + joints[other].x) / 2, y: (joints[id].y + joints[other].y) / 2, z: joints.hip.z };
+          if (mirrorMove) {
+            // 左右対称: 股を動かさず、反対側の股関節を股のxで鏡映(骨盤幅の調整。第36弾FB)
+            joints[other] = { x: 2 * joints.hip.x - joints[id].x, y: joints[id].y, z: joints[other].z };
+            joints.hip = { x: joints.hip.x, y: joints[id].y, z: joints.hip.z };
+          } else {
+            // 骨盤は股を中点に保つ
+            joints.hip = { x: (joints[id].x + joints[other].x) / 2, y: (joints[id].y + joints[other].y) / 2, z: joints.hip.z };
+          }
         }
         redraw();
         return;
