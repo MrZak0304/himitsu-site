@@ -600,7 +600,12 @@ export function createPoseFigure(container, seg, opts = {}) {
       : id === 'hip'
         ? '骨格全体を移動しました(骨の長さ・ポーズはそのまま)。首や胴の長さを直すには「骨格の位置・長さを直す」を押してください'
         : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
-    const start = localPoint(svg, view, ev);
+    // 掴んだ位置と関節の差(オフセット)を保ち、指の「移動量」だけ関節を動かす。
+    // 最寄り関節グラブで指が関節から離れていても、関節が指の位置へ跳ばない(第34弾FB「ロックしたのに斜めに動く」の主因)
+    const finger0 = localPoint(svg, view, ev);
+    const start = toPx(joints[id], view); // ドラッグ開始時の関節位置(px)
+    const grabOff = { x: start.x - finger0.x, y: start.y - finger0.y };
+    const j0 = project(joints[id], view); // 同(図の座標。縦横ロックの直線の基準)
     let lockedAxis = null;
     // 方向ロック: 最初の数pxの動きで縦/横を決め、以後その軸だけ動かす
     const applyLock = (lp) => {
@@ -615,7 +620,8 @@ export function createPoseFigure(container, seg, opts = {}) {
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
-      const local = applyLock(localPoint(svg, view, e));
+      const fp = localPoint(svg, view, e);
+      const local = applyLock({ x: fp.x + grabOff.x, y: fp.y + grabOff.y });
       if (fitMode) {
         // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
         const uv = fromPx(local, view);
@@ -675,7 +681,10 @@ export function createPoseFigure(container, seg, opts = {}) {
         redraw();
         return;
       }
-      joints = dragJoint(joints, lengths, id, fromPx(local, view), view);
+      // 縦横ロック中のFK関節: 骨長固定のため関節は親を中心とする弧上しか動けず「直線移動」は幾何的に成り立たない
+      // (直線と円の交点は2点のみ)。指の動きを軸に固定するだけにとどめる(直線移動は骨格合わせ・股=全体移動で有効)
+      const uv = fromPx(local, view);
+      joints = dragJoint(joints, lengths, id, uv, view);
       redraw();
     };
     const up = (e) => {

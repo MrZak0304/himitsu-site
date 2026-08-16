@@ -75,9 +75,10 @@ export function restPose(seg) {
     const elbow = { x: s * (shHalf + armDx * 0.5), y: shoulderY + seg.upperArm, z: 0 };
     j[`elbow${side}`] = elbow;
     j[`wrist${side}`] = { x: elbow.x + s * armDx * 0.3, y: elbow.y + seg.forearm, z: 0 };
-    const knee = { x: s * hipHalf * 0.85, y: seg.thigh, z: 0 };
+    // 脚は股関節の真下にまっすぐ(基本は直立。第34弾FB)
+    const knee = { x: s * hipHalf, y: seg.thigh, z: 0 };
     j[`knee${side}`] = knee;
-    const ankle = { x: s * hipHalf * 0.8, y: seg.thigh + seg.shin, z: 0 };
+    const ankle = { x: s * hipHalf, y: seg.thigh + seg.shin, z: 0 };
     j[`ankle${side}`] = ankle;
     // つま先: 足首から足裏まで下り、前(+z)へ足長の7割
     j[`toe${side}`] = { x: ankle.x, y: ankle.y + seg.ankle, z: seg.footLength * 0.7 };
