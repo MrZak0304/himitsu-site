@@ -14,7 +14,7 @@ export const PROPORTION_PRESETS = {
     ratios: {
       head: 0.167, // 頭高(頭頂〜あご)
       hipTop: 0.47, // 頭頂〜股(腰)。脚長め・胴短め(第37弾FB: 立ち絵との重なりが良い)
-      shoulderWidth: 0.215, // 肩幅
+      shoulderWidth: 0.2, // 肩幅(0.215→0.2。第50弾FB: 少し狭く)
       upperArm: 0.165, // 肩〜ヒジ
       forearm: 0.15, // ヒジ〜手首
       hand: 0.1, // 手首〜指先

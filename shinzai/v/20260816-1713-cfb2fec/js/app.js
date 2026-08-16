@@ -24,7 +24,15 @@ const refImage = { overlay: null, dragTarget: 'view' };
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
-const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
+const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false };
+// 肉付けのボリューム(キャラクターごと。保存データに含める。第52弾FB)
+const VOLUME_DEFS = [
+  { key: 'body', label: '肉付き', options: ['細め', '標準', 'ふくよか'], def: 1 },
+  { key: 'muscle', label: '筋肉', options: ['標準', '多め', 'かなり'], def: 0 },
+  { key: 'bust', label: 'バスト', options: ['なし', '小', '中', '大'], def: 1 },
+];
+const DEFAULT_VOLUME = Object.fromEntries(VOLUME_DEFS.map((d) => [d.key, d.def]));
+let fleshVolume = { ...DEFAULT_VOLUME }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 // 肉付けの色・透け具合(第38弾FB)。端末内に保存
 const FLESH_COLORS = [
   { key: 'skin', label: '肌色', value: '#e6c9a5' },
@@ -132,6 +140,20 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   opRange.addEventListener('input', () => { fleshStyle.opacity = Number(opRange.value) / 100; applyFleshStyle(); });
   opRange.addEventListener('change', saveFleshStyle);
   fleshOpts.append(h('span', '', '肉付けの色'), swatches, opLabel, opRange);
+  // ボリューム(肉付き・筋肉・バスト)
+  const volRow = h('div', 'flesh-volume');
+  for (const d of VOLUME_DEFS) {
+    const lab = document.createElement('label');
+    lab.append(h('span', '', d.label));
+    const sel = document.createElement('select');
+    sel.className = `vol-${d.key}`;
+    d.options.forEach((name, i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = name; sel.append(o); });
+    sel.value = String(fleshVolume[d.key] ?? d.def);
+    sel.addEventListener('change', () => { fleshVolume[d.key] = Number(sel.value); renderViews(); });
+    lab.append(sel);
+    volRow.append(lab);
+  }
+  fleshOpts.append(volRow);
   root.append(fleshOpts);
 
   // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
@@ -246,6 +268,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       axisLock: uiAids.axisLock,
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
+      volume: fleshVolume,
       big: uiAids.big,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
@@ -526,6 +549,7 @@ function currentSaveData() {
     scaleDen: $('scale').value,
     targetHeightCm: Number($('targetHeight').value),
     importedRatios: importedRatios ? { ...importedRatios } : null,
+    fleshVolume: { ...fleshVolume },
   };
 }
 
@@ -564,10 +588,37 @@ function loadSaved(item) {
   if (Number.isFinite(d.targetHeightCm)) $('targetHeight').value = d.targetHeightCm;
   adjustments = { ...DEFAULT_ADJUSTMENTS, ...(d.adjustments ?? {}) };
   importedRatios = d.importedRatios && typeof d.importedRatios === 'object' ? { ...d.importedRatios } : null;
+  fleshVolume = { ...DEFAULT_VOLUME, ...(d.fleshVolume ?? {}) };
   syncImportedNote();
   buildAdjustSliders();
   syncModeRows();
   $('saveName').value = item.name;
+  showTab('calc');
+  renderCalc();
+}
+
+// 新規作成: 体型・取り込み・参考画像・ポーズ・表示位置を初期状態に戻す(第50弾FB)。保存データと表示設定(色など)は残す
+function resetAll() {
+  const radio = document.querySelector('input[name=sizeMode][value=target]');
+  if (radio) radio.checked = true;
+  $('targetHeight').value = 20;
+  $('height').value = 160;
+  if ([...$('scale').options].some((o) => o.value === '8')) $('scale').value = '8';
+  $('preset').value = 'female-adult';
+  adjustments = { ...DEFAULT_ADJUSTMENTS };
+  importedRatios = null;
+  fleshVolume = { ...DEFAULT_VOLUME };
+  refImage.overlay = null; refImage.dragTarget = 'view';
+  fitState.on = false; fitState.locked = false; fitState.joints = null; fitState.resumePose = false;
+  pendingFitPose = null;
+  const st = poseStates.get($('calcOutput'));
+  if (st) { st.on = false; st.joints = null; st.viewport = null; st.twistUpper = 0; st.twistLower = 0; }
+  $('saveName').value = '';
+  syncImportedNote();
+  buildAdjustSliders();
+  syncModeRows();
+  fitSync();
+  syncRefButtons();
   showTab('calc');
   renderCalc();
 }
@@ -626,6 +677,9 @@ function initSettings() {
   // ビルド番号(デモ配信ではデプロイ時に <meta name="build"> を差し込む。PDが最新版かどうか確認できるように。第41弾FB)
   const build = document.querySelector('meta[name=build]')?.content;
   $('variantLabel').textContent = build ? `${VARIANT_LABEL}(build ${build})` : VARIANT_LABEL;
+  $('newBtn').addEventListener('click', () => {
+    if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll();
+  });
   $('clearData').addEventListener('click', () => {
     if (window.confirm('保存データをすべて削除しますか?この操作は取り消せません。')) {
       storage.removeItem(STORE_KEY);
