@@ -198,15 +198,33 @@ export function createPoseFigure(container, seg, opts = {}) {
       const nw = W.neck * 0.62; // 首の半幅
       const cAt = (t, s2) => add(add(st, mul(chestUp, t)), mul(chestSide, s2));
       // 肩の外縁は上腕の付け根の外縁と一致させ、丸みは上腕のキャップに任せる(肩の出っ張りをなくす。第48弾FB)
+      // 僧帽筋の線: 首の付け根から、上腕の付け根の丸(キャップ円: 中心=肩関節、半径=上腕半幅)への「接線」として引く。
+      // 線が丸の上で終わり、そのまま丸→上腕の外縁へ一続きになる(肩先のコブが出ない。第51弾FB 手描き指示)
       const armHalf = LIMB_PROFILE.upper.w0 / 2;
-      const shOut = shHalf + armHalf * 0.98;
+      const neckPt = { t: neckLen * 0.6, s: nw * 1.2 }; // 首の付け根(局所座標: t=上, s=外)
+      const tangentPt = (side) => {
+        // 外部点 N から円 C(0, side*shHalf), r=armHalf への接点のうち上側のもの
+        const N = { t: neckPt.t, s: side * neckPt.s };
+        const C = { t: 0, s: side * shHalf };
+        const v = { t: C.t - N.t, s: C.s - N.s };
+        const d = Math.hypot(v.t, v.s);
+        if (d <= armHalf * 1.02) return { t: armHalf * 0.7, s: side * (shHalf + armHalf * 0.7) };
+        const a = Math.asin(armHalf / d);
+        const base = Math.atan2(v.t, v.s); // s軸基準の角度
+        const cand = [base + a, base - a].map((ang) => {
+          const L = Math.sqrt(d * d - armHalf * armHalf);
+          return { t: N.t + Math.sin(ang) * L, s: N.s + Math.cos(ang) * L };
+        });
+        return cand[0].t >= cand[1].t ? cand[0] : cand[1]; // 上側(tが大きい)
+      };
+      const TR = tangentPt(1); const TL = tangentPt(-1);
       const chest = roundedPoly([
-        cAt(neckLen * 0.55, -nw * 1.25), cAt(neckLen * 0.55, nw * 1.25), // 首の付け根(僧帽筋の始まり)
-        cAt(armHalf * 0.6, shOut), // 肩(僧帽筋の終わり=上腕の外縁の上)
-        cAt(-armHalf * 0.6, shOut),
+        cAt(neckPt.t, -neckPt.s), cAt(neckPt.t, neckPt.s), // 首の付け根(僧帽筋の始まり)
+        cAt(TR.t, TR.s), // 肩先(丸への接点)
+        cAt(-armHalf * 0.95, shHalf + armHalf * 0.9), // 脇の上(上腕の外縁と一致)
         cAt(-torsoH * 0.52, ww * 1.15), cAt(-torsoH * 0.52, -ww * 1.15),
-        cAt(-armHalf * 0.6, -shOut), cAt(armHalf * 0.6, -shOut),
-      ], [nw * 0.8, nw * 0.8, armHalf * 0.9, armHalf * 0.4, ww * 0.5, ww * 0.5, armHalf * 0.4, armHalf * 0.9]);
+        cAt(-armHalf * 0.95, -(shHalf + armHalf * 0.9)), cAt(TL.t, TL.s),
+      ], [nw * 0.7, nw * 0.7, 0, armHalf * 0.5, ww * 0.5, ww * 0.5, armHalf * 0.5, 0]);
       // 腹: 背骨基準。ウエスト幅の細いブロック(胸・腰の下に隠れる部分が多い)
       const abdomen = blockPath(hp, up, spineSide, torsoH * 0.62, torsoH * 0.12, ww * 0.98, ww, ww * 0.5);
       // 腰: 骨盤バー(股関節の線)を基準。ウエスト幅から股関節の高さの最大幅へなだらかに広がる台形
@@ -456,19 +474,20 @@ export function createPoseFigure(container, seg, opts = {}) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         const ns = Math.min(4, Math.max(0.2, (pinchStart.s * d) / (pinchStart.d || 1)));
-        // 中点を固定してズーム
-        const m = pinchStart.mid;
+        // 2本指: 開始時の中点にあった図の点を、現在の中点へ(=ズーム+移動)
+        const m0 = pinchStart.mid;
+        const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const t = pinchStart.t;
         if (onOverlay) {
-          // 透かしは中心基準の配置なので、中点固定は中心座標で計算する
+          // 透かしは中心基準の配置なので、中心座標で計算する
           const c0 = { x: VIEW_W / 2 + t.x, y: VIEW_H / 2 + t.y };
-          const rel = { x: (m.x - c0.x) / pinchStart.s, y: (m.y - c0.y) / pinchStart.s };
+          const rel = { x: (m0.x - c0.x) / pinchStart.s, y: (m0.y - c0.y) / pinchStart.s };
           overlayState.s = ns;
           overlayState.t = { x: m.x - rel.x * ns - VIEW_W / 2, y: m.y - rel.y * ns - VIEW_H / 2 };
           applyOverlay();
           return;
         }
-        const local = { x: (m.x - t.x) / pinchStart.s, y: (m.y - t.y) / pinchStart.s };
+        const local = { x: (m0.x - t.x) / pinchStart.s, y: (m0.y - t.y) / pinchStart.s };
         viewport.s = ns;
         viewport.t[view] = { x: m.x - local.x * ns, y: m.y - local.y * ns };
         applyViewport();
@@ -482,10 +501,7 @@ export function createPoseFigure(container, seg, opts = {}) {
         applyOverlay();
         return;
       }
-      const t = viewport.t[view] ?? { x: 0, y: 0 };
-      viewport.t[view] = { x: t.x + (p.x - last.x), y: t.y + (p.y - last.y) };
-      last = p;
-      applyViewport();
+      // 1本指の背景ドラッグでは図を動かさない(触れただけで骨格が動いて見える。第49弾FB)。図の移動・拡大は2本指かボタンで
     };
     const up = (e) => {
       pointers.delete(e.pointerId);

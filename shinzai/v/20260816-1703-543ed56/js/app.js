@@ -172,7 +172,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   help.className = 'pose-help';
   const helpSum = document.createElement('summary');
   helpSum.textContent = '操作のヒント';
-  help.append(helpSum, h('p', 'hint', '図の背景をドラッグで移動、2本指で拡大縮小。関節を離したとき枠外なら自動で全体を収めます。「全体を初期位置に戻す」はポーズ・ひねり・表示位置を初期化します。骨格合わせ中(キャラクターの設定)はひねり・関節リセットは使えません(骨の長さを変えるモードのため)。'));
+  help.append(helpSum, h('p', 'hint', '図の移動・拡大縮小は2本指(1本指の背景ドラッグでは動きません。「参考画像を動かす」中は画像が動きます)。関節を離したとき枠外なら自動で全体を収めます。「全体を初期位置に戻す」はポーズ・ひねり・表示位置を初期化します。骨格合わせ中(キャラクターの設定)はひねり・関節リセットは使えません(骨の長さを変えるモードのため)。'));
   const viewHint = help;
   // ひねり(第15〜16弾FB): 上半身(肩)=首のつけ根から先 / 腰(骨盤)=股関節から先 を背骨の軸まわりに回す
   const mkTwist = (key, label, cls) => {
@@ -572,6 +572,31 @@ function loadSaved(item) {
   renderCalc();
 }
 
+// 新規作成: 体型・取り込み・参考画像・ポーズ・表示位置を初期状態に戻す(第50弾FB)。保存データと表示設定(色など)は残す
+function resetAll() {
+  const radio = document.querySelector('input[name=sizeMode][value=target]');
+  if (radio) radio.checked = true;
+  $('targetHeight').value = 20;
+  $('height').value = 160;
+  if ([...$('scale').options].some((o) => o.value === '8')) $('scale').value = '8';
+  $('preset').value = 'female-adult';
+  adjustments = { ...DEFAULT_ADJUSTMENTS };
+  importedRatios = null;
+  refImage.overlay = null; refImage.dragTarget = 'view';
+  fitState.on = false; fitState.locked = false; fitState.joints = null; fitState.resumePose = false;
+  pendingFitPose = null;
+  const st = poseStates.get($('calcOutput'));
+  if (st) { st.on = false; st.joints = null; st.viewport = null; st.twistUpper = 0; st.twistLower = 0; }
+  $('saveName').value = '';
+  syncImportedNote();
+  buildAdjustSliders();
+  syncModeRows();
+  fitSync();
+  syncRefButtons();
+  showTab('calc');
+  renderCalc();
+}
+
 function renderPresetList() {
   const list = $('presetList');
   const items = loadPresets(storage);
@@ -626,6 +651,9 @@ function initSettings() {
   // ビルド番号(デモ配信ではデプロイ時に <meta name="build"> を差し込む。PDが最新版かどうか確認できるように。第41弾FB)
   const build = document.querySelector('meta[name=build]')?.content;
   $('variantLabel').textContent = build ? `${VARIANT_LABEL}(build ${build})` : VARIANT_LABEL;
+  $('newBtn').addEventListener('click', () => {
+    if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll();
+  });
   $('clearData').addEventListener('click', () => {
     if (window.confirm('保存データをすべて削除しますか?この操作は取り消せません。')) {
       storage.removeItem(STORE_KEY);
