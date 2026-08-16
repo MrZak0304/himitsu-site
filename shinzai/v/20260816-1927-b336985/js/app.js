@@ -26,12 +26,20 @@ let importedRatios = null;
 const fitState = { on: false, joints: null, locked: false };
 const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false };
 // 肉付けのボリューム(キャラクターごと。保存データに含める。第52弾FB)
+const BUST_SHAPES = [
+  { key: 'bowl', label: 'おわん型' },
+  { key: 'plate', label: 'さら型' },
+  { key: 'pyramid', label: 'ピラミッド型' },
+  { key: 'hemi', label: '半球型' },
+  { key: 'goat', label: 'ヤギ型' },
+  { key: 'cone', label: '円錐型' },
+];
 const VOLUME_DEFS = [
   { key: 'body', label: '肉付き', min: 0, max: 2, step: 0.05, def: 1, fmt: (v) => (v < 0.75 ? '細め' : v > 1.25 ? 'ふくよか' : '標準') },
   { key: 'muscle', label: '筋肉', min: 0, max: 2, step: 0.05, def: 0, fmt: (v) => (v < 0.5 ? '標準' : v < 1.5 ? '多め' : 'かなり') },
-  { key: 'bust', label: 'バスト', min: 0, max: 1, step: 0.01, def: 0.35, fmt: (v) => (v < 0.05 ? 'なし' : v < 0.35 ? '小' : v < 0.7 ? '中' : '大') },
+  { key: 'bust', label: 'バスト', min: 0, max: 2, step: 0.01, def: 0.35, fmt: (v) => (v < 0.05 ? 'なし' : v < 0.35 ? '小' : v < 0.7 ? '中' : v < 1.2 ? '大' : '特大') },
 ];
-const DEFAULT_VOLUME = Object.fromEntries(VOLUME_DEFS.map((d) => [d.key, d.def]));
+const DEFAULT_VOLUME = { ...Object.fromEntries(VOLUME_DEFS.map((d) => [d.key, d.def])), bustShape: 'bowl' };
 let fleshVolume = { ...DEFAULT_VOLUME }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 // 肉付けの色・透け具合(第38弾FB)。端末内に保存
 const FLESH_COLORS = [
@@ -162,6 +170,21 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     lab.append(rng, val);
     volRow.append(lab);
   }
+  // バストの形状(第55弾FB: おわん/さら/ピラミッド/半球/ヤギ/円錐)
+  const shapeRow = h('div', 'bust-shapes');
+  shapeRow.append(h('span', '', '形状'));
+  for (const bs of BUST_SHAPES) {
+    const b = h('button', 'chip bust-shape', bs.label);
+    b.type = 'button'; b.dataset.shape = bs.key;
+    b.setAttribute('aria-pressed', String((fleshVolume.bustShape ?? 'bowl') === bs.key));
+    b.addEventListener('click', () => {
+      fleshVolume.bustShape = bs.key;
+      for (const x of shapeRow.querySelectorAll('.bust-shape')) x.setAttribute('aria-pressed', String(x.dataset.shape === bs.key));
+      renderViews();
+    });
+    shapeRow.append(b);
+  }
+  volRow.append(shapeRow);
   fleshOpts.append(volRow);
   root.append(fleshOpts);
 
@@ -203,7 +226,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   help.className = 'pose-help';
   const helpSum = document.createElement('summary');
   helpSum.textContent = '操作のヒント';
-  help.append(helpSum, h('p', 'hint', '図の移動・拡大縮小は2本指(1本指の背景ドラッグでは動きません。「参考画像を動かす」中は画像が動きます)。関節を離したとき枠外なら自動で全体を収めます。「全体を初期位置に戻す」はポーズ・ひねり・表示位置を初期化します。骨格合わせ中(キャラクターの設定)はひねり・関節リセットは使えません(骨の長さを変えるモードのため)。'));
+  help.append(helpSum, h('p', 'hint', '図の移動・拡大縮小は2本指(1本指の背景ドラッグでは動きません。「参考画像を動かす」中は画像が動きます)。関節を離したとき枠外なら自動で全体を収めます。「全体を初期位置に戻す」はポーズ・ひねり・表示位置を初期化します。骨格調整中はひねり・関節リセットは使えません(骨の長さを変えるモードのため)。'));
   const viewHint = help;
   // ひねり(第15〜16弾FB): 上半身(肩)=首のつけ根から先 / 腰(骨盤)=股関節から先 を背骨の軸まわりに回す
   const mkTwist = (key, label, cls) => {
@@ -227,7 +250,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const fitNote = h('p', 'hint fit-note', '');
   fitNote.hidden = true;
   // ポーズ中は骨長固定で位置合わせができない → 骨格合わせ(ロック済み)へのショートカット(第28弾FB)
-  const toFitBtn = h('button', 'ghost to-fit-btn', '骨格を画像に合わせ直す');
+  const toFitBtn = h('button', 'ghost to-fit-btn', '骨格を調整する');
   toFitBtn.type = 'button';
   const toFitRow = h('div', 'to-fit-row');
   toFitRow.append(toFitBtn);
@@ -311,7 +334,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
-      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格合わせ中: 点を画像に合わせ、') + '「取り込んで終える」で終了。';
+      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格調整中: 点を動かし、') + '「取り込んで終える」で終了。';
       fitIntro = '';
     } else if (poseState.on) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
@@ -763,7 +786,7 @@ function initFit() {
   $('fitToggle').addEventListener('click', () => {
     if (fitState.on) {
       exitFit();
-      fitFlash = '骨格合わせを終了しました(取り込みなし)。';
+      fitFlash = '骨格の調整を終了しました(取り込みなし)。';
       sync(); renderCalc(); return;
     }
     enterFit(false);
@@ -849,7 +872,7 @@ function initRefImage() {
     calcFig()?.setDragTarget('view');
     syncRefButtons();
     // 画像を消したら合わせる対象がなくなるので骨格合わせも終える(取り込まない)
-    if (fitState.on) { exitFit(); fitFlash = '参考画像を消したので骨格合わせを終了しました(取り込みなし)。'; fitSync(); renderCalc(); }
+    if (fitState.on) { exitFit(); fitFlash = '参考画像を消したので骨格の調整を終了しました(取り込みなし)。'; fitSync(); renderCalc(); }
   });
   syncRefButtons();
 }
