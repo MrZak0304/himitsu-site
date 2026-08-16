@@ -200,6 +200,9 @@ details[open] summary { margin-bottom: 6px; }
 .pose-svg .flesh .torso { fill: var(--flesh, #e6c9a5); stroke: var(--flesh, #e6c9a5); stroke-width: 1.5; }
 .pose-svg .flesh .limb { fill: var(--flesh, #e6c9a5); stroke: var(--flesh, #e6c9a5); stroke-width: 1.5; }
 .pose-svg .flesh circle, .pose-svg .flesh ellipse { fill: var(--flesh, #e6c9a5); stroke: none; }
+/* バスト: 単色シルエット内で形が分かるよう、わずかに濃い影(側面は輪郭も変わる) */
+.pose-svg .flesh .bust { filter: brightness(0.93); }
+.pose-svg.side .flesh .bust { filter: none; }
 /* 肉付けの色・透け具合(第38弾FB: 参考画像の背景によって見やすい色が変わる) */
 .flesh-opts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px; font-size: 0.85rem; color: #6d5f4b; }
 .flesh-opts .swatches { display: flex; gap: 6px; }
@@ -444,3 +447,10 @@ input, select, textarea, .pose-one-row .joint-select { font-size: max(16px, 1em)
 details.how { margin: 4px 0 8px; }
 details.how summary { cursor: pointer; font-size: 0.85rem; color: #6d5f4b; }
 details.how .hint { margin: 6px 0; }
+
+/* 肉付けのボリューム(第52弾FB) */
+.flesh-volume { display: flex; gap: 8px; flex-wrap: wrap; flex-basis: 100%; margin-top: 4px; }
+.flesh-volume label { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; color: #6d5f4b; flex: 1 1 100%; }
+.flesh-volume label > span:first-child { min-width: 3.5em; }
+.flesh-volume input[type=range] { flex: 1 1 100px; min-width: 80px; }
+.flesh-volume .vol-val { min-width: 4em; text-align: right; font-size: 0.8rem; }
