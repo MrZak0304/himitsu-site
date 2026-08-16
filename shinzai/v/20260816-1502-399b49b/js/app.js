@@ -613,7 +613,9 @@ function renderMaterials() {
 }
 
 function initSettings() {
-  $('variantLabel').textContent = VARIANT_LABEL;
+  // ビルド番号(デモ配信ではデプロイ時に <meta name="build"> を差し込む。PDが最新版かどうか確認できるように。第41弾FB)
+  const build = document.querySelector('meta[name=build]')?.content;
+  $('variantLabel').textContent = build ? `${VARIANT_LABEL}(build ${build})` : VARIANT_LABEL;
   $('clearData').addEventListener('click', () => {
     if (window.confirm('保存データをすべて削除しますか?この操作は取り消せません。')) {
       storage.removeItem(STORE_KEY);
