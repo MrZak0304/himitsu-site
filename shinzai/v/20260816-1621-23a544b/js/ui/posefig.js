@@ -182,15 +182,31 @@ export function createPoseFigure(container, seg, opts = {}) {
     if (view === 'front') {
       const spineSide = perp(up);
       // 胸: 肩線を基準(肩の傾きに追従)。上端は肩線の少し上、下端は背骨の中ほど
+      // 胸の向きは背骨基準(肩関節を個別に動かしても胸は傾かない。第47弾FB「腕を動かすと胴体が連動」)。
+      // 肩線からは幅(投影距離)だけ取る(ひねりで肩が前後に回ると幅が縮む)
       const shDist = Math.hypot(sr.x - sl.x, sr.y - sl.y);
-      const chestSide = shDist > 1e-6 ? orient(norm(sub(sr, sl)), spineSide) : spineSide;
-      const chestUp = orient(perp(chestSide), up);
+      const chestSide = spineSide;
+      const chestUp = up;
       const shHalf = Math.max(shDist / 2, W.neck * 1.2);
       const hipJointHalf = Math.hypot(hr.x - hl.x, hr.y - hl.y) / 2;
       const hipHalfW = hipJointHalf + thighTopHalf * 0.9; // 腰の最大半幅(もも外縁とほぼ同じ)
       const ww = Math.max(Math.min(shHalf, hipHalfW) * 0.7, W.neck * 1.3); // ウエスト半幅
       // 胸: 肩幅からウエストへ向かって細くなる(胸→腹が段にならない)
-      const chest = blockPath(st, chestUp, chestSide, W.arm * 0.3, -torsoH * 0.52, shHalf * 0.98 + W.arm * 0.12, ww * 1.15, [W.arm * 0.75, ww * 0.5]);
+      // 胸: 首の付け根から肩へなだらかに下がる僧帽筋のライン → 肩の丸み → ウエストへ細く(第46弾FB: 肩〜首を人に近づける)
+      const nk = toPx(joints.neck, view);
+      const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
+      const nw = W.neck * 0.62; // 首の半幅
+      const cAt = (t, s2) => add(add(st, mul(chestUp, t)), mul(chestSide, s2));
+      // 肩の外縁は上腕の付け根の外縁と一致させ、丸みは上腕のキャップに任せる(肩の出っ張りをなくす。第48弾FB)
+      const armHalf = LIMB_PROFILE.upper.w0 / 2;
+      const shOut = shHalf + armHalf * 0.98;
+      const chest = roundedPoly([
+        cAt(neckLen * 0.55, -nw * 1.25), cAt(neckLen * 0.55, nw * 1.25), // 首の付け根(僧帽筋の始まり)
+        cAt(armHalf * 0.6, shOut), // 肩(僧帽筋の終わり=上腕の外縁の上)
+        cAt(-armHalf * 0.6, shOut),
+        cAt(-torsoH * 0.52, ww * 1.15), cAt(-torsoH * 0.52, -ww * 1.15),
+        cAt(-armHalf * 0.6, -shOut), cAt(armHalf * 0.6, -shOut),
+      ], [nw * 0.8, nw * 0.8, armHalf * 0.9, armHalf * 0.4, ww * 0.5, ww * 0.5, armHalf * 0.4, armHalf * 0.9]);
       // 腹: 背骨基準。ウエスト幅の細いブロック(胸・腰の下に隠れる部分が多い)
       const abdomen = blockPath(hp, up, spineSide, torsoH * 0.62, torsoH * 0.12, ww * 0.98, ww, ww * 0.5);
       // 腰: 骨盤バー(股関節の線)を基準。ウエスト幅から股関節の高さの最大幅へなだらかに広がる台形
@@ -212,7 +228,14 @@ export function createPoseFigure(container, seg, opts = {}) {
     const want = view === 'side-right' ? 1 : -1;
     if (Math.sign(fwd.x) !== want) fwd = mul(fwd, -1);
     const d = W.depth;
-    const chest = blockPath(add(st, mul(fwd, d * 0.03)), up, fwd, W.arm * 0.3, -torsoH * 0.52, d * 0.5, d * 0.36, [d * 0.28, d * 0.2]);
+    const nk2 = toPx(joints.neck, view);
+    const neckLen2 = Math.hypot(nk2.x - st.x, nk2.y - st.y);
+    // 側面の胸: 首の付け根から背中側へなだらかに(僧帽筋)、胸側は少し前へ
+    const sAt = (t, s2) => add(add(st, mul(up, t)), mul(fwd, s2));
+    const chest = roundedPoly([
+      sAt(neckLen2 * 0.5, -W.neck * 0.5), sAt(neckLen2 * 0.5, W.neck * 0.45),
+      sAt(W.arm * 0.05, d * 0.5), sAt(-torsoH * 0.52, d * 0.38), sAt(-torsoH * 0.52, -d * 0.36), sAt(W.arm * 0.12, -d * 0.5),
+    ], [W.neck * 0.4, W.neck * 0.4, d * 0.28, d * 0.2, d * 0.2, d * 0.3]);
     const abdomen = blockPath(add(hp, mul(fwd, d * 0.02)), up, fwd, torsoH * 0.62, torsoH * 0.12, d * 0.34, d * 0.35, d * 0.2);
     const pelvis = blockPath(add(hp, mul(fwd, -d * 0.05)), up, fwd, torsoH * 0.42, -thighTopHalf * 1.02, d * 0.36, d * 0.5, [d * 0.2, d * 0.28]);
     return { chest, abdomen, pelvis };
@@ -297,8 +320,6 @@ export function createPoseFigure(container, seg, opts = {}) {
       el('path', { class: 'torso part-abdomen' }),
       el('path', { class: 'torso part-pelvis' }),
       el('path', { class: 'torso part-chest' }),
-      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderL', r: W.arm * 0.58 }),
-      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderR', r: W.arm * 0.58 }),
     );
     flesh.append(limbs(sides[0]), torsoG, limbs(sides[1]));
     flesh.append(el('line', { class: 'neck' }), el('ellipse', { class: 'head-flesh' }));
@@ -389,7 +410,9 @@ export function createPoseFigure(container, seg, opts = {}) {
     let best = null; let bd = GRAB_R;
     for (const id of dragIds(view)) {
       const q = toPx(joints[id], view);
-      const d = Math.hypot(q.x - local.x, q.y - local.y);
+      let d = Math.hypot(q.x - local.x, q.y - local.y);
+      // 股関節(骨盤の端)は手首と近く誤操作しやすいので、指がごく近いとき以外は優先度を下げる(第46弾FB)
+      if ((id === 'hipL' || id === 'hipR') && d > 10) d *= 1.6;
       if (d < bd) { bd = d; best = id; }
     }
     if (prefer && best && best !== prefer) {
@@ -604,7 +627,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       }
       const neck = svg.querySelector('.flesh .neck');
       setLine(neck, toPx(joints.neck, view), toPx(joints.spineTop, view));
-      neck.setAttribute('stroke-width', W.neck * 0.88);
+      neck.setAttribute('stroke-width', W.neck * 1.0);
       // 頭は参考輪郭(頭高)より一回り大きく(髪のボリューム分。第18弾FB)
       setEllipse(svg.querySelector('.head-flesh'), { c: add(hg.c, mul(hg.dir, hg.r * 0.06)), rx: hg.r * 1.06, ry: hg.r * 1.1, ang: 0 });
       // 関節
@@ -731,11 +754,11 @@ export function createPoseFigure(container, seg, opts = {}) {
     // (第24弾FB「肩の位置がおかしい」の原因)。案内文の更新は pointerup 後に行う
     const statusText = fitMode
       ? (FIT_ROTATE.has(id) && !fitFree
-        ? `「${label}」を回しました(長さはそのまま)。長さを画像に合わせるには「長さも動かす」をONにしてください`
-        : `「${label}」を動かしました(骨の長さが変わります)。参考画像の${label}の位置に合っているか確認してください`)
+        ? `${label}を回しました(長さはそのまま。長さを変えるには「長さも動かす」)`
+        : `${label}を動かしました(長さが変わります)`)
       : id === 'hip'
-        ? '骨格全体を移動しました(骨の長さ・ポーズはそのまま)。首や胴の長さを直すには「骨格の位置・長さを直す」を押してください'
-        : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
+        ? '骨格全体を移動しました'
+        : `${label}を動かしました(長さは不変)`;
     // 掴んだ位置と関節の差(オフセット)を保ち、指の「移動量」だけ関節を動かす。
     // 最寄り関節グラブで指が関節から離れていても、関節が指の位置へ跳ばない(第34弾FB「ロックしたのに斜めに動く」の主因)
     const finger0 = localPoint(svg, view, ev);

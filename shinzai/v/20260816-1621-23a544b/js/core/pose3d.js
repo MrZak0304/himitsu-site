@@ -60,7 +60,7 @@ export function restPose(seg) {
   const shoulderY = -(spineLen - NECK_LEN);
   const shHalf = seg.shoulderWidth / 2;
   const hipHalf = (seg.pelvisWidth ?? seg.shoulderWidth * 0.75) / 2;
-  const armDx = 0.06 * seg.figureHeight; // 腕は体からやや外へ
+  const armDx = 0.075 * seg.figureHeight; // 腕は体からやや外へ(手首が股関節の点と重ならないよう少し開く。第46弾FB)
   const j = {
     hip: { x: 0, y: 0, z: 0 },
     spineTop: { x: 0, y: shoulderY, z: 0 },

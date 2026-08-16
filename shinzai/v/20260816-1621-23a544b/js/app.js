@@ -160,11 +160,11 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   viewRow.append(fitBtn, zoomInBtn, zoomOutBtn, viewResetBtn);
   // 操作の補助: まっすぐ動かす(縦横ロック)・大きく表示(第33弾FB)
   const aidRow = h('div', 'aid-buttons');
-  const axisBtn = h('button', 'toggle axis-lock-btn', 'まっすぐ動かす(縦横ロック)');
+  const axisBtn = h('button', 'toggle axis-lock-btn', 'まっすぐ動かす');
   axisBtn.type = 'button'; axisBtn.setAttribute('aria-pressed', String(uiAids.axisLock));
   const bigBtn = h('button', 'toggle big-view-btn', '大きく表示');
   bigBtn.type = 'button'; bigBtn.setAttribute('aria-pressed', String(uiAids.big));
-  const mirrorBtn = h('button', 'toggle mirror-btn', '左右対称に動かす');
+  const mirrorBtn = h('button', 'toggle mirror-btn', '左右対称');
   mirrorBtn.type = 'button'; mirrorBtn.setAttribute('aria-pressed', String(uiAids.mirror));
   aidRow.append(axisBtn, mirrorBtn, bigBtn);
   // 詳しい説明は折りたたみ(縦長対策。第27弾FB)
@@ -193,22 +193,22 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   };
   const twistUp = mkTwist('twistUpper', '上半身(肩)のひねり', 'twist-upper');
   const twistLo = mkTwist('twistLower', '腰(骨盤)のひねり', 'twist-lower');
-  const fitNote = h('p', 'hint fit-note', '骨格合わせ中はひねり・関節リセットは使えません(合わせを終えるか取り込むと使えます)。');
+  const fitNote = h('p', 'hint fit-note', '');
   fitNote.hidden = true;
   // ポーズ中は骨長固定で位置合わせができない → 骨格合わせ(ロック済み)へのショートカット(第28弾FB)
-  const toFitBtn = h('button', 'ghost to-fit-btn', '骨格の位置・長さを直す(参考画像に合わせる)');
+  const toFitBtn = h('button', 'ghost to-fit-btn', '骨格を画像に合わせ直す');
   toFitBtn.type = 'button';
   const toFitRow = h('div', 'to-fit-row');
   toFitRow.append(toFitBtn);
   // 骨格合わせの終了操作を図のすぐ上に置く(上の「キャラクターの設定」まで戻らなくてよい。第29弾FB)
   const fitLockBtn = h('button', 'toggle fit-lock-btn', '位置をロック');
   fitLockBtn.type = 'button';
-  const fitDoneBtn = h('button', 'fit-done-btn', 'この骨格を体型に取り込む(合わせを終える)');
+  const fitDoneBtn = h('button', 'fit-done-btn', '取り込んで終える');
   fitDoneBtn.type = 'button';
   const fitCancelBtn = h('button', 'ghost fit-cancel-btn', '取り込まずに終える');
   fitCancelBtn.type = 'button';
   // 腕・脚の関節は既定で「回す(持ち上げる)」。長さを変えるときだけON(第45弾FB「腕が伸びる」)
-  const fitFreeBtn = h('button', 'toggle fit-free-btn', '長さも動かす(腕・脚を伸縮)');
+  const fitFreeBtn = h('button', 'toggle fit-free-btn', '長さも動かす');
   fitFreeBtn.type = 'button';
   const fitActions = h('div', 'fit-actions');
   fitActions.append(fitLockBtn, fitDoneBtn, fitCancelBtn, fitFreeBtn);
@@ -221,8 +221,8 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   const views = h('div', 'views');
   root.append(views);
 
-  const GUIDE_IDLE = '関節をドラッグでポーズ(骨の長さは固定)。股をドラッグすると骨格全体が移動します。首や胴の長さ・位置を直すには「骨格の位置・長さを直す」。';
-  const GUIDE_POSED = 'ポーズ中(骨の長さは不変=切り出し寸法はそのまま。図は曲げ位置の指示)。';
+  const GUIDE_IDLE = '関節をドラッグでポーズ。股で全体移動。';
+  const GUIDE_POSED = 'ポーズ中(骨の長さは不変。切り出し寸法はそのまま)。';
   const renderViews = () => {
     const isCalc = root.id === 'calcOutput';
     const fitOn = isCalc && fitState.on;
@@ -264,7 +264,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     // 骨格合わせ中はひねり・関節リセットを無効表示(隠すと「消えた」と見えるため。第27弾FB)
     for (const n of [twistUp.row, twistLo.row, poseButtons]) n.classList.toggle('is-disabled', fitOn);
     for (const el2 of [twistUp.input, twistUp.zero, twistLo.input, twistLo.zero, resetOne, resetAll, jointSel]) el2.disabled = fitOn;
-    fitNote.hidden = !fitOn;
+    fitNote.hidden = true; // 文字量削減(第47弾FB): 無効表示で伝わるので注記は出さない
     fitActions.hidden = !fitOn;
     fitLockBtn.setAttribute('aria-pressed', String(fitState.locked));
     fitFreeBtn.setAttribute('aria-pressed', String(uiAids.fitFree));
@@ -279,7 +279,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
     if (fitOn) {
-      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格合わせ中: 正面図の点を参考画像に合わせたら、') + '下の「この骨格を体型に取り込む(合わせを終える)」で終了します。';
+      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格合わせ中: 点を画像に合わせ、') + '「取り込んで終える」で終了。';
       fitIntro = '';
     } else if (poseState.on) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
@@ -657,7 +657,7 @@ function setRefImage(dataUrl) {
   syncRefButtons();
   // 画像を選んだら、そのまま「参考画像に骨格を合わせる」に入る(最初にやることを1つにする。第30弾FB)
   if (!fitState.on) {
-    fitFlash = '参考画像を選びました。背景ドラッグ・2本指で画像を合わせ、正面図の点(頭頂・首のつけ根・肩・股・ヒザ・足首…)をキャラクターに重ねてください。';
+    fitFlash = '参考画像を選びました。画像を合わせ、点をキャラクターに重ねてください。';
     enterFit(false);
   }
 }
@@ -700,7 +700,7 @@ function initFit() {
   $('fitToggle').addEventListener('click', () => {
     if (fitState.on) {
       exitFit();
-      fitFlash = '骨格合わせを終了しました(体型には取り込んでいません)。';
+      fitFlash = '骨格合わせを終了しました(取り込みなし)。';
       sync(); renderCalc(); return;
     }
     enterFit(false);
@@ -747,7 +747,7 @@ function initFit() {
       const st = poseStates.get($('calcOutput'));
       if (st) { st.joints = null; st.on = true; } // 骨長が変わるのでポーズは直立から。取り込んだらすぐポーズを付けられるようにON
       sync();
-      fitFlash = '骨格合わせを終了し、体型に取り込みました。「ポーズを取る」でポーズを付けられます。';
+      fitFlash = '体型に取り込みました。ポーズを付けられます。';
       setImportedRatios(ratios); // renderCalc → 再描画
       errBox.hidden = true;
     } catch (e) {
@@ -786,7 +786,7 @@ function initRefImage() {
     calcFig()?.setDragTarget('view');
     syncRefButtons();
     // 画像を消したら合わせる対象がなくなるので骨格合わせも終える(取り込まない)
-    if (fitState.on) { exitFit(); fitFlash = '参考画像を消したので骨格合わせを終了しました(体型には取り込んでいません)。'; fitSync(); renderCalc(); }
+    if (fitState.on) { exitFit(); fitFlash = '参考画像を消したので骨格合わせを終了しました(取り込みなし)。'; fitSync(); renderCalc(); }
   });
   syncRefButtons();
 }
