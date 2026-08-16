@@ -79,10 +79,23 @@ export function createPoseFigure(container, seg, opts = {}) {
   // 太さの基準: 肩幅と頭高×1.5の小さい方(肩幅だけ広げても頭が埋まらない)
   const unit = Math.min(seg.shoulderWidth, seg.head * 1.5) * k;
   // 肉付けのボリューム(第52弾FB): body=肉付き(0細め/1標準/2ふくよか)、muscle=筋肉(0標準/1多め/2かなり)、bust=バスト(0なし〜3大)
-  const vol = { body: 1, muscle: 0, bust: 1, ...(opts.volume ?? {}) };
-  const bodyMul = [0.86, 1, 1.16][vol.body] ?? 1;
-  const muscleMul = [1, 1.12, 1.25][vol.muscle] ?? 1;
-  const bulgeMul = [1, 1.7, 2.4][vol.muscle] ?? 1;
+  // 値は連続(スライダー。第53弾FB): body 0〜2(1=標準)、muscle 0〜2(0=標準)、bust 0〜1
+  const vol = { body: 1, muscle: 0, bust: 0.35, ...(opts.volume ?? {}) };
+  const lerp3 = (a, b, c, x) => (x <= 1 ? a + (b - a) * x : b + (c - b) * (x - 1));
+  const bodyMul = lerp3(0.86, 1, 1.16, Math.min(2, Math.max(0, vol.body)));
+  const muscleMul = lerp3(1, 1.12, 1.25, Math.min(2, Math.max(0, vol.muscle)));
+  const bulgeMul = lerp3(1, 1.7, 2.4, Math.min(2, Math.max(0, vol.muscle)));
+  const bustAmt = Math.min(1, Math.max(0, vol.bust));
+  // バストの形状パラメータ(第55弾FB): proj=張り出し倍率, apex=頂点の高さ(0上〜1下), top=上側の丸み, bot=下側の丸み, tip=尖り
+  const BUST_SHAPES = {
+    bowl: { proj: 1.0, apex: 0.55, top: 0.5, bot: 0.85, tip: 0.1 },
+    plate: { proj: 0.6, apex: 0.5, top: 0.6, bot: 0.6, tip: 0.05 },
+    pyramid: { proj: 1.05, apex: 0.5, top: 0.15, bot: 0.5, tip: 0.6 },
+    hemi: { proj: 1.15, apex: 0.5, top: 0.85, bot: 0.9, tip: 0 },
+    goat: { proj: 1.0, apex: 0.8, top: 0.3, bot: 0.75, tip: 0.3 },
+    cone: { proj: 1.25, apex: 0.5, top: 0.1, bot: 0.4, tip: 0.8 },
+  };
+  const bshape = BUST_SHAPES[vol.bustShape] ?? BUST_SHAPES.bowl;
   const limbMul = bodyMul * muscleMul;
   const W = {
     arm: Math.max(4, unit * 0.3 * limbMul), fore: Math.max(3, unit * 0.24 * limbMul),
@@ -245,12 +258,12 @@ export function createPoseFigure(container, seg, opts = {}) {
         add(add(hp, mul(pelvUp, -thighTopHalf * 1.02)), mul(pelvSide, -hipHalfW * 0.9)),
         add(add(hp, mul(pelvUp, torsoH * 0.02)), mul(pelvSide, -hipHalfW)),
       ], [ww * 0.5, ww * 0.5, thighTopHalf * 0.6, thighTopHalf * 0.7, thighTopHalf * 0.7, thighTopHalf * 0.6]);
-      // バスト(正面): 胸ブロックの上に丸み2つ(なし/小/中/大)
-      const bustR = [0, 0.3, 0.4, 0.5][vol.bust] ?? 0;
-      const bust = bustR > 0 ? ['L', 'R'].map((side, i) => {
-        const sgn = i === 0 ? -1 : 1;
-        const c = cAt(-torsoH * 0.28, sgn * shHalf * 0.42);
-        return { c, rx: shHalf * bustR, ry: shHalf * bustR * 0.9, ang: (Math.atan2(chestSide.y, chestSide.x) * 180) / Math.PI };
+      // バスト(正面): 人体模型を参考に、肩線のやや下・胸の中央寄りに丸み2つ。単色シルエットでは内側の形が見えないので
+      // わずかに濃い影として描く(大きいときは輪郭も少し外へ)。第53弾FB
+      const bustR = shHalf * (0.22 + 0.36 * bustAmt) * (0.85 + 0.15 * bshape.proj);
+      const bust = bustAmt > 0.02 ? [-1, 1].map((sgn) => {
+        const c = cAt(-torsoH * (0.2 + 0.08 * bustAmt + 0.08 * bshape.apex), sgn * shHalf * (0.36 + 0.06 * bustAmt));
+        return { c, rx: bustR * (1 - 0.1 * bshape.tip), ry: bustR * (1.02 + 0.1 * bshape.apex), ang: (Math.atan2(chestSide.y, chestSide.x) * 180) / Math.PI };
       }) : [];
       return { chest, abdomen, pelvis, bust };
     }
@@ -261,18 +274,35 @@ export function createPoseFigure(container, seg, opts = {}) {
     const d = W.depth;
     const nk2 = toPx(joints.neck, view);
     const neckLen2 = Math.hypot(nk2.x - st.x, nk2.y - st.y);
-    // 側面の胸: 首の付け根から背中側へなだらかに(僧帽筋)、胸側は少し前へ
+    // 側面の胸: 首の付け根から背中側へなだらかに(僧帽筋)。前面は鎖骨あたりから胸(バスト)の膨らみへ続き、
+    // 下でまた胴へ戻る一続きの曲線にする(別パーツの丸を付けない。第54弾FB 手描き指示)
     const sAt = (t, s2) => add(add(st, mul(up, t)), mul(fwd, s2));
-    const chest = roundedPoly([
-      sAt(neckLen2 * 0.5, -W.neck * 0.5), sAt(neckLen2 * 0.5, W.neck * 0.45),
-      sAt(W.arm * 0.05, d * 0.5), sAt(-torsoH * 0.52, d * 0.38), sAt(-torsoH * 0.52, -d * 0.36), sAt(W.arm * 0.12, -d * 0.5),
-    ], [W.neck * 0.4, W.neck * 0.4, d * 0.28, d * 0.2, d * 0.2, d * 0.3]);
+    // 形状パラメータで前面曲線を作る(真っ直ぐ伸びる区間を作らない。第55弾FB)
+    const out = d * (0.04 + 0.5 * bustAmt) * bshape.proj; // 張り出し量
+    const tC = -W.arm * 0.2; // 鎖骨〜上胸(膨らみの始まり)
+    const tU = -torsoH * 0.44; // アンダー(胴へ戻る高さ)
+    const tA = tC + (tU - tC) * (0.35 + 0.45 * bshape.apex) - torsoH * 0.04 * bustAmt; // 頂点の高さ(形状で上下)
+    const fTop = d * 0.42; // 鎖骨あたりの前面
+    const fBot = d * 0.36; // 胸の下端の前面
+    const tipPull = 1 - 0.4 * bshape.tip; // 尖り: 頂点手前の制御点を引く(1=丸い)
+    const chest = `M ${P(sAt(neckLen2 * 0.5, -W.neck * 0.5))}`
+      + ` L ${P(sAt(neckLen2 * 0.5, W.neck * 0.45))}`
+      + ` Q ${P(sAt(W.arm * 0.1, fTop))} ${P(sAt(tC, fTop))}` // 鎖骨〜上胸
+      // 上側: 直線的(top小)〜丸い(top大)。頂点で尖り具合を制御
+      + ` C ${P(sAt(tC + (tA - tC) * 0.45, fTop + out * (0.05 + 0.55 * bshape.top)))} ${P(sAt(tA + (tC - tA) * 0.28, fTop + out * tipPull))} ${P(sAt(tA, fTop + out))}`
+      // 下側: 丸く戻る(bot大ほど下ぶくれ)。ヤギ型は頂点が低く下は短い
+      + ` C ${P(sAt(tA + (tU - tA) * 0.3, fTop + out * tipPull))} ${P(sAt(tU + (tA - tU) * 0.15, fBot + out * (0.1 + 0.6 * bshape.bot)))} ${P(sAt(tU, fBot))}`
+      + ` L ${P(sAt(-torsoH * 0.52 + d * 0.12, fBot))}`
+      + ` Q ${P(sAt(-torsoH * 0.52, fBot))} ${P(sAt(-torsoH * 0.52, fBot - d * 0.12))}`
+      + ` L ${P(sAt(-torsoH * 0.52, -d * 0.36 + d * 0.12))}`
+      + ` Q ${P(sAt(-torsoH * 0.52, -d * 0.36))} ${P(sAt(-torsoH * 0.52 + d * 0.12, -d * 0.36))}`
+      + ` L ${P(sAt(-W.arm * 0.4, -d * 0.5))}` // 背中
+      + ` Q ${P(sAt(W.arm * 0.12, -d * 0.5))} ${P(sAt(neckLen2 * 0.25, -W.neck * 0.7))}` // 僧帽筋
+      + ' Z';
     const abdomen = blockPath(add(hp, mul(fwd, d * 0.02)), up, fwd, torsoH * 0.62, torsoH * 0.12, d * 0.34, d * 0.35, d * 0.2);
     const pelvis = blockPath(add(hp, mul(fwd, -d * 0.05)), up, fwd, torsoH * 0.42, -thighTopHalf * 1.02, d * 0.36, d * 0.5, [d * 0.2, d * 0.28]);
-    // バスト(側面): 胸の前への張り出し
-    const bustF = [0, 0.16, 0.26, 0.36][vol.bust] ?? 0;
-    const bust = bustF > 0 ? [{ c: sAt(-torsoH * 0.28, d * 0.32), rx: d * bustF, ry: torsoH * 0.11, ang: (Math.atan2(fwd.y, fwd.x) * 180) / Math.PI }] : [];
-    return { chest, abdomen, pelvis, bust };
+    // 側面のバストは胸ブロックの前面輪郭に含めた(別パーツなし)
+    return { chest, abdomen, pelvis, bust: [] };
   }
 
   // 手・足の参考輪郭(骨の延長線上に置く)
@@ -326,7 +356,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const svg = el('svg', {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
       preserveAspectRatio: bigView && interactive ? 'xMidYMid slice' : 'xMidYMid meet',
-      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView && interactive ? ' big' : ''}`,
+      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView && interactive ? ' big' : ''}${view === 'front' ? '' : ' side'}`,
       role: 'img',
       'aria-label': `骨格図(${VIEWS.find((v) => v[0] === view)[1]})`,
     });

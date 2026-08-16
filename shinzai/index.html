@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260816-1739-ed63325">
+<meta name="build" content="20260816-1757-6e49b8a">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260816-1739-ed63325/css/style.css">
+<link rel="stylesheet" href="v/20260816-1757-6e49b8a/css/style.css">
 </head>
 <body>
 <header>
@@ -50,17 +50,17 @@
         </div>
       </div>
       <div class="row fit-row">
-        <label>骨格を合わせる</label>
+        <label>骨格</label>
         <div class="ref-controls">
-          <button type="button" id="fitToggle" class="toggle" aria-pressed="false">参考画像に骨格を合わせる</button>
+          <button type="button" id="fitToggle" class="toggle" aria-pressed="false">骨格を調整する</button>
           <button type="button" id="fitLock" class="toggle" aria-pressed="false" hidden>位置をロック</button>
           <button type="button" id="fitImport" hidden>この骨格を体型に取り込む</button>
         </div>
       </div>
       <details class="how">
-        <summary>使い方(参考画像・骨格合わせ)</summary>
-        <p class="hint">参考画像(立ち絵など)を選ぶと、骨格図の正面図の背面に半透明で表示され、そのまま「参考画像に骨格を合わせる」に入ります。背景ドラッグ・2本指で画像の位置と大きさを合わせ、正面図の点をキャラクターに重ねたら、図の上の「取り込んで終える」で終了します。画像は端末内でのみ処理され、送信・保存されません。</p>
-        <p class="hint">「参考画像に骨格を合わせる」をオンにすると、骨格図の正面図で関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます(股を動かすと骨格全体が移動。頭頂は上下だけ=頭の大きさ、首は首のつけ根の真上に立ちます)。ヒジ・手首・ヒザ・足首は既定では骨の長さを保って回ります(持ち上げる動き)。長さを画像に合わせたいときは図の上の「長さも動かす」をONにしてください。大まかに合わせたら「位置をロック」をオンにすると、参考画像と骨格の位置関係が固定され、関節の点以外は動かなくなります(背景ドラッグでも動かず、股のドラッグは骨盤だけの移動)。参考画像のキャラクターに合わせて「この骨格を体型に取り込む」を押すと、頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。取り込み後は「ポーズを取る」になり、股のドラッグで骨格全体を動かせます(首や胴の長さを直すときは「骨格を画像に合わせ直す」でここに戻れます)。</p>
+        <summary>使い方(参考画像・骨格の調整)</summary>
+        <p class="hint">参考画像(立ち絵など)を選ぶと、骨格図の正面図の背面に半透明で表示され、そのまま「骨格を調整する」に入ります。背景ドラッグ・2本指で画像の位置と大きさを合わせ、正面図の点をキャラクターに重ねたら、図の上の「取り込んで終える」で終了します。画像は端末内でのみ処理され、送信・保存されません。</p>
+        <p class="hint">「骨格を調整する」をオンにすると、骨格図の正面図で関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます(股を動かすと骨格全体が移動。頭頂は上下だけ=頭の大きさ、首は首のつけ根の真上に立ちます)。ヒジ・手首・ヒザ・足首は既定では骨の長さを保って回ります(持ち上げる動き)。長さを画像に合わせたいときは図の上の「長さも動かす」をONにしてください。大まかに合わせたら「位置をロック」をオンにすると、参考画像と骨格の位置関係が固定され、関節の点以外は動かなくなります(背景ドラッグでも動かず、股のドラッグは骨盤だけの移動)。参考画像のキャラクターに合わせて「この骨格を体型に取り込む」を押すと、頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。取り込み後は「ポーズを取る」になり、股のドラッグで骨格全体を動かせます(首や胴の長さを直すときは「骨格を調整する」でここに戻れます)。</p>
       </details>
       <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
 
@@ -122,6 +122,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260816-1739-ed63325/js/app.js"></script>
+<script type="module" src="v/20260816-1757-6e49b8a/js/app.js"></script>
 </body>
 </html>
