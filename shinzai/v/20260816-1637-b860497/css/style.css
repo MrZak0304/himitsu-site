@@ -439,3 +439,8 @@ a { color: var(--thread); }
 /* iOS Safari は 16px 未満のフォーム部品にフォーカスするとページを自動ズームし、横スクロールが発生する(第36弾FBのスクショ)。
    セレクト・入力は 16px 以上に固定 */
 input, select, textarea, .pose-one-row .joint-select { font-size: max(16px, 1em); }
+
+/* 使い方(折りたたみ。文字量削減。第47弾FB) */
+details.how { margin: 4px 0 8px; }
+details.how summary { cursor: pointer; font-size: 0.85rem; color: #6d5f4b; }
+details.how .hint { margin: 6px 0; }
