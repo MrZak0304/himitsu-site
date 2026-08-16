@@ -320,3 +320,26 @@ export function twistLower(joints, lengths, deltaDeg) {
   const ids = ['hipL', 'hipR', ...descendants('hipL'), ...descendants('hipR')];
   return rotateAroundSpine(joints, lengths, deltaDeg, ids, joints.hip);
 }
+
+// 骨格合わせ(正面図・2D)で置いた関節の「向き」を保ったまま、新しい骨長(取り込み後の体型)でポーズを組み立てる。
+// 取り込み後に腕・脚の位置が直立に戻って参考画像とズレるのを防ぐ(第32弾FB「腰や肩がうまく取り込めない」)。
+// target: 正面図の px 座標 { id: {x,y} }(y は下向き。向きだけ使うので単位は問わない)。
+// 首・頭頂・つま先は直立時の相対位置(首の軸は垂直、つま先は前)をそのまま使う。
+export function poseFromFit(rest, target) {
+  const out = { hip: { ...rest.hip } };
+  const order = [];
+  const visit = (id) => { if (id === 'hip' || order.includes(id)) return; visit(PARENT[id]); order.push(id); };
+  for (const id of Object.keys(PARENT)) visit(id);
+  for (const id of order) {
+    const p = PARENT[id];
+    const restOff = sub(rest[id], rest[p]);
+    const t = target?.[id]; const tp = target?.[p];
+    const useRest = id === 'neck' || id === 'top' || id.startsWith('toe') || !t || !tp;
+    const d = useRest ? null : { x: t.x - tp.x, y: t.y - tp.y };
+    const dl = d ? Math.hypot(d.x, d.y) : 0;
+    if (!d || dl < 1e-6) { out[id] = add(out[p], restOff); continue; }
+    const L = len(restOff);
+    out[id] = add(out[p], { x: (d.x / dl) * L, y: (d.y / dl) * L, z: 0 });
+  }
+  return out;
+}

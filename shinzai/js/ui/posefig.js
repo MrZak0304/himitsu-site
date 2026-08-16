@@ -255,11 +255,11 @@ export function createPoseFigure(container, seg, opts = {}) {
     if (interactive && (!fitMode || view === 'front')) {
       // ポーズ中も股は掴める(骨格全体の平行移動。第30弾FB: 位置を直したいのに何も起きない/回転する)
       // 骨格合わせの「あご」の点は廃止(首の軸が斜めになって不自然。第31弾FB)。首は常に首のつけ根の真上
-      const ids = fitMode ? ['top', 'hip', ...DRAGGABLE] : ['hip', ...DRAGGABLE];
+      const ids = dragIds(view);
       for (const id of ids) {
-        const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 22 });
+        const hit = el('circle', { class: 'pose-hit', 'data-joint': id, r: 24 });
         const t = el('title'); t.textContent = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id]; hit.append(t);
-        hit.addEventListener('pointerdown', (ev) => startDrag(ev, id, view));
+        hit.addEventListener('pointerdown', (ev) => startDrag(ev, nearestJoint(view, localPoint(svg, view, ev), id) ?? id, view));
         jointsG.append(el('circle', { class: 'pose-dot', 'data-joint': id, r: 6 }), hit);
       }
       svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
@@ -307,10 +307,37 @@ export function createPoseFigure(container, seg, opts = {}) {
   // 背景ドラッグ=パン、2本指=ピンチズーム(関節のドラッグは stopPropagation されるのでここへ来ない)
   const pointers = new Map();
   let pinchStart = null;
+  // その面で掴める関節(骨格合わせは正面図だけ。あごは廃止=首の軸は垂直固定)
+  function dragIds(view) {
+    if (!interactive) return [];
+    if (fitMode) return view === 'front' ? ['top', 'hip', ...DRAGGABLE] : [];
+    return ['hip', ...DRAGGABLE];
+  }
+  // 指の位置にいちばん近い関節(点が小さくて掴みづらい・隣の点を掴んでしまう対策。第32弾FB)
+  const GRAB_R = 34;
+  // prefer: 当たり判定の円そのものの関節。側面図で左右が重なる場合などはそちらを優先する
+  function nearestJoint(view, local, prefer = null) {
+    let best = null; let bd = GRAB_R;
+    for (const id of dragIds(view)) {
+      const q = toPx(joints[id], view);
+      const d = Math.hypot(q.x - local.x, q.y - local.y);
+      if (d < bd) { bd = d; best = id; }
+    }
+    if (prefer && best && best !== prefer) {
+      const q = toPx(joints[prefer], view);
+      if (Math.hypot(q.x - local.x, q.y - local.y) <= bd + 1) return prefer;
+    }
+    return best;
+  }
   function startPan(ev, view) {
     if (ev.target.classList?.contains('pose-hit')) return;
-    ev.preventDefault();
     const svg = svgs[view];
+    // 点を少し外しても、近くに関節があればその関節を掴む(背景パンに化けない)
+    if (interactive && pointers.size === 0) {
+      const near = nearestJoint(view, localPoint(svg, view, ev));
+      if (near) { startDrag(ev, near, view); return; }
+    }
+    ev.preventDefault();
     // 「参考画像を動かす」モードでは正面図の背景操作は参考画像に対して行う
     const onOverlay = dragTarget === 'overlay' && view === 'front' && overlayState?.src;
     if (!interactive && !onOverlay) return; // 通常表示では図は動かさない
@@ -555,6 +582,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const pointerId = ev.pointerId;
     try { ev.currentTarget.setPointerCapture(pointerId); } catch { /* window監視で継続 */ }
     lastJoint = id;
+    for (const sv of Object.values(svgs)) sv.querySelector(`.pose-dot[data-joint=${id}]`)?.classList.add('is-active');
     const label = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id];
     opts.onJointPick?.(id, label);
     // 注意: ドラッグ中に案内文を書き換えると行数変化で図が上下に動き、指の下の座標がずれて関節が飛ぶ
@@ -589,12 +617,20 @@ export function createPoseFigure(container, seg, opts = {}) {
           if (id === 'top') {
             moved.top = { x: joints.spineTop.x, y: Math.min(uv.v, joints.spineTop.y - 0.5), z: joints.top.z };
           } else {
-            const dx = uv.u - joints.spineTop.x;
+            const dx = uv.u - joints.spineTop.x; const dy = uv.v - joints.spineTop.y;
             moved.spineTop = { x: uv.u, y: uv.v, z: joints.spineTop.z };
             moved.top = { x: joints.top.x + dx, y: Math.min(joints.top.y, uv.v - 0.5), z: joints.top.z };
+            // 肩は首のつけ根の線上(芯材はT字)。首のつけ根を動かすと肩も一緒に動く(ヒジ・手首は画像に置いたまま)
+            for (const sh of ['shoulderL', 'shoulderR']) moved[sh] = { x: joints[sh].x + dx, y: joints[sh].y + dy, z: joints[sh].z };
           }
           moved.neck = { x: moved.spineTop.x, y: moved.top.y + frac * (moved.spineTop.y - moved.top.y), z: joints.neck.z };
           joints = moved;
+          redraw();
+          return;
+        }
+        if (id === 'shoulderL' || id === 'shoulderR') {
+          // 肩は左右(幅)だけ動かし、高さは首のつけ根の線に揃える(取り込み後に肩線がずれない。第32弾FB)
+          joints = { ...joints, [id]: { x: uv.u, y: joints.spineTop.y, z: joints[id].z } };
           redraw();
           return;
         }
@@ -626,6 +662,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      for (const sv of Object.values(svgs)) sv.querySelector(`.pose-dot[data-joint=${id}]`)?.classList.remove('is-active');
       opts.onStatus?.(statusText);
       opts.onPoseChange?.(joints, isPosed(joints, rest)); // ポーズモードでは案内文(寸法不変)がこちらで上書きされる
       // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)。

@@ -9,7 +9,7 @@ import {
   loadPresets, savePreset, deletePreset, hasPreset, STORE_KEY,
 } from './core/presets-store.js';
 import { createPoseFigure } from './ui/posefig.js';
-import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS } from './core/pose3d.js';
+import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS, restPose, poseFromFit } from './core/pose3d.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
 
@@ -175,7 +175,15 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       interactive: poseState.on || fitOn,
       mode: fitOn ? 'fit' : 'pose',
       fitLocked: fitOn && fitState.locked,
-      initialJoints: fitOn ? fitState.joints : (poseState.on ? poseState.joints : null),
+      initialJoints: (() => {
+        if (fitOn) return fitState.joints;
+        if (root.id === 'calcOutput' && pendingFitPose) {
+          // 取り込み直後: 合わせた関節の向きを保ったまま新しい骨長でポーズを組む(参考画像とズレない)
+          poseState.joints = poseFromFit(restPose(result.segments), pendingFitPose);
+          pendingFitPose = null;
+        }
+        return poseState.on ? poseState.joints : null;
+      })(),
       onStatus: (t) => { poseHint.textContent = t; },
       onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
@@ -569,6 +577,7 @@ function setRefImage(dataUrl) {
 // 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
 let fitSync = () => {};
 let fitFlash = ''; // 骨格合わせ終了時の一言(次の描画で1回だけ表示)
+let pendingFitPose = null; // 取り込み直後にポーズへ引き継ぐ正面図の関節位置(px)
 function enterFit(locked) {
   fitState.on = true;
   fitState.locked = !!locked;
@@ -636,10 +645,16 @@ function initFit() {
         const scale = (std.soleY - std.topY) / Math.max(1, soleY - topY);
         const ov = refImage.overlay;
         const c0 = { x: 170 + ov.t.x, y: 230 + ov.t.y }; // 現在の中心(VIEW_W/2, VIEW_H/2 基準)
-        const anchor = { x: px.hip.x, y: topY };
-        const c1 = { x: std.hipX + (c0.x - anchor.x) * scale, y: std.topY + (c0.y - anchor.y) * scale };
+        // 股を基準に合わせる(取り込み後の骨格は股を root にポーズを引き継ぐため、股が正確に重なる)
+        const stdHipY = std.topY + (std.soleY - std.topY) * ratios.hipTop;
+        const anchor = { x: px.hip.x, y: px.hip.y };
+        const c1 = { x: std.hipX + (c0.x - anchor.x) * scale, y: stdHipY + (c0.y - anchor.y) * scale };
         refImage.overlay = { ...ov, s: ov.s * scale, t: { x: c1.x - 170, y: c1.y - 230 } };
       }
+      // 合わせた関節の向きをポーズとして引き継ぐ(腕・脚の位置が直立に戻らない)
+      pendingFitPose = px;
+      // 取り込んだ体型がそのまま出るよう、体型調整(頭身など)は既定に戻す(取り込み前の調整が上書きしないように)
+      adjustments = { ...DEFAULT_ADJUSTMENTS };
       exitFit();
       const st = poseStates.get($('calcOutput'));
       if (st) { st.joints = null; st.on = true; } // 骨長が変わるのでポーズは直立から。取り込んだらすぐポーズを付けられるようにON
