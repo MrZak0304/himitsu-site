@@ -24,7 +24,15 @@ const refImage = { overlay: null, dragTarget: 'view' };
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
 const fitState = { on: false, joints: null, locked: false };
-const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
+const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false };
+// 肉付けのボリューム(キャラクターごと。保存データに含める。第52弾FB)
+const VOLUME_DEFS = [
+  { key: 'body', label: '肉付き', min: 0, max: 2, step: 0.05, def: 1, fmt: (v) => (v < 0.75 ? '細め' : v > 1.25 ? 'ふくよか' : '標準') },
+  { key: 'muscle', label: '筋肉', min: 0, max: 2, step: 0.05, def: 0, fmt: (v) => (v < 0.5 ? '標準' : v < 1.5 ? '多め' : 'かなり') },
+  { key: 'bust', label: 'バスト', min: 0, max: 1, step: 0.01, def: 0.35, fmt: (v) => (v < 0.05 ? 'なし' : v < 0.35 ? '小' : v < 0.7 ? '中' : '大') },
+];
+const DEFAULT_VOLUME = Object.fromEntries(VOLUME_DEFS.map((d) => [d.key, d.def]));
+let fleshVolume = { ...DEFAULT_VOLUME }; // 操作の補助(まっすぐ動かす・大きく表示)。第33弾FB
 // 肉付けの色・透け具合(第38弾FB)。端末内に保存
 const FLESH_COLORS = [
   { key: 'skin', label: '肌色', value: '#e6c9a5' },
@@ -132,6 +140,29 @@ function renderResultInto(root, result, { showScale = true } = {}) {
   opRange.addEventListener('input', () => { fleshStyle.opacity = Number(opRange.value) / 100; applyFleshStyle(); });
   opRange.addEventListener('change', saveFleshStyle);
   fleshOpts.append(h('span', '', '肉付けの色'), swatches, opLabel, opRange);
+  // ボリューム(肉付き・筋肉・バスト)
+  const volRow = h('div', 'flesh-volume');
+  for (const d of VOLUME_DEFS) {
+    const lab = document.createElement('label');
+    lab.append(h('span', '', d.label));
+    const rng = document.createElement('input');
+    rng.type = 'range'; rng.min = String(d.min); rng.max = String(d.max); rng.step = String(d.step);
+    rng.className = `vol-${d.key}`;
+    const v0 = Number.isFinite(fleshVolume[d.key]) ? fleshVolume[d.key] : d.def;
+    rng.value = String(v0);
+    const val = h('span', 'vol-val', d.fmt(v0));
+    rng.setAttribute('aria-label', `肉付けの${d.label}`);
+    // スライダー中は描画だけ更新(関節位置はそのまま)。入力ごとに再生成すると重いので rAF でまとめる
+    let raf = 0;
+    rng.addEventListener('input', () => {
+      fleshVolume[d.key] = Number(rng.value);
+      val.textContent = d.fmt(fleshVolume[d.key]);
+      if (!raf) raf = requestAnimationFrame(() => { raf = 0; renderViews(); });
+    });
+    lab.append(rng, val);
+    volRow.append(lab);
+  }
+  fleshOpts.append(volRow);
   root.append(fleshOpts);
 
   // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
@@ -246,6 +277,7 @@ function renderResultInto(root, result, { showScale = true } = {}) {
       axisLock: uiAids.axisLock,
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
+      volume: fleshVolume,
       big: uiAids.big,
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
@@ -526,6 +558,7 @@ function currentSaveData() {
     scaleDen: $('scale').value,
     targetHeightCm: Number($('targetHeight').value),
     importedRatios: importedRatios ? { ...importedRatios } : null,
+    fleshVolume: { ...fleshVolume },
   };
 }
 
@@ -564,6 +597,7 @@ function loadSaved(item) {
   if (Number.isFinite(d.targetHeightCm)) $('targetHeight').value = d.targetHeightCm;
   adjustments = { ...DEFAULT_ADJUSTMENTS, ...(d.adjustments ?? {}) };
   importedRatios = d.importedRatios && typeof d.importedRatios === 'object' ? { ...d.importedRatios } : null;
+  fleshVolume = { ...DEFAULT_VOLUME, ...(d.fleshVolume ?? {}) };
   syncImportedNote();
   buildAdjustSliders();
   syncModeRows();
@@ -582,6 +616,7 @@ function resetAll() {
   $('preset').value = 'female-adult';
   adjustments = { ...DEFAULT_ADJUSTMENTS };
   importedRatios = null;
+  fleshVolume = { ...DEFAULT_VOLUME };
   refImage.overlay = null; refImage.dragTarget = 'view';
   fitState.on = false; fitState.locked = false; fitState.joints = null; fitState.resumePose = false;
   pendingFitPose = null;
