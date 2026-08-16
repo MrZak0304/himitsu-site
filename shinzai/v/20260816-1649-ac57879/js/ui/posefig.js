@@ -197,13 +197,17 @@ export function createPoseFigure(container, seg, opts = {}) {
       const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
       const nw = W.neck * 0.62; // 首の半幅
       const cAt = (t, s2) => add(add(st, mul(chestUp, t)), mul(chestSide, s2));
-      const shOut = shHalf * 0.98 + W.arm * 0.12;
+      // 肩の外縁は上腕の付け根の外縁と一致させ、丸みは上腕のキャップに任せる(肩の出っ張りをなくす。第48弾FB)
+      // 胸の肩の角は上腕の付け根のキャップ円(半径=上腕半幅、中心=肩関節)の内側に収め、肩先の丸みはキャップだけで作る
+      // (角が短辺で丸め切れず尖っていた。第50弾FB)
+      const armHalf = LIMB_PROFILE.upper.w0 / 2;
       const chest = roundedPoly([
         cAt(neckLen * 0.55, -nw * 1.25), cAt(neckLen * 0.55, nw * 1.25), // 首の付け根(僧帽筋の始まり)
-        cAt(W.arm * 0.12, shOut), // 肩(僧帽筋の終わり=肩の丸みの上)
+        cAt(armHalf * 0.15, shHalf + armHalf * 0.45), // 肩の上(僧帽筋の終わり。キャップ円の内側)
+        cAt(-armHalf * 0.95, shHalf + armHalf * 0.9), // 脇の上(上腕の外縁と一致)
         cAt(-torsoH * 0.52, ww * 1.15), cAt(-torsoH * 0.52, -ww * 1.15),
-        cAt(W.arm * 0.12, -shOut),
-      ], [nw * 0.8, nw * 0.8, W.arm * 0.7, ww * 0.5, ww * 0.5, W.arm * 0.7]);
+        cAt(-armHalf * 0.95, -(shHalf + armHalf * 0.9)), cAt(armHalf * 0.15, -(shHalf + armHalf * 0.45)),
+      ], [nw * 0.8, nw * 0.8, armHalf * 0.5, armHalf * 0.5, ww * 0.5, ww * 0.5, armHalf * 0.5, armHalf * 0.5]);
       // 腹: 背骨基準。ウエスト幅の細いブロック(胸・腰の下に隠れる部分が多い)
       const abdomen = blockPath(hp, up, spineSide, torsoH * 0.62, torsoH * 0.12, ww * 0.98, ww, ww * 0.5);
       // 腰: 骨盤バー(股関節の線)を基準。ウエスト幅から股関節の高さの最大幅へなだらかに広がる台形
@@ -317,8 +321,6 @@ export function createPoseFigure(container, seg, opts = {}) {
       el('path', { class: 'torso part-abdomen' }),
       el('path', { class: 'torso part-pelvis' }),
       el('path', { class: 'torso part-chest' }),
-      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderL', r: W.arm * 0.58 }),
-      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderR', r: W.arm * 0.58 }),
     );
     flesh.append(limbs(sides[0]), torsoG, limbs(sides[1]));
     flesh.append(el('line', { class: 'neck' }), el('ellipse', { class: 'head-flesh' }));
@@ -455,19 +457,20 @@ export function createPoseFigure(container, seg, opts = {}) {
         const [a, b] = [...pointers.values()];
         const d = Math.hypot(a.x - b.x, a.y - b.y);
         const ns = Math.min(4, Math.max(0.2, (pinchStart.s * d) / (pinchStart.d || 1)));
-        // 中点を固定してズーム
-        const m = pinchStart.mid;
+        // 2本指: 開始時の中点にあった図の点を、現在の中点へ(=ズーム+移動)
+        const m0 = pinchStart.mid;
+        const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
         const t = pinchStart.t;
         if (onOverlay) {
-          // 透かしは中心基準の配置なので、中点固定は中心座標で計算する
+          // 透かしは中心基準の配置なので、中心座標で計算する
           const c0 = { x: VIEW_W / 2 + t.x, y: VIEW_H / 2 + t.y };
-          const rel = { x: (m.x - c0.x) / pinchStart.s, y: (m.y - c0.y) / pinchStart.s };
+          const rel = { x: (m0.x - c0.x) / pinchStart.s, y: (m0.y - c0.y) / pinchStart.s };
           overlayState.s = ns;
           overlayState.t = { x: m.x - rel.x * ns - VIEW_W / 2, y: m.y - rel.y * ns - VIEW_H / 2 };
           applyOverlay();
           return;
         }
-        const local = { x: (m.x - t.x) / pinchStart.s, y: (m.y - t.y) / pinchStart.s };
+        const local = { x: (m0.x - t.x) / pinchStart.s, y: (m0.y - t.y) / pinchStart.s };
         viewport.s = ns;
         viewport.t[view] = { x: m.x - local.x * ns, y: m.y - local.y * ns };
         applyViewport();
@@ -481,10 +484,7 @@ export function createPoseFigure(container, seg, opts = {}) {
         applyOverlay();
         return;
       }
-      const t = viewport.t[view] ?? { x: 0, y: 0 };
-      viewport.t[view] = { x: t.x + (p.x - last.x), y: t.y + (p.y - last.y) };
-      last = p;
-      applyViewport();
+      // 1本指の背景ドラッグでは図を動かさない(触れただけで骨格が動いて見える。第49弾FB)。図の移動・拡大は2本指かボタンで
     };
     const up = (e) => {
       pointers.delete(e.pointerId);
