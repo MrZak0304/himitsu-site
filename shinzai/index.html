@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260816-2021-69e535e">
+<meta name="build" content="20260817-0607-c7c3712">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260816-2021-69e535e/css/style.css">
+<link rel="stylesheet" href="v/20260817-0607-c7c3712/css/style.css">
 </head>
 <body>
 <header>
@@ -14,10 +14,10 @@
 </header>
 
 <main>
-  <!-- 芯材計算 -->
-  <section class="tab" data-tab="calc">
+  <!-- 1. キャラクター設定 -->
+  <section class="tab" data-tab="char">
     <section class="card">
-      <h2>キャラクターの設定</h2>
+      <h2>キャラクター設定</h2>
       <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
         <label class="mode"><input type="radio" name="sizeMode" value="target" checked>完成品のサイズから</label>
         <label class="mode"><input type="radio" name="sizeMode" value="height">設定の身長から</label>
@@ -38,7 +38,43 @@
         <label for="preset">体型</label>
         <select id="preset"></select>
       </div>
+      <p class="row" id="finishedSizeRow" hidden><span class="row-label">完成サイズ(cm)</span><strong id="finishedSize"></strong></p>
+      <p class="hint" id="presetHint">体型は 女性(約6頭身)/男性(約8頭身)/デフォルメ(約3頭身)の3種類。有料版では「骨格」ページの「体型を調整する(マイ体型)」で自由に設定できます。</p>
+      <div class="row next-row">
+        <button type="button" id="toSkel">設定 → 骨格へ</button>
+      </div>
+    </section>
+    <p id="calcError" class="error" hidden></p>
+  </section>
 
+  <!-- 2. 骨格 -->
+  <section class="tab skel-page" data-tab="skel" hidden>
+    <div class="skel-layout" id="skelLayout">
+      <div class="skel-main">
+        <div class="view-switch" id="viewSwitch" role="tablist" aria-label="図の切り替え">
+          <button type="button" data-view="front" aria-pressed="true">正面</button>
+          <button type="button" data-view="side-left" aria-pressed="false">左側面</button>
+          <button type="button" data-view="side-right" aria-pressed="false">右側面</button>
+          <button type="button" data-view="all" aria-pressed="false">三面</button>
+        </div>
+        <section class="card" id="calcOutput"></section>
+        <div class="row skel-actions">
+          <button type="button" id="skelDone">骨組み完成 → 仕上がりへ</button>
+          <button type="button" id="skelNew" class="ghost">新規作成</button>
+        </div>
+      </div>
+      <aside class="skel-side" id="skelSide" aria-label="サイドメニュー">
+        <div class="side-rail" id="sideRail">
+          <button type="button" data-sec="frame" aria-pressed="false"><span class="ico">✚</span><span class="lbl">骨組み調整</span></button>
+          <button type="button" data-sec="flesh" aria-pressed="false"><span class="ico">◐</span><span class="lbl">肉付け設定</span></button>
+          <button type="button" data-sec="pose" aria-pressed="false"><span class="ico">⟲</span><span class="lbl">ポーズ設定</span></button>
+          <button type="button" data-sec="sample" aria-pressed="false"><span class="ico">▦</span><span class="lbl">見本表示</span></button>
+        </div>
+        <div class="side-panel" id="sidePanel" hidden>
+          <button type="button" class="side-close" id="sideClose" aria-label="メニューを閉じる">×</button>
+          <section class="side-sec" data-sec="frame">
+            <h3>骨組み調整</h3>
+            <div id="secFrame"></div>
       <div class="row ref-row">
         <label>参考画像</label>
         <div class="ref-controls">
@@ -63,14 +99,34 @@
         <p class="hint">「骨格を調整する」をオンにすると、骨格図の正面図で関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます(股を動かすと骨格全体が移動。頭頂は上下だけ=頭の大きさ、首は首のつけ根の真上に立ちます)。ヒジ・手首・ヒザ・足首は既定では骨の長さを保って回ります(持ち上げる動き)。長さを画像に合わせたいときは図の上の「長さも動かす」をONにしてください。大まかに合わせたら「位置をロック」をオンにすると、参考画像と骨格の位置関係が固定され、関節の点以外は動かなくなります(背景ドラッグでも動かず、股のドラッグは骨盤だけの移動)。参考画像のキャラクターに合わせて「この骨格を体型に取り込む」を押すと、頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。取り込み後は「ポーズを取る」になり、股のドラッグで骨格全体を動かせます(首や胴の長さを直すときは「骨格を調整する」でここに戻れます)。</p>
       </details>
       <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
+            <details id="adjustPanel">
+              <summary>体型を調整する(マイ体型)</summary>
+              <div id="adjustSliders"></div>
+              <button type="button" id="adjustReset" class="ghost">調整をリセット</button>
+            </details>
+            <p id="adjustLocked" class="hint" hidden>体型調整(マイ体型)は有料版の機能です。</p>
+          </section>
+          <section class="side-sec" data-sec="flesh" hidden>
+            <h3>肉付け設定</h3>
+            <div id="secFlesh"></div>
+          </section>
+          <section class="side-sec" data-sec="pose" hidden>
+            <h3>ポーズ設定</h3>
+            <div id="secPose"></div>
+          </section>
+          <section class="side-sec" data-sec="sample" hidden>
+            <h3>見本表示</h3>
+            <div id="secSample"></div>
+          </section>
+        </div>
+      </aside>
+    </div>
+  </section>
 
-      <details id="adjustPanel">
-        <summary>体型を調整する(マイ体型)</summary>
-        <div id="adjustSliders"></div>
-        <button type="button" id="adjustReset" class="ghost">調整をリセット</button>
-      </details>
-      <p id="adjustLocked" class="hint" hidden>体型調整(マイ体型)は有料版の機能です。</p>
-
+  <!-- 3. 仕上がり -->
+  <section class="tab" data-tab="finish" hidden>
+    <section class="card" id="finishOutput"></section>
+    <section class="card">
       <div class="row save-row">
         <input type="text" id="saveName" placeholder="名前を付けて保存(例: 推しA 1/8)" maxlength="30">
         <button type="button" id="saveBtn">保存</button>
@@ -78,21 +134,18 @@
       </div>
       <p id="saveMsg" class="hint" role="status"></p>
     </section>
-
-    <p id="calcError" class="error" hidden></p>
-    <section class="card" id="calcOutput"></section>
   </section>
 
-  <!-- 保存データ -->
+  <!-- 4. 履歴 -->
   <section class="tab" data-tab="save" hidden>
     <section class="card">
-      <h2>保存データ</h2>
+      <h2>履歴</h2>
       <p id="saveHint" class="hint"></p>
       <ul id="presetList" class="preset-list"></ul>
     </section>
   </section>
 
-  <!-- 材料・道具 -->
+  <!-- 5. 材料・道具 -->
   <section class="tab" data-tab="materials" hidden>
     <section class="card">
       <h2>材料と道具</h2>
@@ -101,11 +154,15 @@
     </section>
   </section>
 
-  <!-- 設定 -->
+  <!-- 6. 設定 -->
   <section class="tab" data-tab="settings" hidden>
     <section class="card">
       <h2>設定</h2>
       <p>バージョン: <span id="variantLabel"></span></p>
+      <div class="row">
+        <label for="menuSide">サイドメニューの位置</label>
+        <select id="menuSide"><option value="right">右</option><option value="left">左</option></select>
+      </div>
       <p class="hint">表示切り替え(開発用): <a href="./">標準</a> / <a href="./?variant=free">無料版相当</a></p>
       <div class="row">
         <button type="button" id="clearData" class="danger">保存データをすべて削除</button>
@@ -116,12 +173,14 @@
 </main>
 
 <nav class="tabbar" aria-label="メニュー">
-  <button type="button" data-tab="calc" aria-selected="true">芯材計算</button>
-  <button type="button" data-tab="save" aria-selected="false">保存</button>
+  <button type="button" data-tab="char" aria-selected="true">キャラ設定</button>
+  <button type="button" data-tab="skel" aria-selected="false">骨格</button>
+  <button type="button" data-tab="finish" aria-selected="false">仕上がり</button>
+  <button type="button" data-tab="save" aria-selected="false">履歴</button>
   <button type="button" data-tab="materials" aria-selected="false">材料</button>
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260816-2021-69e535e/js/app.js"></script>
+<script type="module" src="v/20260817-0607-c7c3712/js/app.js"></script>
 </body>
 </html>

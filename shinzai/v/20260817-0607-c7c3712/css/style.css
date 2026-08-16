@@ -201,8 +201,8 @@ details[open] summary { margin-bottom: 6px; }
 .pose-svg .flesh .limb { fill: var(--flesh, #e6c9a5); stroke: var(--flesh, #e6c9a5); stroke-width: 1.5; }
 .pose-svg .flesh circle, .pose-svg .flesh ellipse { fill: var(--flesh, #e6c9a5); stroke: none; }
 /* バスト: 単色シルエット内で形が分かるよう、わずかに濃い影(側面は輪郭も変わる) */
-.pose-svg .flesh .bust { filter: brightness(0.93); }
-.pose-svg.side .flesh .bust { filter: none; }
+.pose-svg .flesh .bust { filter: none; }
+.pose-svg .flesh .bust-shade { fill: var(--flesh, #e6c9a5); filter: brightness(0.86); }
 /* 肉付けの色・透け具合(第38弾FB: 参考画像の背景によって見やすい色が変わる) */
 .flesh-opts { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 4px 0 6px; font-size: 0.85rem; color: #6d5f4b; }
 .flesh-opts .swatches { display: flex; gap: 6px; }
@@ -460,3 +460,60 @@ details.how .hint { margin: 6px 0; }
 .bust-shapes > span { min-width: 3.5em; }
 .bust-shapes .chip { padding: 4px 8px; font-size: 0.8rem; border-radius: 999px; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
 .bust-shapes .chip[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); }
+
+/* ===== 第58弾FB UI改修: ページ構成・骨格ページのレイアウト ===== */
+.next-row { justify-content: flex-end; }
+.next-row button { min-width: 10em; }
+#finishedSizeRow { display: flex; gap: 10px; align-items: baseline; }
+#finishedSizeRow .row-label { color: #6d5f4b; }
+.skel-page { padding-bottom: 8px; }
+.skel-layout { display: flex; gap: 10px; align-items: flex-start; }
+.skel-main { flex: 1 1 auto; min-width: 0; }
+.skel-main #calcOutput { padding: 8px; }
+.skel-main .summary { margin: 0 0 6px; font-size: 0.9rem; }
+.view-switch { display: flex; gap: 4px; margin: 0 0 6px; }
+.view-switch button { flex: 1; padding: 6px 4px; font-size: 0.85rem; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.view-switch button[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+.skel-actions { margin-top: 8px; gap: 8px; }
+.skel-actions #skelDone { flex: 1; }
+/* 単面表示: 選んだ図だけを大きく */
+.views.single .view { display: none; }
+.views.single .view.active { display: block; max-width: none; flex: 1 1 100%; }
+.views.single .view.active svg.pose-svg { width: 100%; height: auto; }
+/* サイドメニュー: スマホでは右端のレール+ドロワー、広い画面では固定パネル */
+.skel-side { flex: 0 0 auto; }
+.side-rail { position: fixed; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 30; padding: 6px 4px; background: rgba(250, 246, 233, 0.92); border: 1.5px dashed var(--stitch); border-right: none; border-radius: 10px 0 0 10px; box-shadow: -2px 2px 6px rgba(0,0,0,.08); }
+.side-rail button { width: 56px; padding: 6px 2px; font-size: 0.6rem; line-height: 1.15; background: #fff; color: #6d5f4b; border: 1.5px solid var(--stitch); box-shadow: none; display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: 8px; }
+.side-rail button .ico { font-size: 1.05rem; }
+.side-rail button[aria-pressed="true"] { background: var(--felt); color: #fff; border-color: var(--felt-dark); }
+.side-panel { position: fixed; right: 64px; top: 10vh; max-height: 78vh; width: min(320px, calc(100vw - 80px)); overflow-y: auto; z-index: 29; background: #fffdf6; border: 1.5px solid var(--stitch); border-radius: 12px; padding: 10px 12px 14px; box-shadow: 0 6px 20px rgba(0,0,0,.15); -webkit-overflow-scrolling: touch; }
+.side-panel h3 { margin: 0 0 6px; font-size: 1rem; }
+.side-close { position: absolute; top: 6px; right: 8px; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: #faf6e9; color: #6d5f4b; border: 1.5px solid var(--stitch); box-shadow: none; }
+.side-sec .row { flex-wrap: wrap; }
+.side-sec .ref-controls { flex-wrap: wrap; }
+.side-sec .toggle-row .toggle, .side-sec .flesh-toggle-btn, .side-sec .pose-toggle-btn { width: 100%; margin-bottom: 6px; padding: 8px 6px; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.side-sec .flesh-toggle-btn[aria-pressed="true"], .side-sec .pose-toggle-btn[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+.side-sec .fit-actions, .side-sec .to-fit-row, .side-sec .flesh-opts, .side-sec .pose-group { margin-top: 6px; }
+.side-sec .flesh-opts { display: flex; }
+.sample-opts .big-view-btn2 { width: 100%; padding: 8px 6px; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.sample-opts .big-view-btn2[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); }
+/* 左配置 */
+.side-left .side-rail, body.menu-left .side-rail { right: auto; left: 0; border-right: 1.5px dashed var(--stitch); border-left: none; border-radius: 0 10px 10px 0; box-shadow: 2px 2px 6px rgba(0,0,0,.08); }
+body.menu-left .side-panel { right: auto; left: 64px; }
+/* 広い画面: 常時表示のサイドバー */
+@media (min-width: 900px) {
+  .skel-side { width: 340px; }
+  .side-rail { position: static; transform: none; flex-direction: row; flex-wrap: wrap; border: none; background: none; box-shadow: none; padding: 0 0 6px; }
+  .side-rail button { width: auto; flex: 1 1 45%; flex-direction: row; font-size: 0.8rem; gap: 6px; }
+  .side-panel { position: static; width: auto; max-height: 80vh; box-shadow: none; }
+  .side-close { display: none; }
+  .skel-layout.side-left { flex-direction: row-reverse; }
+}
+/* 履歴の名前ボタン */
+.preset-list .linklike { background: none; border: none; box-shadow: none; color: var(--ink); text-decoration: underline; padding: 0; font-weight: bold; }
+
+.tabbar button { font-size: 0.78rem; padding: 6px 2px; white-space: nowrap; }
+.side-sec .ref-row, .side-sec .fit-row { flex-direction: column; align-items: stretch; gap: 4px; }
+.side-sec .ref-row > label, .side-sec .fit-row > label { font-weight: bold; font-size: 0.85rem; }
+.side-sec .ref-controls { display: flex; flex-wrap: wrap; gap: 4px; }
+.side-sec .ref-controls > * { flex: 1 1 45%; padding: 6px 4px; font-size: 0.82rem; }
