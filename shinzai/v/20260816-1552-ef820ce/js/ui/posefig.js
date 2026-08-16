@@ -37,6 +37,14 @@ export function createPoseFigure(container, seg, opts = {}) {
   const fitMode = opts.mode === 'fit';
   // 骨格合わせの位置ロック(第25弾FB): ロック中は股ドラッグ=骨盤だけ移動(骨格全体は動かない)
   let fitLocked = !!opts.fitLocked;
+  // 骨格合わせで腕・脚の関節を動かすときの既定=骨の長さを保って回す(持ち上げる)。長さを変えるのは fitFree=true のときだけ(第45弾FB)
+  let fitFree = !!opts.fitFree;
+  const FIT_ROTATE = new Set(['elbowL', 'elbowR', 'wristL', 'wristR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'toeL', 'toeR']);
+  const FIT_DESC = {
+    elbowL: ['wristL'], elbowR: ['wristR'], wristL: [], wristR: [],
+    kneeL: ['ankleL', 'toeL'], kneeR: ['ankleR', 'toeR'], ankleL: ['toeL'], ankleR: ['toeR'], toeL: [], toeR: [],
+    shoulderL: ['elbowL', 'wristL'], shoulderR: ['elbowR', 'wristR'],
+  };
   const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
   // 透かし画像(正面図の背面に半透明で重ねる。「画像から」と「芯材計算」を一体化する第1段階。第18弾FB)
@@ -80,7 +88,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   //   もも: つけ根が太く、ヒザへ細る / すね: ふくらはぎ(上寄り)が張り、足首へ細る
   //   上腕: 肩側が太くヒジへ / 前腕: ヒジ下が張り、手首へ細る
   const LIMB_PROFILE = {
-    thigh: { w0: W.leg * 1.3, w1: W.shin * 0.95, tb: 0.25, bulge: W.leg * 0.06, ext0: W.leg * 0.4 }, // つけ根は太く(左右がほぼ接する)。ext0: 骨盤の中へ延ばして重ねる
+    thigh: { w0: W.leg * 1.18, w1: W.shin * 0.95, tb: 0.25, bulge: W.leg * 0.06 }, // つけ根は腰ブロックに差し込む(丸いキャップ)
     shin: { w0: W.shin * 0.9, w1: W.shin * 0.55, tb: 0.3, bulge: W.shin * 0.3 },
     upper: { w0: W.arm * 1.05, w1: W.fore * 0.92, tb: 0.35, bulge: W.arm * 0.1 },
     lower: { w0: W.fore * 0.95, w1: W.fore * 0.6, tb: 0.28, bulge: W.fore * 0.22 },
@@ -137,120 +145,77 @@ export function createPoseFigure(container, seg, opts = {}) {
     return { c: add(add(n, mul(dir, headR)), { x: fwd * headR * 0.18, y: 0 }), r: headR, dir };
   }
 
-  // 胴の輪郭(正面/背面系): 首→僧帽筋→肩→脇→くびれ→腰→股 を関節から組み立てる。
-  // 肩は「肩の関節点=三角筋の丸みの中心」になるよう、関節点まわりに半径 W.arm×0.55 の丸みを持たせ、
-  // 上腕カプセル(関節点から始まる)と一体に見えるようにする(第20弾FB: 肉付けの肩と操作点のずれ)。
-  function torsoFrontPath(view) {
+  // ---- 胴の肉付け: 部位ブロック(胸・腹・腰)。デッサン人形のように部位ごとの丸いブロックにし、
+  //      脚は腰ブロックに、腕は胸(肩の丸み)に差し込む(第43弾FB: 頭部・腕部・胸部・腹部・腰部・脚部の分割)
+  // 角丸多角形(px)。pts は時計回りでも反時計回りでもよい
+  function roundedPoly(pts, r) {
+    const n = pts.length;
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      const v = pts[i]; const prev = pts[(i - 1 + n) % n]; const next = pts[(i + 1) % n];
+      const lp = Math.hypot(prev.x - v.x, prev.y - v.y); const ln = Math.hypot(next.x - v.x, next.y - v.y);
+      const rr = Math.min(Array.isArray(r) ? r[i] : r, lp * 0.45, ln * 0.45);
+      const a = add(v, mul(norm(sub(prev, v)), rr));
+      const b = add(v, mul(norm(sub(next, v)), rr));
+      d += (i === 0 ? `M ${P(a)}` : ` L ${P(a)}`) + ` Q ${P(v)} ${P(b)}`;
+    }
+    return `${d} Z`;
+  }
+  // 局所座標(t: up方向, s: side方向)の台形ブロック。r は数値か [上の角, 下の角] の丸み
+  function blockPath(origin, up, side, tTop, tBot, wTop, wBot, r) {
+    const at = (t, s) => add(add(origin, mul(up, t)), mul(side, s));
+    const rr = Array.isArray(r) ? [r[0], r[0], r[1], r[1]] : r;
+    return roundedPoly([at(tTop, -wTop), at(tTop, wTop), at(tBot, wBot), at(tBot, -wBot)], rr);
+  }
+  // 胴の各ブロック(front / side 共通のロジック。side は奥行き W.depth を幅に使う)
+  function torsoParts(view) {
     const st = toPx(joints.spineTop, view);
     const hp = toPx(joints.hip, view);
-    const nk = toPx(joints.neck, view);
     const sl = toPx(joints.shoulderL, view);
     const sr = toPx(joints.shoulderR, view);
     const hl = toPx(joints.hipL, view);
     const hr = toPx(joints.hipR, view);
     const up = norm(sub(st, hp)); // 背骨の向き(上)
-    const side = perp(up); // 体の左右方向(画面で右手側)
-    const along = (p) => (p.x - hp.x) * up.x + (p.y - hp.y) * up.y; // 背骨方向の座標(px)
-    const across = (p) => (p.x - hp.x) * side.x + (p.y - hp.y) * side.y; // 左右方向の座標(px、右が+)
     const torsoH = Math.hypot(st.x - hp.x, st.y - hp.y);
-    const at = (t, s) => add(add(hp, mul(up, t * torsoH)), mul(side, s)); // t: 0=股,1=首つけ根
-    // 肩の関節点(実位置)を胴の局所座標で
-    const shL = { t: along(sl) / torsoH, s: across(sl) };
-    const shR = { t: along(sr) / torsoH, s: across(sr) };
-    const swBase = Math.max(Math.abs(shL.s), Math.abs(shR.s), W.neck); // 肩の半幅
-    // 腰の張り = 股関節の横位置 + ももの付け根の半幅。骨盤の外縁がももの外縁と一致し、骨盤幅を自分で直しても段差が出ない(第39弾FB)
-    const hipJointHalf = Math.abs(across(hl) - across(hr)) / 2;
-    const thighTopHalf = (LIMB_PROFILE.thigh.w0 + LIMB_PROFILE.thigh.bulge) / 2; // もも付け根の半幅(ふくらみ込み)
-    const hw = hipJointHalf + thighTopHalf; // 腰の張り ≒ ももの外縁
-    const ww = Math.min(swBase, hw) * 0.74; // ウエスト
-    const nw = W.neck * 0.44; // 首の半幅
-    const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
-    const jaw = 1 + neckLen / torsoH;
-    const chest = 0.66; const waist = 0.4;
-    const r = W.arm * 0.55; // 肩の丸み(半径、px)
-    const rt = r / torsoH;
-    // 片側の輪郭: 首→僧帽筋→肩の丸み(関節点を中心に上→外→下)→脇→くびれ→腰→股
-    // S: 符号(左=-1, 右=+1)、sh: その側の肩関節(t,s)
-    const sideDown = (S, sh) => {
-      const a = Math.abs(sh.s); // 肩関節の横位置(絶対値)
-      const cw = Math.max(a * 0.86, nw * 2.2); // 脇(胸横)
-      return ` L ${P(at(jaw - (jaw - sh.t - rt) * 0.3, S(nw)))}`
-        + ` C ${P(at(jaw - (jaw - sh.t - rt) * 0.75, S(nw * 1.05)))} ${P(at(sh.t + rt * 1.15, S(a * 0.45)))} ${P(at(sh.t + rt, S(a)))}` // 僧帽筋→肩の丸みの頂点
-        + ` C ${P(at(sh.t + rt, S(a + r * 0.55)))} ${P(at(sh.t - rt * 0.1, S(a + r)))} ${P(at(sh.t - rt * 0.55, S(a + r * 0.9)))}` // 丸み(外側)
-        + ` C ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(chest, S(cw)))}` // 脇へ
-        + ` C ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(waist, S(ww)))}`
-        + ` C ${P(at(waist - 0.12, S(ww * 1.02)))} ${P(at(0.3, S(hw * 0.995)))} ${P(thighEdge(S).outer[0])}`;
-    };
-    // 骨盤の下部: 各ももの向きに沿って下ろし、ももの外縁と一直線につなぐ(脚の肉を腰に埋め込む。第40弾FB)。
-    // 股は左右のももの内縁をなめらかなアーチで結ぶ
-    // ももの外縁を実際の太さプロファイル(limbWidthAt)でサンプリングし、骨盤の輪郭をそれに完全に一致させる
-    const thighEdge = (S) => {
-      const sideKey = S(1) < 0 ? 'L' : 'R';
-      const hj = toPx(joints[`hip${sideKey}`], view);
-      const kn = toPx(joints[`knee${sideKey}`], view);
-      const dv = sub(kn, hj); const len = Math.hypot(dv.x, dv.y);
-      const dir = len > 1e-6 ? mul(dv, 1 / len) : mul(up, -1);
-      const outward = mul(perp(dir), S(1) > 0 ? -1 : 1);
-      const prof = LIMB_PROFILE.thigh;
-      const ext = prof.ext0 ?? 0;
-      const Ltot = len + ext;
-      const depth = Math.min(W.leg * 1.0, len * 0.5); // 骨盤がももの付け根を包む深さ(パンツライン。第42弾FB)
-      const edge = (dist, sign) => add(add(hj, mul(dir, dist)), mul(outward, (sign * limbWidthAt(prof, (dist + ext) / Ltot)) / 2));
-      const outer = []; // 股関節の高さ → depth まで外縁を辿る
-      const steps = 4;
-      for (let i = 0; i <= steps; i++) outer.push(edge((depth * i) / steps, 1));
-      const C = edge(depth, -1); // 内縁(depth)
-      return { outer, C };
-    };
-    const crotchPath = () => {
-      const l = thighEdge(L); const r = thighEdge(R);
-      // 股のアーチ: 左右のももの内縁(depth)を、股の下 ~0.72×もも幅 の頂点で結ぶ(ももは付け根で接する)
-      const apex = at(-(W.leg * 0.72) / torsoH, 0);
-      const down = l.outer.slice(1).map((q) => ` L ${P(q)}`).join('');
-      const upR = [...r.outer].reverse().slice(1).map((q) => ` L ${P(q)}`).join('');
-      return `${down} L ${P(l.C)} Q ${P(apex)} ${P(r.C)} L ${P(r.outer[r.outer.length - 1])}${upR}`;
-    };
-    const sideUp = (S, sh) => {
-      const a = Math.abs(sh.s);
-      const cw = Math.max(a * 0.86, nw * 2.2);
-      return ` C ${P(at(0.3, S(hw * 0.995)))} ${P(at(waist - 0.12, S(ww * 1.02)))} ${P(at(waist, S(ww)))}`
-        + ` C ${P(at(waist + 0.07, S(ww * 1.04)))} ${P(at(chest - 0.1, S(cw * 0.94)))} ${P(at(chest, S(cw)))}`
-        + ` C ${P(at(chest + 0.06, S(cw * 1.02)))} ${P(at(sh.t - rt * 1.4, S(a + r * 0.6)))} ${P(at(sh.t - rt * 0.55, S(a + r * 0.9)))}`
-        + ` C ${P(at(sh.t - rt * 0.1, S(a + r)))} ${P(at(sh.t + rt, S(a + r * 0.55)))} ${P(at(sh.t + rt, S(a)))}`
-        + ` C ${P(at(sh.t + rt * 1.15, S(a * 0.45)))} ${P(at(jaw - (jaw - sh.t - rt) * 0.75, S(nw * 1.05)))} ${P(at(jaw - (jaw - sh.t - rt) * 0.3, S(nw)))}`
-        + ` L ${P(at(jaw, S(nw)))}`;
-    };
-    const L = (v) => -v; const R = (v) => v;
-    return `M ${P(at(jaw, L(nw)))}${sideDown(L, shL)}${crotchPath()}${sideUp(R, shR)} Z`;
-  }
-
-  // 胴の輪郭(側面): 背骨の局所座標系(前方向=fwd)で胸・腹・尻のカーブ
-  function torsoSidePath(view) {
-    const st = toPx(joints.spineTop, view);
-    const hp = toPx(joints.hip, view);
-    const nk = toPx(joints.neck, view);
-    const up = norm(sub(st, hp));
-    let fwd = perp(up); // 前方向候補
+    const thighTopHalf = (LIMB_PROFILE.thigh.w0 + LIMB_PROFILE.thigh.bulge * 0.7) / 2;
+    const orient = (v, ref) => ((v.x * ref.x + v.y * ref.y) < 0 ? mul(v, -1) : v);
+    if (view === 'front') {
+      const spineSide = perp(up);
+      // 胸: 肩線を基準(肩の傾きに追従)。上端は肩線の少し上、下端は背骨の中ほど
+      const shDist = Math.hypot(sr.x - sl.x, sr.y - sl.y);
+      const chestSide = shDist > 1e-6 ? orient(norm(sub(sr, sl)), spineSide) : spineSide;
+      const chestUp = orient(perp(chestSide), up);
+      const shHalf = Math.max(shDist / 2, W.neck * 1.2);
+      const hipJointHalf = Math.hypot(hr.x - hl.x, hr.y - hl.y) / 2;
+      const hipHalfW = hipJointHalf + thighTopHalf * 0.9; // 腰の最大半幅(もも外縁とほぼ同じ)
+      const ww = Math.max(Math.min(shHalf, hipHalfW) * 0.7, W.neck * 1.3); // ウエスト半幅
+      // 胸: 肩幅からウエストへ向かって細くなる(胸→腹が段にならない)
+      const chest = blockPath(st, chestUp, chestSide, W.arm * 0.3, -torsoH * 0.52, shHalf * 0.98 + W.arm * 0.12, ww * 1.15, [W.arm * 0.75, ww * 0.5]);
+      // 腹: 背骨基準。ウエスト幅の細いブロック(胸・腰の下に隠れる部分が多い)
+      const abdomen = blockPath(hp, up, spineSide, torsoH * 0.62, torsoH * 0.12, ww * 0.98, ww, ww * 0.5);
+      // 腰: 骨盤バー(股関節の線)を基準。ウエスト幅から股関節の高さの最大幅へなだらかに広がる台形
+      //     (上端が急に広いと段になる。第44弾FB)。股関節を内包し、下端はもも付け根の丸みを覆う
+      const pelvSide = hipJointHalf > 1e-6 ? orient(norm(sub(hr, hl)), spineSide) : spineSide;
+      const pelvUp = orient(perp(pelvSide), up);
+      const pelvis = roundedPoly([
+        add(add(hp, mul(pelvUp, torsoH * 0.42)), mul(pelvSide, -ww * 1.02)),
+        add(add(hp, mul(pelvUp, torsoH * 0.42)), mul(pelvSide, ww * 1.02)),
+        add(add(hp, mul(pelvUp, torsoH * 0.02)), mul(pelvSide, hipHalfW)), // 股関節の高さで最大幅
+        add(add(hp, mul(pelvUp, -thighTopHalf * 1.02)), mul(pelvSide, hipHalfW * 0.9)),
+        add(add(hp, mul(pelvUp, -thighTopHalf * 1.02)), mul(pelvSide, -hipHalfW * 0.9)),
+        add(add(hp, mul(pelvUp, torsoH * 0.02)), mul(pelvSide, -hipHalfW)),
+      ], [ww * 0.5, ww * 0.5, thighTopHalf * 0.6, thighTopHalf * 0.7, thighTopHalf * 0.7, thighTopHalf * 0.6]);
+      return { chest, abdomen, pelvis };
+    }
+    // 側面: 前方向 fwd に奥行き
+    let fwd = perp(up);
     const want = view === 'side-right' ? 1 : -1;
     if (Math.sign(fwd.x) !== want) fwd = mul(fwd, -1);
-    const torsoH = Math.hypot(st.x - hp.x, st.y - hp.y);
-    const at = (t, s) => add(add(hp, mul(up, t * torsoH)), mul(fwd, s));
     const d = W.depth;
-    const neckLen = Math.hypot(nk.x - st.x, nk.y - st.y);
-    const jaw = 1 + neckLen / torsoH;
-    const nw = W.neck * 0.55;
-    const shTop = 1 - (W.arm * 0.2) / torsoH;
-    const butt = -(W.leg * 0.2) / torsoH;
-    const under = -(W.leg * 0.85) / torsoH;
-    return `M ${P(at(jaw, nw))}`
-      + ` C ${P(at(jaw - (jaw - shTop) * 0.7, nw))} ${P(at(0.82, d * 0.5))} ${P(at(0.7, d * 0.52))}`
-      + ` C ${P(at(0.56, d * 0.5))} ${P(at(0.44, d * 0.34))} ${P(at(0.38, d * 0.33))}`
-      + ` C ${P(at(0.24, d * 0.32))} ${P(at(0.08, d * 0.3))} ${P(at(-0.06, d * 0.26))}`
-      + ` C ${P(at(under, d * 0.2))} ${P(at(under, -d * 0.1))} ${P(at(under - 0.02, -d * 0.4))}`
-      + ` C ${P(at(butt, -d * 0.62))} ${P(at(butt + 0.08, -d * 0.58))} ${P(at(0.32, -d * 0.38))}`
-      + ` C ${P(at(0.45, -d * 0.36))} ${P(at(0.6, -d * 0.5))} ${P(at(0.7, -d * 0.48))}`
-      + ` C ${P(at(0.8, -d * 0.46))} ${P(at(shTop, -nw * 1.6))} ${P(at(jaw - (jaw - shTop) * 0.6, -nw * 1.1))}`
-      + ` L ${P(at(jaw, -nw * 1.1))} Z`;
+    const chest = blockPath(add(st, mul(fwd, d * 0.03)), up, fwd, W.arm * 0.3, -torsoH * 0.52, d * 0.5, d * 0.36, [d * 0.28, d * 0.2]);
+    const abdomen = blockPath(add(hp, mul(fwd, d * 0.02)), up, fwd, torsoH * 0.62, torsoH * 0.12, d * 0.34, d * 0.35, d * 0.2);
+    const pelvis = blockPath(add(hp, mul(fwd, -d * 0.05)), up, fwd, torsoH * 0.42, -thighTopHalf * 1.02, d * 0.36, d * 0.5, [d * 0.2, d * 0.28]);
+    return { chest, abdomen, pelvis };
   }
 
   // 手・足の参考輪郭(骨の延長線上に置く)
@@ -327,7 +292,15 @@ export function createPoseFigure(container, seg, opts = {}) {
       );
       return g2;
     };
-    flesh.append(limbs(sides[0]), el('path', { class: 'torso' }), limbs(sides[1]));
+    const torsoG = el('g', { class: 'torso-parts' });
+    torsoG.append(
+      el('path', { class: 'torso part-abdomen' }),
+      el('path', { class: 'torso part-pelvis' }),
+      el('path', { class: 'torso part-chest' }),
+      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderL', r: W.arm * 0.58 }),
+      el('circle', { class: 'joint-round shoulder-ball', 'data-at': 'shoulderR', r: W.arm * 0.58 }),
+    );
+    flesh.append(limbs(sides[0]), torsoG, limbs(sides[1]));
     flesh.append(el('line', { class: 'neck' }), el('ellipse', { class: 'head-flesh' }));
 
     const bones = el('g', { class: 'bones' });
@@ -425,11 +398,16 @@ export function createPoseFigure(container, seg, opts = {}) {
     }
     return best;
   }
-  function startPan(ev, view) {
-    if (ev.target.classList?.contains('pose-hit')) return;
+  function startPan(ev, view, force = false) {
+    if (!force && ev.target.classList?.contains('pose-hit')) return;
     const svg = svgs[view];
+    if (!force && activeDrag) {
+      // 関節ドラッグ中の2本目の指: 掴んだ直後ならピンチへ切り替え(startDrag 側で処理)、それ以外は無視
+      startDrag(ev, activeDrag.id ?? lastJoint, view);
+      return;
+    }
     // 点を少し外しても、近くに関節があればその関節を掴む(背景パンに化けない)
-    if (interactive && pointers.size === 0) {
+    if (!force && interactive && pointers.size === 0) {
       const near = nearestJoint(view, localPoint(svg, view, ev));
       if (near) { startDrag(ev, near, view); return; }
     }
@@ -600,8 +578,10 @@ export function createPoseFigure(container, seg, opts = {}) {
         else { setLine(fl, f.a, f.b); fl.style.display = ''; fe.style.display = 'none'; }
       }
       // 肉付け
-      const torso = svg.querySelector('.flesh .torso');
-      torso.setAttribute('d', view === 'front' ? torsoFrontPath(view) : torsoSidePath(view));
+      const parts = torsoParts(view);
+      svg.querySelector('.flesh .part-chest').setAttribute('d', parts.chest);
+      svg.querySelector('.flesh .part-abdomen').setAttribute('d', parts.abdomen);
+      svg.querySelector('.flesh .part-pelvis').setAttribute('d', parts.pelvis);
       for (const path of svg.querySelectorAll('.flesh path[data-seg]')) {
         const [a, b] = path.dataset.seg.split('-');
         const pa = toPx(joints[a], view); const pb = toPx(joints[b], view);
@@ -684,8 +664,35 @@ export function createPoseFigure(container, seg, opts = {}) {
     const pair = MIRROR_PAIR[id];
     if (!mirrorMove || !pair) return;
     const cx = joints.hip.x;
-    joints = { ...joints, [pair]: { x: 2 * cx - joints[id].x, y: joints[id].y, z: joints[pair].z } };
+    const moved = { ...joints };
+    // 動かした関節とその先(回した場合は先も動く)を鏡映
+    for (const src of [id, ...(FIT_DESC[id] ?? [])]) {
+      const dst = MIRROR_PAIR[src];
+      if (dst) moved[dst] = { x: 2 * cx - joints[src].x, y: joints[src].y, z: joints[dst].z };
+    }
+    joints = moved;
   }
+  // 骨格合わせで腕・脚を「回す」: 親を中心に、長さを保って指の方向へ。先の関節も一緒に回る(2D)
+  function fitRotate(id, uv) {
+    const p = joints[PARENT_OF[id]];
+    const cur = { x: joints[id].x - p.x, y: joints[id].y - p.y };
+    const L = Math.hypot(cur.x, cur.y);
+    const dx = uv.u - p.x; const dy = uv.v - p.y;
+    const dl = Math.hypot(dx, dy);
+    if (L < 1e-6 || dl < 1e-6) return;
+    const a0 = Math.atan2(cur.y, cur.x); const a1 = Math.atan2(dy, dx);
+    const da = a1 - a0; const c = Math.cos(da); const sn = Math.sin(da);
+    const moved = { ...joints };
+    for (const k2 of [id, ...(FIT_DESC[id] ?? [])]) {
+      const v = { x: joints[k2].x - p.x, y: joints[k2].y - p.y };
+      moved[k2] = { x: p.x + v.x * c - v.y * sn, y: p.y + v.x * sn + v.y * c, z: joints[k2].z };
+    }
+    joints = moved;
+  }
+  const PARENT_OF = {
+    elbowL: 'shoulderL', elbowR: 'shoulderR', wristL: 'elbowL', wristR: 'elbowR',
+    kneeL: 'hipL', kneeR: 'hipR', ankleL: 'kneeL', ankleR: 'kneeR', toeL: 'ankleL', toeR: 'ankleR',
+  };
   // 左右対称: ポーズでは、動かした関節の結果位置を中心線で鏡映した点を目標に反対側もFKで動かす(側面図では同じ位置)
   function mirrorPose(id, view) {
     const pair = MIRROR_PAIR[id];
@@ -696,20 +703,36 @@ export function createPoseFigure(container, seg, opts = {}) {
   }
 
   let lastJoint = null;
+  // 進行中の関節ドラッグ(1本のみ)。2本目の指は無視するか、掴んだ直後ならドラッグを取り消してピンチに切り替える
+  // (第44弾FB「腕が変に伸びる」: 2本指で拡大しようとした1本目が関節を掴み、関節が引っ張られていた)
+  let activeDrag = null;
   function startDrag(ev, id, view) {
     ev.preventDefault();
     ev.stopPropagation();
+    if (activeDrag) {
+      if (activeDrag.view === view && !activeDrag.moved && performance.now() - activeDrag.t0 < 400) {
+        // 掴んだ直後に2本目 → ピンチ操作とみなす: ドラッグを取り消して、2本の指で背景操作(パン/ピンチ)へ
+        const first = activeDrag.ev;
+        activeDrag.cancel();
+        pointers.set(first.pointerId, svgPoint(svgs[view], first));
+        startPan(ev, view, true);
+      }
+      return; // ドラッグ中の追加の指は無視
+    }
     const svg = svgs[view];
     const pointerId = ev.pointerId;
     try { ev.currentTarget.setPointerCapture(pointerId); } catch { /* window監視で継続 */ }
     lastJoint = id;
+    const jointsAtStart = joints;
     for (const sv of Object.values(svgs)) sv.querySelector(`.pose-dot[data-joint=${id}]`)?.classList.add('is-active');
     const label = (fitMode ? FIT_LABELS[id] : POSE_LABELS[id]) ?? JOINT_LABELS[id];
     opts.onJointPick?.(id, label);
     // 注意: ドラッグ中に案内文を書き換えると行数変化で図が上下に動き、指の下の座標がずれて関節が飛ぶ
     // (第24弾FB「肩の位置がおかしい」の原因)。案内文の更新は pointerup 後に行う
     const statusText = fitMode
-      ? `「${label}」を動かしました(骨格合わせ中: 骨の長さが変わります=腕や脚を遠くへ動かすとそのぶん長くなります。ポーズを付けるのは取り込んで終えてから)。参考画像の${label}の位置に合っているか確認してください`
+      ? (FIT_ROTATE.has(id) && !fitFree
+        ? `「${label}」を回しました(長さはそのまま)。長さを画像に合わせるには「長さも動かす」をONにしてください`
+        : `「${label}」を動かしました(骨の長さが変わります)。参考画像の${label}の位置に合っているか確認してください`)
       : id === 'hip'
         ? '骨格全体を移動しました(骨の長さ・ポーズはそのまま)。首や胴の長さを直すには「骨格の位置・長さを直す」を押してください'
         : `「${label}」を動かしました(骨の長さは変わりません。他の面も連動します)`;
@@ -734,6 +757,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       if (e.pointerId !== pointerId) return;
       e.preventDefault();
       const fp = localPoint(svg, view, e);
+      if (activeDrag && Math.hypot(fp.x - finger0.x, fp.y - finger0.y) > 4) activeDrag.moved = true;
       const local = applyLock({ x: fp.x + grabOff.x, y: fp.y + grabOff.y });
       if (fitMode) {
         // 体型合わせ: 正面図で関節を自由に動かす(骨の長さは変わる。子は動かさない)
@@ -775,6 +799,13 @@ export function createPoseFigure(container, seg, opts = {}) {
           redraw();
           return;
         }
+        if (!fitFree && FIT_ROTATE.has(id)) {
+          // 既定: 長さを保って持ち上げる(回す)。長さを変えるのは「長さも動かす」ON のときだけ
+          fitRotate(id, uv);
+          mirrorFit(id);
+          redraw();
+          return;
+        }
         joints = { ...joints, [id]: { x: uv.u, y: uv.v, z: joints[id].z } };
         mirrorFit(id);
         if (id === 'hipL' || id === 'hipR') {
@@ -809,12 +840,16 @@ export function createPoseFigure(container, seg, opts = {}) {
       mirrorPose(id, view);
       redraw();
     };
-    const up = (e) => {
-      if (e.pointerId !== pointerId) return;
+    const detach = () => {
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
       for (const sv of Object.values(svgs)) sv.querySelector(`.pose-dot[data-joint=${id}]`)?.classList.remove('is-active');
+      activeDrag = null;
+    };
+    const up = (e) => {
+      if (e.pointerId !== pointerId) return;
+      detach();
       opts.onStatus?.(statusText);
       opts.onPoseChange?.(joints, isPosed(joints, rest)); // ポーズモードでは案内文(寸法不変)がこちらで上書きされる
       // 関節が枠外に出て掴めなくなったら自動で全体を収める(PD追加コメント: 動かすと届かない部分が増える)。
@@ -824,6 +859,10 @@ export function createPoseFigure(container, seg, opts = {}) {
     window.addEventListener('pointermove', move, { passive: false });
     window.addEventListener('pointerup', up);
     window.addEventListener('pointercancel', up);
+    activeDrag = {
+      pointerId, view, ev, t0: performance.now(), moved: false,
+      cancel: () => { detach(); joints = jointsAtStart; redraw(); },
+    };
   }
 
   function mount() {
@@ -861,6 +900,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     },
     lastJoint: () => lastJoint,
     setFitLocked(v) { fitLocked = !!v; },
+    setFitFree(v) { fitFree = !!v; },
     // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
     standardFrame: () => ({ topY: g.top, soleY: g.soleY, hipX: g.cx }),
     // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
