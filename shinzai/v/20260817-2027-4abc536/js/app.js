@@ -10,6 +10,7 @@ import {
 } from './core/presets-store.js';
 import { createPoseFigure } from './ui/posefig.js';
 import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS, restPose, poseFromFit } from './core/pose3d.js';
+import { buildObj } from './core/export3d.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
 
@@ -74,6 +75,7 @@ function showTab(name) {
   for (const section of document.querySelectorAll('main .tab')) {
     section.hidden = uiLayout.allTabs ? false : section.dataset.tab !== name;
   }
+  document.body.classList.toggle('in-make', name === 'make');
   for (const btn of document.querySelectorAll('.tabbar button')) {
     btn.setAttribute('aria-selected', String(btn.dataset.tab === name));
   }
@@ -87,6 +89,7 @@ function showStep(name) {
   for (const st of document.querySelectorAll('.tab[data-tab=make] .step')) st.hidden = uiLayout.allSteps ? false : st.dataset.step !== name;
   for (const b of document.querySelectorAll('.stepbar button')) b.setAttribute('aria-current', b.dataset.step === name ? 'step' : 'false');
   document.body.classList.toggle('step-skel', name === 'skel'); // 作成画面はスクロール不要にコンパクト表示
+  document.body.classList.toggle('in-make', true); // 骨組み作成タブではヘッダーを出さない(第61弾FB)
   if (name === 'skel') applyViewMode();
   window.scrollTo(0, 0);
 }
@@ -106,7 +109,7 @@ function openSection(sec, toggle = true) {
   const same = uiLayout.section === sec && !panel.hidden;
   if (toggle && same) { panel.hidden = true; }
   else { uiLayout.section = sec; panel.hidden = false; }
-  for (const b of document.querySelectorAll('#sideRail button')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
+  for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
   for (const sc of document.querySelectorAll('#sidePanel .side-sec')) sc.hidden = uiLayout.allSections ? false : sc.dataset.sec !== uiLayout.section;
   document.body.classList.toggle('side-open', !panel.hidden);
 }
@@ -163,13 +166,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     poseState.sig = sig;
   }
   const toggleRow = h('div', 'toggle-row');
-  const fleshBtn = h('button', 'toggle flesh-toggle-btn', '肉付けイメージ');
+  const fleshBtn = h('button', 'toggle flesh-toggle-btn', '肉付け');
   fleshBtn.type = 'button';
   fleshBtn.setAttribute('aria-pressed', String(showFlesh));
   const poseBtn = h('button', 'toggle pose-toggle-btn', 'ポーズを取る');
   poseBtn.type = 'button';
   poseBtn.setAttribute('aria-pressed', String(poseState.on));
-  if (sides) { S.flesh.append(fleshBtn); S.pose.append(poseBtn); toggleRow.append(); root.append(toggleRow); toggleRow.hidden = true; }
+  if (sides) { S.pose.append(poseBtn); toggleRow.append(); root.append(toggleRow); toggleRow.hidden = true; }
   else { toggleRow.append(fleshBtn, poseBtn); root.append(toggleRow); }
   // 肉付けの色・透け具合(肉付けONのときだけ表示)
   const fleshOpts = h('div', 'flesh-opts');
@@ -232,7 +235,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
   }
   volRow.append(shapeRow);
   fleshOpts.append(volRow);
-  S.flesh.append(fleshOpts);
+  if (sides) {
+    // 肉付け設定: 設定項目を上、「肉付け」ボタンを下に(第62弾FB)。設定は肉付けOFFでも触れるように常に表示
+    fleshOpts.hidden = false;
+    S.flesh.append(fleshOpts, fleshBtn);
+  } else {
+    S.flesh.append(fleshOpts);
+  }
 
   // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
   const poseTools = h('div', 'pose-tools');
@@ -358,7 +367,8 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
       volume: fleshVolume,
-      big: uiAids.big,
+      // 単面表示では自動で大きく(はみ出す分は切る slice)。三面では「大きく表示」トグルに従う(第61弾FB: 図をできるだけ大きく)
+      big: uiAids.big || (sides && uiLayout.viewMode !== 'all'),
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
       overlay: root.id === 'calcOutput' ? refImage.overlay : null,
@@ -984,15 +994,17 @@ function main() {
   // ページ間の流れ(第58弾FB): キャラ設定 →(設定)→ 骨格 →(骨組み完成)→ 仕上がり。新規作成はキャラ設定へ
   $('toSkel').addEventListener('click', () => showStep('skel'));
   $('skelDone').addEventListener('click', () => showStep('finish'));
+  $('skelBack').addEventListener('click', () => showStep('char'));
+  $('finishBack').addEventListener('click', () => showStep('skel'));
   for (const b of document.querySelectorAll('.stepbar button')) b.addEventListener('click', () => showStep(b.dataset.step));
   $('skelNew').addEventListener('click', () => { if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll(); });
   // 図の切り替え
   for (const b of document.querySelectorAll('#viewSwitch button')) {
-    b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); applyViewMode(); });
+    b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); renderCalc(); applyViewMode(); });
   }
   // サイドメニュー
-  for (const b of document.querySelectorAll('#sideRail button')) b.addEventListener('click', () => openSection(b.dataset.sec));
-  $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; openSection(uiLayout.section, false); $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button')) b.setAttribute('aria-pressed', 'false'); });
+  for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.addEventListener('click', () => openSection(b.dataset.sec));
+  $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', 'false'); });
   $('menuSide').value = uiLayout.menuSide;
   $('menuSide').addEventListener('change', () => { uiLayout.menuSide = $('menuSide').value; saveUiLayout(); applyMenuSide(); });
   applyMenuSide();
@@ -1020,10 +1032,31 @@ function main() {
     $('adjustPanel').hidden = true;
     $('adjustLocked').hidden = false;
   }
-  $('headsInput').addEventListener('input', () => {
-    adjustments.heads = Number($('headsInput').value);
+  $('headsInput').addEventListener('change', () => {
+    const v = Number($('headsInput').value);
+    if (!Number.isFinite(v) || v < 2 || v > 8) { syncHeadsControl(); return; }
+    adjustments.heads = v;
     syncHeadsControl();
     renderCalc();
+  });
+  // 3Dソフト用の書き出し(OBJ)。いまの骨格(ポーズ込み)を cm 単位で(第60弾FB)
+  $('exportObj').addEventListener('click', () => {
+    try {
+      const result = computeArmature(readCalcInput());
+      const st = poseStates.get($('calcOutput'));
+      const joints = st?.fig?.getJoints?.() ?? restPose(result.segments);
+      const name = ($('saveName').value.trim() || 'shinzai');
+      const obj = buildObj(joints, result.segments, { name, wireMm: result.wireDiameterMm, flesh: $('exportFlesh').checked });
+      const blob = new Blob([obj], { type: 'model/obj' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}.obj`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      $('saveMsg').textContent = `${name}.obj を書き出しました(単位 cm)。`;
+    } catch (e) {
+      $('saveMsg').textContent = `書き出しに失敗しました: ${e.message}`;
+    }
   });
   $('headsReset').addEventListener('click', () => { adjustments.heads = null; syncHeadsControl(); renderCalc(); });
 
@@ -1033,6 +1066,7 @@ function main() {
   window.__debug = {
     setOverlay: (dataUrl) => setRefImage(dataUrl),
     // スモークテスト用: 全ページ・全区分・三面を同時に表示(要素の可視性に依存する操作を通すため)
+    showStep,
     testLayout: () => {
       uiLayout.allTabs = true; uiLayout.allSections = true; uiLayout.allSteps = true; uiLayout.viewMode = 'all';
       showStep('char'); openSection('frame', false); applyViewMode();

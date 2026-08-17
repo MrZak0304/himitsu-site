@@ -544,3 +544,40 @@ body.step-skel main { padding-top: 4px; }
 @media (min-width: 900px) {
   .views.single .view.active svg.pose-svg { max-height: calc(100dvh - 230px); }
 }
+
+.heads-row #headsInput { width: 5.5em; }
+.export-row { flex-wrap: wrap; gap: 8px; }
+
+/* ===== 第61弾FB: 上部ボタン削除・視点切替を左・完成ボタンをレールへ ===== */
+body.in-make header { display: none; }
+body.in-make .stepbar { display: none; }
+body.in-make main { padding-top: 6px; }
+.primary-wide { width: 100%; padding: 12px; font-size: 1.05rem; }
+.next-row { margin-top: 10px; }
+/* 視点切替: 左端の縦レール(サイドメニューが左のときは右へ) */
+.view-switch { position: fixed; left: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 30; padding: 6px 4px; margin: 0; background: rgba(250, 246, 233, 0.92); border: 1.5px dashed var(--stitch); border-left: none; border-radius: 0 10px 10px 0; box-shadow: 2px 2px 6px rgba(0,0,0,.08); }
+.view-switch button { width: 48px; padding: 8px 2px; font-size: 0.7rem; line-height: 1.1; border-radius: 8px; }
+body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed var(--stitch); border-right: none; border-radius: 10px 0 0 10px; }
+.skel-main { margin-left: 44px; margin-right: 44px; }
+.side-rail .rail-action { border-style: dashed; }
+.side-rail #skelDone { background: var(--felt); color: #fff; border-color: var(--felt-dark); font-weight: bold; }
+.side-rail #skelDone .ico { color: #fff; }
+.side-rail button { width: 60px; }
+.views.single .view.active svg.pose-svg { max-height: calc(100dvh - 150px); }
+@media (min-width: 900px) {
+  .view-switch { position: static; transform: none; flex-direction: column; border: 1.5px dashed var(--stitch); border-radius: 10px; margin-right: 8px; align-self: flex-start; }
+  .view-switch button { width: 64px; font-size: 0.8rem; }
+  .skel-main { margin-left: 0; margin-right: 0; }
+  .side-rail button { width: auto; }
+  .side-rail .rail-action { flex: 1 1 30%; }
+  .views.single .view.active svg.pose-svg { max-height: calc(100dvh - 130px); }
+}
+
+/* 単面表示は縦いっぱい(slice で拡大) */
+.views.single .view.active svg.pose-svg.big { width: 100%; height: calc(100dvh - 180px); max-height: none; }
+.views.single .view.active svg.pose-svg.big .dims { display: none; } /* 拡大表示では寸法注記は切れるので出さない(仕上がりで確認) */
+@media (min-width: 900px) { .views.single .view.active svg.pose-svg.big { height: calc(100dvh - 150px); } }
+
+/* パネルは左の視点切替より手前に(隠れない。第62弾FB) */
+.side-panel { z-index: 31; }
+.side-sec[data-sec=flesh] .flesh-toggle-btn { margin-top: 8px; }
