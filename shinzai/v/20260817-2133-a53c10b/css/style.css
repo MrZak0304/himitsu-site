@@ -577,3 +577,45 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
 .views.single .view.active svg.pose-svg.big { width: 100%; height: calc(100dvh - 180px); max-height: none; }
 .views.single .view.active svg.pose-svg.big .dims { display: none; } /* 拡大表示では寸法注記は切れるので出さない(仕上がりで確認) */
 @media (min-width: 900px) { .views.single .view.active svg.pose-svg.big { height: calc(100dvh - 150px); } }
+
+/* パネルは左の視点切替より手前に(隠れない。第62弾FB) */
+.side-panel { z-index: 31; }
+.side-sec[data-sec=flesh] .flesh-toggle-btn { margin-top: 8px; }
+
+/* ===== 第63弾FB: メニューを小さくスッキリ(骨組みと下部メニューを隠さない) =====
+   スマホでは開いたメニューを「図の下・下部タブの上」に浮かぶ小さなシートにし、
+   開いている間は図を縮めて全体が見えるようにする。--tabbar-h は app.js が実測値(セーフエリア込み)を入れる。 */
+/* 図の高さは「画面 − シート − 下部タブ − 図の上の案内文ぶん」 */
+:root { --tabbar-h: 46px; --sheet-h: 38dvh; --fig-open-h: calc(100dvh - var(--sheet-h) - var(--tabbar-h) - 52px); }
+@media (max-width: 899px) {
+  .side-panel {
+    top: auto; bottom: calc(var(--tabbar-h) + 6px);
+    left: 58px; right: 78px; width: auto; /* 左右のレール(視点切替・サイドレール)に重ねない */
+    max-height: var(--sheet-h);
+    padding: 8px 10px 10px;
+  }
+  body.menu-left .side-panel { left: 78px; right: 58px; }
+  .side-panel h3 { font-size: 0.9rem; margin: 0 26px 4px 0; }
+  .side-panel .hint { font-size: 0.78rem; margin: 4px 0; }
+  .side-close { top: 4px; right: 6px; width: 26px; height: 26px; font-size: 0.9rem; }
+  .side-sec .row { margin: 4px 0; }
+  .side-sec .twist-row { gap: 6px; margin: 2px 0 4px; }
+  .side-sec .twist-row label { min-width: 4.5em; font-size: 0.78rem; }
+  .side-sec details.how, .side-sec .pose-help { margin: 2px 0 4px; }
+  /* メニューを開いている間は図を縮める(調整中の骨組みが隠れない) */
+  body.side-open .views.single .view.active svg.pose-svg { max-height: var(--fig-open-h); }
+  body.side-open .views.single .view.active svg.pose-svg.big { height: var(--fig-open-h); max-height: none; }
+  body.side-open .views.big .view svg.pose-svg.big { height: var(--fig-open-h); }
+}
+/* ===== 第64弾FB: 調整メニューは横に動かない ===== */
+.side-panel { overflow-x: hidden; overscroll-behavior: contain; } /* 横スクロール禁止(メニューがずれない) */
+/* 中身が幅に収まるように(はみ出すと横スクロールになる。原因は肉付けのスライダー行) */
+.side-sec .flesh-opts, .side-sec .flesh-volume, .side-sec .bust-shapes, .side-sec .flesh-volume label { min-width: 0; max-width: 100%; }
+.side-sec .flesh-volume label { flex-wrap: wrap; }
+.side-sec .flesh-volume label > span:first-child { min-width: 3.2em; }
+.side-sec .flesh-volume input[type=range] { flex: 1 1 70px; min-width: 60px; }
+.side-sec .flesh-volume .vol-val { min-width: 3em; }
+.side-sec .bust-shapes > span { min-width: 2.6em; }
+
+/* 骨格調整中の頭身表示(第63弾FB: 画像から読み取った頭身が分かるように) */
+.fit-heads { margin: 4px 0; padding: 4px 8px; border-radius: 8px; background: rgba(122, 90, 60, 0.10); font-weight: 600; }

@@ -109,13 +109,39 @@ function openSection(sec, toggle = true) {
   const same = uiLayout.section === sec && !panel.hidden;
   if (toggle && same) { panel.hidden = true; }
   else { uiLayout.section = sec; panel.hidden = false; }
-  for (const b of document.querySelectorAll('#sideRail button')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
+  for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
   for (const sc of document.querySelectorAll('#sidePanel .side-sec')) sc.hidden = uiLayout.allSections ? false : sc.dataset.sec !== uiLayout.section;
   document.body.classList.toggle('side-open', !panel.hidden);
+  scheduleFigureHeight();
 }
 function applyMenuSide() {
   $('skelLayout').classList.toggle('side-left', uiLayout.menuSide === 'left');
   document.body.classList.toggle('menu-left', uiLayout.menuSide === 'left');
+}
+// 開いたメニューが下部タブに重ならないよう、実測の高さ(セーフエリア込み)をCSS変数に渡す(第63弾FB)
+function syncTabbarHeight() {
+  const bar = document.querySelector('.tabbar');
+  if (bar?.offsetHeight) document.documentElement.style.setProperty('--tabbar-h', `${bar.offsetHeight}px`);
+}
+// メニュー(シート)を開いている間、図がシートに隠れないように高さを実測で決める(第63弾FB)。
+// 図の上の案内文の行数でずれるため、CSSの目安値ではなく実際の余白から求める。
+function syncFigureHeight() {
+  const root = document.documentElement;
+  const svg = document.querySelector('#calcOutput .views .view.active svg.pose-svg')
+    ?? document.querySelector('#calcOutput .views svg.pose-svg');
+  const panel = $('sidePanel');
+  if (!svg || !panel || panel.hidden || window.innerWidth >= 900) {
+    root.style.removeProperty('--fig-open-h');
+    return;
+  }
+  const top = svg.getBoundingClientRect().top;
+  const limit = panel.getBoundingClientRect().top - 6;
+  root.style.setProperty('--fig-open-h', `${Math.max(180, Math.round(limit - top))}px`);
+}
+let figHeightRaf = 0;
+function scheduleFigureHeight() {
+  if (figHeightRaf) return;
+  figHeightRaf = requestAnimationFrame(() => { figHeightRaf = 0; syncFigureHeight(); });
 }
 
 // ---- 共通の結果描画 ----
@@ -166,13 +192,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     poseState.sig = sig;
   }
   const toggleRow = h('div', 'toggle-row');
-  const fleshBtn = h('button', 'toggle flesh-toggle-btn', '肉付けイメージ');
+  const fleshBtn = h('button', 'toggle flesh-toggle-btn', '肉付け');
   fleshBtn.type = 'button';
   fleshBtn.setAttribute('aria-pressed', String(showFlesh));
   const poseBtn = h('button', 'toggle pose-toggle-btn', 'ポーズを取る');
   poseBtn.type = 'button';
   poseBtn.setAttribute('aria-pressed', String(poseState.on));
-  if (sides) { S.flesh.append(fleshBtn); S.pose.append(poseBtn); toggleRow.append(); root.append(toggleRow); toggleRow.hidden = true; }
+  if (sides) { S.pose.append(poseBtn); toggleRow.append(); root.append(toggleRow); toggleRow.hidden = true; }
   else { toggleRow.append(fleshBtn, poseBtn); root.append(toggleRow); }
   // 肉付けの色・透け具合(肉付けONのときだけ表示)
   const fleshOpts = h('div', 'flesh-opts');
@@ -235,7 +261,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
   }
   volRow.append(shapeRow);
   fleshOpts.append(volRow);
-  S.flesh.append(fleshOpts);
+  if (sides) {
+    // 肉付け設定: 設定項目を上、「肉付け」ボタンを下に(第62弾FB)。設定は肉付けOFFでも触れるように常に表示
+    fleshOpts.hidden = false;
+    S.flesh.append(fleshOpts, fleshBtn);
+  } else {
+    S.flesh.append(fleshOpts);
+  }
 
   // ポーズ操作(図の上に置く: スマホで三面図の下だと遠い)
   const poseTools = h('div', 'pose-tools');
@@ -354,7 +386,8 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
         }
         return poseState.on ? poseState.joints : null;
       })(),
-      onStatus: (t) => { poseHint.textContent = t; },
+      // 触った関節名などの状態表示は骨格調整中だけ(ポーズ中は図の上に文字を出さない。第64弾FB)
+      onStatus: (t) => { if (!sides || fitOn) poseHint.textContent = t; },
       onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
       axisLock: uiAids.axisLock,
@@ -369,12 +402,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       dragTarget: root.id === 'calcOutput' ? refImage.dragTarget : 'view',
       onOverlayChange: (ov) => { if (root.id === 'calcOutput') { refImage.overlay = ov; syncRefButtons(); } },
       onPoseChange: (joints, posed) => {
-        if (fitOn) { fitState.joints = posed ? joints : null; return; }
+        if (fitOn) { fitState.joints = posed ? joints : null; syncFitHeads(); return; }
         poseState.joints = posed ? joints : null;
-        poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
+        if (!sides) poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
       },
     });
     poseState.fig = fig;
+    if (isCalc) { syncFitHeads(); scheduleFigureHeight(); } // 骨格調整中: いまの骨格の頭身(取り込まれる値)を表示
     poseTools.hidden = !(poseState.on || fitOn);
     if (poseTools._poseGroup) poseTools._poseGroup.hidden = !(poseState.on || fitOn);
     if (sides) applyViewMode();
@@ -396,10 +430,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     views.classList.toggle('big', uiAids.big && (poseState.on || fitOn));
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
+    // 図の上の文言は骨格調整中の案内だけにする(第64弾FB: 取り込み後・ポーズ中の文言はいらない。
+    // ポーズの操作は「ポーズ設定」の区分にあるので説明は不要)
+    if (sides) poseHint.hidden = !fitOn;
     if (fitOn) {
-      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格調整中: 点を動かし、') + '「取り込んで終える」で終了。';
+      poseHint.textContent = (fitIntro ? `${fitIntro}` : '骨格調整中: ') + '点を画像に重ねたら「取り込んで終える」。';
       fitIntro = '';
-    } else if (poseState.on) {
+    } else if (poseState.on && !sides) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
     }
   };
@@ -646,13 +683,16 @@ function buildAdjustSliders() {
   }
 }
 
-// キャラ設定の「頭身」: プリセットの頭身を初期値に、有料版では 2〜8 頭身を自由に(adjustments.heads)
+// キャラ設定の「頭身」: プリセット(または参考画像から取り込んだ体型)の頭身を初期値に、
+// 有料版では 2〜8 頭身を自由に(adjustments.heads)
 function syncHeadsControl() {
   const baseRatios = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
   const presetHeads = Math.round(10 / baseRatios.head) / 10;
   const cur = Number.isFinite(adjustments.heads) ? adjustments.heads : presetHeads;
   $('headsInput').value = String(cur);
-  $('headsValue').textContent = `${Number(cur).toFixed(1)}頭身${Number.isFinite(adjustments.heads) ? '' : '(プリセット)'}`;
+  // 取り込み済みの体型では「プリセット」ではなく画像由来だと分かるように(第63弾FB: 6頭身固定に見える)
+  const src = Number.isFinite(adjustments.heads) ? '' : (importedRatios ? '(参考画像から)' : '(プリセット)');
+  $('headsValue').textContent = `${Number(cur).toFixed(1)}頭身${src}`;
   $('headsReset').hidden = !Number.isFinite(adjustments.heads);
   const locked = !LIMITS.adjustments;
   $('headsInput').disabled = locked;
@@ -839,9 +879,26 @@ function setRefImage(dataUrl) {
   syncRefButtons();
   // 画像を選んだら、そのまま「参考画像に骨格を合わせる」に入る(最初にやることを1つにする。第30弾FB)
   if (!fitState.on) {
-    fitFlash = '参考画像を選びました。画像を合わせ、点をキャラクターに重ねてください。';
+    fitFlash = '参考画像を選びました。';
     enterFit(false);
   }
+}
+
+// 骨格調整中の頭身表示(第63弾FB「6頭身に固定しないで画像から読み取ってほしい」)。
+// 頭身は「頭頂〜あご」に対する全高の比なので、頭頂・首のつけ根を画像に合わせた時点の値をそのまま見せる。
+function syncFitHeads() {
+  const el = $('fitHeads');
+  if (!el) return;
+  if (!fitState.on) { el.hidden = true; return; }
+  try {
+    const px = calcFig()?.getFrontJointsPx();
+    const soleY = Math.max(px.heelL.y, px.heelR.y);
+    const total = soleY - px.top.y;
+    const head = px.chin.y - px.top.y;
+    if (!(total > 10 && head > 1)) { el.hidden = true; return; }
+    el.textContent = `いまの骨格: 約${(total / head).toFixed(1)}頭身(取り込むとこの頭身で計算します)`;
+    el.hidden = false;
+  } catch { el.hidden = true; }
 }
 
 // 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
@@ -855,6 +912,8 @@ function enterFit(locked) {
   const st = poseStates.get($('calcOutput'));
   if (st) { fitState.resumePose = st.on; st.on = false; }
   fitSync();
+  // 終了・取り込みの操作は「骨組み調整」区分にあるので開いておく(参考画像の区分から入ったとき用。第63弾FB)
+  openSection('frame', false);
   renderCalc();
   $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -869,6 +928,8 @@ function initFit() {
     $('fitToggle').setAttribute('aria-pressed', String(fitState.on));
     $('fitImport').hidden = !fitState.on;
     $('fitLock').hidden = !fitState.on;
+    // 調整中は図の上と同じ操作(取り込む/ロック)が並ぶので、こちらの行は隠す(メニューをスッキリ。第63弾FB)
+    $('fitToggle').closest('.row').hidden = fitState.on;
     $('fitLock').setAttribute('aria-pressed', String(fitState.locked));
     $('fitLock').textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
     // ロック中は参考画像を動かせない(骨格との位置関係を固定)
@@ -882,7 +943,6 @@ function initFit() {
   $('fitToggle').addEventListener('click', () => {
     if (fitState.on) {
       exitFit();
-      fitFlash = '骨格の調整を終了しました(取り込みなし)。';
       sync(); renderCalc(); return;
     }
     enterFit(false);
@@ -929,7 +989,6 @@ function initFit() {
       const st = poseStates.get($('calcOutput'));
       if (st) { st.joints = null; st.on = true; } // 骨長が変わるのでポーズは直立から。取り込んだらすぐポーズを付けられるようにON
       sync();
-      fitFlash = '体型に取り込みました。ポーズを付けられます。';
       setImportedRatios(ratios); // renderCalc → 再描画
       errBox.hidden = true;
     } catch (e) {
@@ -988,20 +1047,24 @@ function main() {
   // ページ間の流れ(第58弾FB): キャラ設定 →(設定)→ 骨格 →(骨組み完成)→ 仕上がり。新規作成はキャラ設定へ
   $('toSkel').addEventListener('click', () => showStep('skel'));
   $('skelDone').addEventListener('click', () => showStep('finish'));
-  $('skelBack').addEventListener('click', () => showStep('char'));
+  // 「設定に戻る」は実質やり直し(第64弾FB: 新規作成ボタンは置かず、ここで破棄の確認をする)
+  $('skelBack').addEventListener('click', () => {
+    if (window.confirm('キャラ設定に戻ります。いまの骨組み(参考画像・骨格の調整・ポーズ)は破棄されます。よろしいですか?')) resetAll();
+  });
   $('finishBack').addEventListener('click', () => showStep('skel'));
   for (const b of document.querySelectorAll('.stepbar button')) b.addEventListener('click', () => showStep(b.dataset.step));
-  $('skelNew').addEventListener('click', () => { if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll(); });
   // 図の切り替え
   for (const b of document.querySelectorAll('#viewSwitch button')) {
     b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); renderCalc(); applyViewMode(); });
   }
   // サイドメニュー
-  for (const b of document.querySelectorAll('#sideRail button')) b.addEventListener('click', () => openSection(b.dataset.sec));
-  $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; openSection(uiLayout.section, false); $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button')) b.setAttribute('aria-pressed', 'false'); });
+  for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.addEventListener('click', () => openSection(b.dataset.sec));
+  $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', 'false'); });
   $('menuSide').value = uiLayout.menuSide;
   $('menuSide').addEventListener('change', () => { uiLayout.menuSide = $('menuSide').value; saveUiLayout(); applyMenuSide(); });
   applyMenuSide();
+  syncTabbarHeight();
+  window.addEventListener('resize', () => { syncTabbarHeight(); scheduleFigureHeight(); });
   // 広い画面ではパネルを常時表示
   const wide = window.matchMedia('(min-width: 900px)');
   const syncWide = () => { if (wide.matches) openSection(uiLayout.section, false); };
