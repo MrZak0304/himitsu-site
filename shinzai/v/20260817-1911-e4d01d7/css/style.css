@@ -517,3 +517,63 @@ body.menu-left .side-panel { right: auto; left: 64px; }
 .side-sec .ref-row > label, .side-sec .fit-row > label { font-weight: bold; font-size: 0.85rem; }
 .side-sec .ref-controls { display: flex; flex-wrap: wrap; gap: 4px; }
 .side-sec .ref-controls > * { flex: 1 1 45%; padding: 6px 4px; font-size: 0.82rem; }
+
+/* ===== 第59弾FB: 骨組み作成タブ内のステップ・作成画面をスクロール不要に ===== */
+.stepbar { display: flex; gap: 4px; margin: 0 0 8px; }
+.stepbar button { flex: 1; padding: 6px 4px; font-size: 0.85rem; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.stepbar button .num { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; align-items: center; justify-content: center; font-size: 0.75rem; background: #e9dfc9; color: #6d5f4b; }
+.stepbar button[aria-current="step"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+.stepbar button[aria-current="step"] .num { background: #fff; color: var(--felt-dark); }
+.heads-row .heads-ctl { display: flex; align-items: center; gap: 8px; flex: 1; }
+.heads-row input[type=range] { flex: 1 1 100px; min-width: 80px; }
+.heads-row .adj-value { min-width: 8em; font-size: 0.85rem; }
+.heads-row #headsReset { padding: 4px 8px; font-size: 0.8rem; }
+/* 骨格ステップ: ヘッダーを縮め、図を画面内に収める(スクロール不要) */
+body.step-skel header { padding: 4px 0 2px; }
+body.step-skel header h1 { font-size: 1rem; margin: 0; }
+body.step-skel header .sub { display: none; }
+body.step-skel .stepbar { margin-bottom: 4px; }
+body.step-skel main { padding-top: 4px; }
+.skel-main #calcOutput { padding: 6px; }
+.skel-main #calcOutput .summary { display: none; }
+.skel-main .toggle-row[hidden] { display: none; }
+.views.single .view.active svg.pose-svg { width: 100%; height: auto; max-height: calc(100dvh - 250px); }
+.views.single .view.active figcaption { display: none; }
+.views.single .view.active { padding: 2px; }
+.skel-actions { margin-top: 6px; }
+@media (min-width: 900px) {
+  .views.single .view.active svg.pose-svg { max-height: calc(100dvh - 230px); }
+}
+
+.heads-row #headsInput { width: 5.5em; }
+.export-row { flex-wrap: wrap; gap: 8px; }
+
+/* ===== 第61弾FB: 上部ボタン削除・視点切替を左・完成ボタンをレールへ ===== */
+body.in-make header { display: none; }
+body.in-make .stepbar { display: none; }
+body.in-make main { padding-top: 6px; }
+.primary-wide { width: 100%; padding: 12px; font-size: 1.05rem; }
+.next-row { margin-top: 10px; }
+/* 視点切替: 左端の縦レール(サイドメニューが左のときは右へ) */
+.view-switch { position: fixed; left: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 6px; z-index: 30; padding: 6px 4px; margin: 0; background: rgba(250, 246, 233, 0.92); border: 1.5px dashed var(--stitch); border-left: none; border-radius: 0 10px 10px 0; box-shadow: 2px 2px 6px rgba(0,0,0,.08); }
+.view-switch button { width: 48px; padding: 8px 2px; font-size: 0.7rem; line-height: 1.1; border-radius: 8px; }
+body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed var(--stitch); border-right: none; border-radius: 10px 0 0 10px; }
+.skel-main { margin-left: 44px; margin-right: 44px; }
+.side-rail .rail-action { border-style: dashed; }
+.side-rail #skelDone { background: var(--felt); color: #fff; border-color: var(--felt-dark); font-weight: bold; }
+.side-rail #skelDone .ico { color: #fff; }
+.side-rail button { width: 60px; }
+.views.single .view.active svg.pose-svg { max-height: calc(100dvh - 150px); }
+@media (min-width: 900px) {
+  .view-switch { position: static; transform: none; flex-direction: column; border: 1.5px dashed var(--stitch); border-radius: 10px; margin-right: 8px; align-self: flex-start; }
+  .view-switch button { width: 64px; font-size: 0.8rem; }
+  .skel-main { margin-left: 0; margin-right: 0; }
+  .side-rail button { width: auto; }
+  .side-rail .rail-action { flex: 1 1 30%; }
+  .views.single .view.active svg.pose-svg { max-height: calc(100dvh - 130px); }
+}
+
+/* 単面表示は縦いっぱい(slice で拡大) */
+.views.single .view.active svg.pose-svg.big { width: 100%; height: calc(100dvh - 180px); max-height: none; }
+.views.single .view.active svg.pose-svg.big .dims { display: none; } /* 拡大表示では寸法注記は切れるので出さない(仕上がりで確認) */
+@media (min-width: 900px) { .views.single .view.active svg.pose-svg.big { height: calc(100dvh - 150px); } }

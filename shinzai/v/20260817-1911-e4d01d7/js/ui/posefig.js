@@ -137,14 +137,20 @@ export function createPoseFigure(container, seg, opts = {}) {
       left.push({ x: c.x + n.x * w / 2, y: c.y + n.y * w / 2 });
       right.push({ x: c.x - n.x * w / 2, y: c.y - n.y * w / 2 });
     }
-    // 始点側は半円のキャップ(角が骨盤・関節から飛び出さない)
-    const r0 = (prof.w0 + prof.bulge * Math.exp(-((prof.tb / 0.3) ** 2))) / 2;
+    // 両端は半円のキャップ(始点=関節・骨盤に埋まる、終点=足首・手首が丸く手足につながる。第61弾FB「足が浮く」)
+    const r0 = limbWidthAt(prof, 0) / 2;
+    const r1 = limbWidthAt(prof, 1) / 2;
     const cap = [];
     for (let i = 1; i < 6; i++) {
       const th = -Math.PI / 2 + (i / 6) * Math.PI;
       cap.push({ x: pa.x + n.x * r0 * Math.sin(th) - u.x * r0 * Math.cos(th), y: pa.y + n.y * r0 * Math.sin(th) - u.y * r0 * Math.cos(th) });
     }
-    const pts = [...left, ...right.reverse(), ...cap];
+    const endCap = [];
+    for (let i = 1; i < 6; i++) {
+      const th = Math.PI / 2 - (i / 6) * Math.PI; // 左側→右側へ、終点の先(+u)を回る
+      endCap.push({ x: pb.x + n.x * r1 * Math.sin(th) + u.x * r1 * Math.cos(th), y: pb.y + n.y * r1 * Math.sin(th) + u.y * r1 * Math.cos(th) });
+    }
+    const pts = [...left, ...endCap, ...right.reverse(), ...cap];
     return `M ${pts.map((p) => `${fmt(p.x)} ${fmt(p.y)}`).join(' L ')} Z`;
   }
 
@@ -343,10 +349,10 @@ export function createPoseFigure(container, seg, opts = {}) {
     const dir = l > 2 ? mul(v, 1 / l) : norm(sub(an, kn));
     const ang = (Math.atan2(dir.y, dir.x) * 180) / Math.PI;
     if (view === 'front') {
-      // 正面: 足首の少し先に、足の向きに沿った楕円(奥行きぶんは短く見える)
-      const along = Math.max(ankPx * 0.6, l * 0.5);
-      const c = add(an, mul(dir, along));
-      return { kind: 'ellipse', c, rx: along * 0.9, ry: Math.max(3, (footPx / 2) * 0.62), ang };
+      // 正面: 足首から足裏までを覆う楕円(上端はすねに重なり、下端は足裏=床に着く。第61弾FB「足が浮く」)
+      const along = Math.max(ankPx * 0.5, l * 0.45);
+      const c = add(an, mul(dir, along * 0.9));
+      return { kind: 'ellipse', c, rx: along * 1.15, ry: Math.max(3, (footPx / 2) * 0.62), ang };
     }
     // 側面: 足裏の線(かかと→つま先。直立では水平)。かかとの後ろに少し出す
     const sv = sub(to, he); const sl = Math.hypot(sv.x, sv.y);
@@ -363,8 +369,8 @@ export function createPoseFigure(container, seg, opts = {}) {
   function buildView(view) {
     const svg = el('svg', {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
-      preserveAspectRatio: bigView && interactive ? 'xMidYMid slice' : 'xMidYMid meet',
-      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView && interactive ? ' big' : ''}${view === 'front' ? '' : ' side'}`,
+      preserveAspectRatio: bigView ? 'xMidYMid slice' : 'xMidYMid meet',
+      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView ? ' big' : ''}${view === 'front' ? '' : ' side'}`,
       role: 'img',
       'aria-label': `骨格図(${VIEWS.find((v) => v[0] === view)[1]})`,
     });

@@ -10,6 +10,7 @@ import {
 } from './core/presets-store.js';
 import { createPoseFigure } from './ui/posefig.js';
 import { DRAGGABLE as POSE_JOINTS, JOINT_LABELS as POSE_LABELS, restPose, poseFromFit } from './core/pose3d.js';
+import { buildObj } from './core/export3d.js';
 import { MATERIALS, materialUrl } from './affiliates.js';
 import { IS_FREE, LIMITS, VARIANT_LABEL } from './build-flags.js';
 
@@ -74,11 +75,23 @@ function showTab(name) {
   for (const section of document.querySelectorAll('main .tab')) {
     section.hidden = uiLayout.allTabs ? false : section.dataset.tab !== name;
   }
+  document.body.classList.toggle('in-make', name === 'make');
   for (const btn of document.querySelectorAll('.tabbar button')) {
     btn.setAttribute('aria-selected', String(btn.dataset.tab === name));
   }
   if (name === 'save') renderPresetList();
+  if (name === 'make') applyViewMode();
+}
+// 骨組み作成タブ内のステップ(キャラ設定 → 骨格 → 仕上がり)。下部タブは増やさない(第59弾FB)
+function showStep(name) {
+  uiLayout.step = name;
+  showTab('make');
+  for (const st of document.querySelectorAll('.tab[data-tab=make] .step')) st.hidden = uiLayout.allSteps ? false : st.dataset.step !== name;
+  for (const b of document.querySelectorAll('.stepbar button')) b.setAttribute('aria-current', b.dataset.step === name ? 'step' : 'false');
+  document.body.classList.toggle('step-skel', name === 'skel'); // 作成画面はスクロール不要にコンパクト表示
+  document.body.classList.toggle('in-make', true); // 骨組み作成タブではヘッダーを出さない(第61弾FB)
   if (name === 'skel') applyViewMode();
+  window.scrollTo(0, 0);
 }
 // 骨格ページ: メイン図の切り替え(正面/左側面/右側面/三面)
 function applyViewMode() {
@@ -348,7 +361,8 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
       volume: fleshVolume,
-      big: uiAids.big,
+      // 単面表示では自動で大きく(はみ出す分は切る slice)。三面では「大きく表示」トグルに従う(第61弾FB: 図をできるだけ大きく)
+      big: uiAids.big || (sides && uiLayout.viewMode !== 'all'),
       onViewportChange: (vp) => { poseState.viewport = vp; },
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
       overlay: root.id === 'calcOutput' ? refImage.overlay : null,
@@ -605,7 +619,9 @@ function buildAdjustSliders() {
   box.replaceChildren();
   const baseRatios = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
   const format = (def, v) => (def.absolute ? `${Number(v).toFixed(1)}頭身` : `${Math.round(v * 100)}%`);
-  for (const def of ADJUSTMENT_DEFS) {
+  // 頭身はキャラ設定ステップの専用コントロールへ(第59弾FB)。ここでは胴・肩幅・腕・手足だけ
+  syncHeadsControl();
+  for (const def of ADJUSTMENT_DEFS.filter((d) => d.key !== 'heads')) {
     const row = h('div', 'row');
     const label = h('label', null, def.label);
     label.htmlFor = `adj-${def.key}`;
@@ -630,6 +646,18 @@ function buildAdjustSliders() {
   }
 }
 
+// キャラ設定の「頭身」: プリセットの頭身を初期値に、有料版では 2〜8 頭身を自由に(adjustments.heads)
+function syncHeadsControl() {
+  const baseRatios = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
+  const presetHeads = Math.round(10 / baseRatios.head) / 10;
+  const cur = Number.isFinite(adjustments.heads) ? adjustments.heads : presetHeads;
+  $('headsInput').value = String(cur);
+  $('headsValue').textContent = `${Number(cur).toFixed(1)}頭身${Number.isFinite(adjustments.heads) ? '' : '(プリセット)'}`;
+  $('headsReset').hidden = !Number.isFinite(adjustments.heads);
+  const locked = !LIMITS.adjustments;
+  $('headsInput').disabled = locked;
+  $('headsLocked').hidden = !locked;
+}
 function resetAdjustments() {
   adjustments = { ...DEFAULT_ADJUSTMENTS };
   buildAdjustSliders();
@@ -693,7 +721,7 @@ function loadSaved(item) {
   syncModeRows();
   $('saveName').value = item.name;
   renderCalc();
-  showTab('finish'); // 履歴から開いたら仕上がり(寸法・切り出し)を表示
+  showStep('finish'); // 履歴から開いたら仕上がり(寸法・切り出し)を表示
 }
 
 // 新規作成: 体型・取り込み・参考画像・ポーズ・表示位置を初期状態に戻す(第50弾FB)。保存データと表示設定(色など)は残す
@@ -719,7 +747,7 @@ function resetAll() {
   fitSync();
   syncRefButtons();
   renderCalc();
-  showTab('char');
+  showStep('char');
 }
 
 function renderPresetList() {
@@ -958,12 +986,15 @@ function main() {
     btn.addEventListener('click', () => showTab(btn.dataset.tab));
   }
   // ページ間の流れ(第58弾FB): キャラ設定 →(設定)→ 骨格 →(骨組み完成)→ 仕上がり。新規作成はキャラ設定へ
-  $('toSkel').addEventListener('click', () => showTab('skel'));
-  $('skelDone').addEventListener('click', () => showTab('finish'));
+  $('toSkel').addEventListener('click', () => showStep('skel'));
+  $('skelDone').addEventListener('click', () => showStep('finish'));
+  $('skelBack').addEventListener('click', () => showStep('char'));
+  $('finishBack').addEventListener('click', () => showStep('skel'));
+  for (const b of document.querySelectorAll('.stepbar button')) b.addEventListener('click', () => showStep(b.dataset.step));
   $('skelNew').addEventListener('click', () => { if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll(); });
   // 図の切り替え
   for (const b of document.querySelectorAll('#viewSwitch button')) {
-    b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); applyViewMode(); });
+    b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); renderCalc(); applyViewMode(); });
   }
   // サイドメニュー
   for (const b of document.querySelectorAll('#sideRail button')) b.addEventListener('click', () => openSection(b.dataset.sec));
@@ -995,6 +1026,33 @@ function main() {
     $('adjustPanel').hidden = true;
     $('adjustLocked').hidden = false;
   }
+  $('headsInput').addEventListener('change', () => {
+    const v = Number($('headsInput').value);
+    if (!Number.isFinite(v) || v < 2 || v > 8) { syncHeadsControl(); return; }
+    adjustments.heads = v;
+    syncHeadsControl();
+    renderCalc();
+  });
+  // 3Dソフト用の書き出し(OBJ)。いまの骨格(ポーズ込み)を cm 単位で(第60弾FB)
+  $('exportObj').addEventListener('click', () => {
+    try {
+      const result = computeArmature(readCalcInput());
+      const st = poseStates.get($('calcOutput'));
+      const joints = st?.fig?.getJoints?.() ?? restPose(result.segments);
+      const name = ($('saveName').value.trim() || 'shinzai');
+      const obj = buildObj(joints, result.segments, { name, wireMm: result.wireDiameterMm, flesh: $('exportFlesh').checked });
+      const blob = new Blob([obj], { type: 'model/obj' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${name}.obj`;
+      document.body.append(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+      $('saveMsg').textContent = `${name}.obj を書き出しました(単位 cm)。`;
+    } catch (e) {
+      $('saveMsg').textContent = `書き出しに失敗しました: ${e.message}`;
+    }
+  });
+  $('headsReset').addEventListener('click', () => { adjustments.heads = null; syncHeadsControl(); renderCalc(); });
 
   renderCalc();
 
@@ -1002,9 +1060,10 @@ function main() {
   window.__debug = {
     setOverlay: (dataUrl) => setRefImage(dataUrl),
     // スモークテスト用: 全ページ・全区分・三面を同時に表示(要素の可視性に依存する操作を通すため)
+    showStep,
     testLayout: () => {
-      uiLayout.allTabs = true; uiLayout.allSections = true; uiLayout.viewMode = 'all';
-      showTab('char'); openSection('frame', false); applyViewMode();
+      uiLayout.allTabs = true; uiLayout.allSections = true; uiLayout.allSteps = true; uiLayout.viewMode = 'all';
+      showStep('char'); openSection('frame', false); applyViewMode();
     },
   };
 }
