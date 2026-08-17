@@ -278,25 +278,32 @@ export function createPoseFigure(container, seg, opts = {}) {
     // 側面の胸: 首の付け根から背中側へなだらかに(僧帽筋)。前面は鎖骨あたりから胸(バスト)の膨らみへ続き、
     // 下でまた胴へ戻る一続きの曲線にする(別パーツの丸を付けない。第54弾FB 手描き指示)
     const sAt = (t, s2) => add(add(st, mul(up, t)), mul(fwd, s2));
-    // 形状パラメータで前面曲線を作る(真っ直ぐ伸びる区間を作らない。第55弾FB)
-    const out = d * (0.04 + 0.5 * bustAmt) * bshape.proj; // 張り出し量
-    const tC = -W.arm * 0.2; // 鎖骨〜上胸(膨らみの始まり)
-    const tU = -torsoH * (0.44 + 0.05 * Math.min(1, bustAmt / 2)); // アンダー(大きいほど少し下がる)
-    const tA = tC + (tU - tC) * (0.35 + 0.45 * bshape.apex) - torsoH * 0.04 * bustAmt; // 頂点の高さ(形状で上下、大きいほど下)
+    // 形状パラメータで前面曲線を作る(真っ直ぐ伸びる区間を作らない。第55弾FB)。
+    // 大きいほど張り出すが、縦幅も張り出しに応じて広げて丸みを保つ(尖った突起にしない。第57弾FB)
     const fTop = d * 0.42; // 鎖骨あたりの前面
     const fBot = d * 0.36; // 胸の下端の前面
-    const tipPull = 1 - 0.4 * bshape.tip; // 尖り: 頂点手前の制御点を引く(1=丸い)
+    const tC = -W.arm * 0.2; // 鎖骨〜上胸(膨らみの始まり)
+    let out = Math.min(d * 0.95, d * (0.04 + 0.42 * bustAmt) * bshape.proj); // 張り出し量(上限あり)
+    // 縦幅: 少なくとも張り出しの 1.5 倍(丸み)。アンダーは下がるが胸ブロック下端までに収める
+    const spanMin = out * 1.5;
+    const tUBase = -torsoH * (0.44 + 0.05 * Math.min(1, bustAmt / 2));
+    let tU = Math.min(tUBase, tC - spanMin);
+    const tUlimit = -torsoH * 0.62;
+    if (tU < tUlimit) { tU = tUlimit; out = Math.min(out, (tC - tU) / 1.5); }
+    const chestBot = Math.min(-torsoH * 0.52, tU - d * 0.06);
+    const tA = tC + (tU - tC) * (0.4 + 0.35 * bshape.apex) - torsoH * 0.02 * bustAmt; // 頂点の高さ(形状で上下、大きいほど少し下)
+    const tipPull = 1 - 0.3 * bshape.tip * (1 - 0.4 * Math.min(1, bustAmt / 2)); // 尖り(大きいほど弱める)
     const chest = `M ${P(sAt(neckLen2 * 0.5, -W.neck * 0.5))}`
       + ` L ${P(sAt(neckLen2 * 0.5, W.neck * 0.45))}`
       + ` Q ${P(sAt(W.arm * 0.1, fTop))} ${P(sAt(tC, fTop))}` // 鎖骨〜上胸
-      // 上側: 直線的(top小)〜丸い(top大)。頂点で尖り具合を制御
-      + ` C ${P(sAt(tC + (tA - tC) * 0.45, fTop + out * (0.05 + 0.55 * bshape.top)))} ${P(sAt(tA + (tC - tA) * 0.28, fTop + out * tipPull))} ${P(sAt(tA, fTop + out))}`
-      // 下側: 丸く戻る(bot大ほど下ぶくれ)。ヤギ型は頂点が低く下は短い
-      + ` C ${P(sAt(tA + (tU - tA) * 0.3, fTop + out * tipPull))} ${P(sAt(tU + (tA - tU) * 0.15, fBot + out * (0.1 + 0.6 * bshape.bot)))} ${P(sAt(tU, fBot))}`
-      + ` L ${P(sAt(-torsoH * 0.52 + d * 0.12, fBot))}`
-      + ` Q ${P(sAt(-torsoH * 0.52, fBot))} ${P(sAt(-torsoH * 0.52, fBot - d * 0.12))}`
-      + ` L ${P(sAt(-torsoH * 0.52, -d * 0.36 + d * 0.12))}`
-      + ` Q ${P(sAt(-torsoH * 0.52, -d * 0.36))} ${P(sAt(-torsoH * 0.52 + d * 0.12, -d * 0.36))}`
+      // 上側: なだらかに膨らむ(top大ほど丸い)。頂点で尖り具合を制御
+      + ` C ${P(sAt(tC + (tA - tC) * 0.35, fTop + out * (0.15 + 0.5 * bshape.top)))} ${P(sAt(tA + (tC - tA) * 0.4, fTop + out * tipPull))} ${P(sAt(tA, fTop + out))}`
+      // 下側: 丸く戻る(bot大ほど下ぶくれ)
+      + ` C ${P(sAt(tA + (tU - tA) * 0.4, fTop + out * tipPull))} ${P(sAt(tU + (tA - tU) * 0.3, fBot + out * (0.2 + 0.6 * bshape.bot)))} ${P(sAt(tU, fBot))}`
+      + ` L ${P(sAt(chestBot + d * 0.12, fBot))}`
+      + ` Q ${P(sAt(chestBot, fBot))} ${P(sAt(chestBot, fBot - d * 0.12))}`
+      + ` L ${P(sAt(chestBot, -d * 0.36 + d * 0.12))}`
+      + ` Q ${P(sAt(chestBot, -d * 0.36))} ${P(sAt(chestBot + d * 0.12, -d * 0.36))}`
       + ` L ${P(sAt(-W.arm * 0.4, -d * 0.5))}` // 背中
       + ` Q ${P(sAt(W.arm * 0.12, -d * 0.5))} ${P(sAt(neckLen2 * 0.25, -W.neck * 0.7))}` // 僧帽筋
       + ' Z';

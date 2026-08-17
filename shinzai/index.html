@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260817-0607-c7c3712">
+<meta name="build" content="20260817-1013-8017808">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260817-0607-c7c3712/css/style.css">
+<link rel="stylesheet" href="v/20260817-1013-8017808/css/style.css">
 </head>
 <body>
 <header>
@@ -14,8 +14,14 @@
 </header>
 
 <main>
-  <!-- 1. キャラクター設定 -->
-  <section class="tab" data-tab="char">
+  <!-- 骨組み作成(3ステップ: キャラ設定 → 骨格 → 仕上がり) -->
+  <section class="tab" data-tab="make">
+    <nav class="stepbar" aria-label="作成の手順">
+      <button type="button" data-step="char" aria-current="step"><span class="num">1</span>キャラ設定</button>
+      <button type="button" data-step="skel" aria-current="false"><span class="num">2</span>骨格</button>
+      <button type="button" data-step="finish" aria-current="false"><span class="num">3</span>仕上がり</button>
+    </nav>
+  <div class="step" data-step="char">
     <section class="card">
       <h2>キャラクター設定</h2>
       <div class="mode-row" role="radiogroup" aria-label="サイズの決め方">
@@ -38,17 +44,25 @@
         <label for="preset">体型</label>
         <select id="preset"></select>
       </div>
+      <div class="row heads-row" id="headsRow">
+        <label for="headsInput">頭身</label>
+        <div class="heads-ctl">
+          <input type="range" id="headsInput" min="2" max="8" step="0.1">
+          <span id="headsValue" class="adj-value"></span>
+          <button type="button" id="headsReset" class="ghost">プリセットに戻す</button>
+        </div>
+      </div>
+      <p class="hint" id="headsLocked" hidden>頭身の自由設定は有料版の機能です(無料版は体型プリセットの頭身)。</p>
       <p class="row" id="finishedSizeRow" hidden><span class="row-label">完成サイズ(cm)</span><strong id="finishedSize"></strong></p>
-      <p class="hint" id="presetHint">体型は 女性(約6頭身)/男性(約8頭身)/デフォルメ(約3頭身)の3種類。有料版では「骨格」ページの「体型を調整する(マイ体型)」で自由に設定できます。</p>
       <div class="row next-row">
         <button type="button" id="toSkel">設定 → 骨格へ</button>
       </div>
     </section>
     <p id="calcError" class="error" hidden></p>
-  </section>
+  </div>
 
   <!-- 2. 骨格 -->
-  <section class="tab skel-page" data-tab="skel" hidden>
+  <div class="step skel-page" data-step="skel" hidden>
     <div class="skel-layout" id="skelLayout">
       <div class="skel-main">
         <div class="view-switch" id="viewSwitch" role="tablist" aria-label="図の切り替え">
@@ -100,7 +114,7 @@
       </details>
       <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
             <details id="adjustPanel">
-              <summary>体型を調整する(マイ体型)</summary>
+              <summary>体型を細かく調整する(胴・肩幅・腕・手足)</summary>
               <div id="adjustSliders"></div>
               <button type="button" id="adjustReset" class="ghost">調整をリセット</button>
             </details>
@@ -121,10 +135,10 @@
         </div>
       </aside>
     </div>
-  </section>
+  </div>
 
   <!-- 3. 仕上がり -->
-  <section class="tab" data-tab="finish" hidden>
+  <div class="step" data-step="finish" hidden>
     <section class="card" id="finishOutput"></section>
     <section class="card">
       <div class="row save-row">
@@ -134,9 +148,10 @@
       </div>
       <p id="saveMsg" class="hint" role="status"></p>
     </section>
+  </div>
   </section>
 
-  <!-- 4. 履歴 -->
+  <!-- 履歴 -->
   <section class="tab" data-tab="save" hidden>
     <section class="card">
       <h2>履歴</h2>
@@ -173,14 +188,12 @@
 </main>
 
 <nav class="tabbar" aria-label="メニュー">
-  <button type="button" data-tab="char" aria-selected="true">キャラ設定</button>
-  <button type="button" data-tab="skel" aria-selected="false">骨格</button>
-  <button type="button" data-tab="finish" aria-selected="false">仕上がり</button>
+  <button type="button" data-tab="make" aria-selected="true">骨組み作成</button>
   <button type="button" data-tab="save" aria-selected="false">履歴</button>
   <button type="button" data-tab="materials" aria-selected="false">材料</button>
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260817-0607-c7c3712/js/app.js"></script>
+<script type="module" src="v/20260817-1013-8017808/js/app.js"></script>
 </body>
 </html>
