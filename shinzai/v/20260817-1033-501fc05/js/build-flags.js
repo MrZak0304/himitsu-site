@@ -12,7 +12,7 @@ export const IS_FREE = VARIANT === 'free';
 // 無料版の制限(2026-08-13 PD決定): 体型プリセットは女性・男性のみ、
 // 体型調整(マイ体型)は不可、保存は2件まで。スケールは制限しない。
 export const LIMITS = IS_FREE
-  ? { presetKeys: ['female-adult', 'male-adult'], adjustments: false, saveLimit: 2 }
+  ? { presetKeys: null, adjustments: false, saveLimit: 2 } // 無料版: 体型3種(女性/男性/デフォルメ)固定・調整なし・保存2件(第58弾FB)
   : { presetKeys: null, adjustments: true, saveLimit: Infinity };
 
 export const VARIANT_LABEL = {

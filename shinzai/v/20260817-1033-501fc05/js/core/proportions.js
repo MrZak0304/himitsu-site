@@ -25,9 +25,9 @@ export const PROPORTION_PRESETS = {
     },
   },
   'male-adult': {
-    label: '男性(成人・約7頭身)',
+    label: '男性(約8頭身)', // 7→8頭身(第58弾FB UI改修時の指示)
     ratios: {
-      head: 0.143,
+      head: 0.125,
       hipTop: 0.48, // 脚長め(第37弾FB)
       shoulderWidth: 0.245,
       upperArm: 0.172,

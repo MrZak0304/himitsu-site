@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260817-1013-8017808">
+<meta name="build" content="20260817-1033-501fc05">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260817-1013-8017808/css/style.css">
+<link rel="stylesheet" href="v/20260817-1033-501fc05/css/style.css">
 </head>
 <body>
 <header>
@@ -47,7 +47,7 @@
       <div class="row heads-row" id="headsRow">
         <label for="headsInput">頭身</label>
         <div class="heads-ctl">
-          <input type="range" id="headsInput" min="2" max="8" step="0.1">
+          <input type="number" id="headsInput" min="2" max="8" step="0.5" inputmode="decimal">
           <span id="headsValue" class="adj-value"></span>
           <button type="button" id="headsReset" class="ghost">プリセットに戻す</button>
         </div>
@@ -147,6 +147,11 @@
         <button type="button" id="newBtn" class="ghost">新規作成</button>
       </div>
       <p id="saveMsg" class="hint" role="status"></p>
+      <div class="row export-row">
+        <label class="mode"><input type="checkbox" id="exportFlesh" checked>肉付けの目安も含める</label>
+        <button type="button" id="exportObj" class="ghost">3Dソフト用に書き出す(OBJ)</button>
+      </div>
+      <p class="hint">Blender/ZBrush などで読み込める OBJ 形式(骨格線=線径のチューブ+関節の目印。単位は cm)。Blender では読み込み時の Scale を 0.01 にすると m 単位で実寸になります。いまのポーズがそのまま出ます。</p>
     </section>
   </div>
   </section>
@@ -194,6 +199,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260817-1013-8017808/js/app.js"></script>
+<script type="module" src="v/20260817-1033-501fc05/js/app.js"></script>
 </body>
 </html>
