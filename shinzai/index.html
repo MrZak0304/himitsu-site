@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260817-2133-a53c10b">
+<meta name="build" content="20260817-2334-06de7a6">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260817-2133-a53c10b/css/style.css">
+<link rel="stylesheet" href="v/20260817-2334-06de7a6/css/style.css">
 </head>
 <body>
 <header>
@@ -69,6 +69,14 @@
         <button type="button" data-view="side-left" aria-pressed="false">左側面</button>
         <button type="button" data-view="side-right" aria-pressed="false">右側面</button>
         <button type="button" data-view="all" aria-pressed="false">三面</button>
+        <button type="button" data-view="turn" aria-pressed="false">3D</button>
+        <!-- 3Dの視点変更(第65弾FB): 正面・側面は残したまま、自由な角度から確認する -->
+        <div class="turn-ctl" id="turnCtl" hidden>
+          <button type="button" id="turnLeft" aria-label="左に回す">◀</button>
+          <span id="turnAngle" class="turn-angle">30°</span>
+          <button type="button" id="turnRight" aria-label="右に回す">▶</button>
+          <button type="button" id="turnReset" aria-label="正面に戻す">正面</button>
+        </div>
       </div>
       <div class="skel-main">
         <section class="card" id="calcOutput"></section>
@@ -77,8 +85,8 @@
         <div class="side-rail" id="sideRail">
           <button type="button" data-sec="ref" aria-pressed="false"><span class="ico">❏</span><span class="lbl">参考画像</span></button>
           <button type="button" data-sec="frame" aria-pressed="false"><span class="ico">✚</span><span class="lbl">骨組み調整</span></button>
-          <button type="button" data-sec="flesh" aria-pressed="false"><span class="ico">◐</span><span class="lbl">肉付け設定</span></button>
           <button type="button" data-sec="pose" aria-pressed="false"><span class="ico">⟲</span><span class="lbl">ポーズ設定</span></button>
+          <button type="button" data-sec="flesh" aria-pressed="false"><span class="ico">◐</span><span class="lbl">肉付け設定</span></button>
           <button type="button" data-sec="sample" aria-pressed="false"><span class="ico">▦</span><span class="lbl">見本表示</span></button>
           <!-- 操作ボタン: 「設定に戻る」(=変更を破棄して作り直し)→「骨組み完成」を一番下に(第64弾FB) -->
           <button type="button" id="skelBack" class="rail-action"><span class="ico">↩</span><span class="lbl">設定に戻る</span></button>
@@ -98,25 +106,21 @@
                 <button type="button" id="refClear" class="ghost overlay-clear" disabled>消す</button>
               </div>
             </div>
-            <p class="hint">立ち絵などを選ぶと正面図の背面に薄く表示され、そのまま「骨組み調整」に入ります。画像は端末内でのみ処理され、送信・保存されません。</p>
+            <div class="row fit-row">
+              <div class="ref-controls">
+                <button type="button" id="fitToggle" class="toggle" aria-pressed="false">画像と骨格を合わせる</button>
+                <button type="button" id="fitLock" class="toggle" aria-pressed="false" hidden>位置をロック</button>
+              </div>
+            </div>
           </section>
           <section class="side-sec" data-sec="frame">
             <h3>骨組み調整</h3>
             <div id="secFrame"></div>
-      <div class="row fit-row">
-        <label>骨格</label>
-        <div class="ref-controls">
-          <button type="button" id="fitToggle" class="toggle" aria-pressed="false">骨格を調整する</button>
-          <button type="button" id="fitLock" class="toggle" aria-pressed="false" hidden>位置をロック</button>
-          <button type="button" id="fitImport" hidden>この骨格を体型に取り込む</button>
-        </div>
-      </div>
-      <p id="fitHeads" class="hint fit-heads" hidden></p>
       <details class="how">
         <summary>使い方(参考画像・骨格の調整)</summary>
-        <p class="hint">参考画像(立ち絵など)は「参考画像」の区分で選びます。選ぶとそのまま「骨格を調整する」に入るので、背景ドラッグ・2本指で画像の位置と大きさを合わせ、正面図の点をキャラクターに重ねたら「取り込んで終える」で終了します。画像は端末内でのみ処理され、送信・保存されません。</p>
-        <p class="hint"><strong>頭身は画像から取り込まれます</strong>(6頭身に固定されません)。頭頂の点をキャラクターの頭のいちばん上へ、首のつけ根の点を肩のあたりへ合わせると、いまの骨格の頭身が「骨格を調整する」中に表示され、取り込むとその頭身で寸法が計算されます(3頭身のちびキャラでもそのまま入ります)。</p>
-        <p class="hint">「骨格を調整する」をオンにすると、骨格図の正面図で関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を自由に動かせます(股を動かすと骨格全体が移動。頭頂は上下だけ=頭の大きさ、首は首のつけ根の真上に立ちます)。ヒジ・手首・ヒザ・足首は既定では骨の長さを保って回ります(持ち上げる動き)。長さを画像に合わせたいときは図の上の「長さも動かす」をONにしてください。大まかに合わせたら「位置をロック」をオンにすると、参考画像と骨格の位置関係が固定され、関節の点以外は動かなくなります(背景ドラッグでも動かず、股のドラッグは骨盤だけの移動)。参考画像のキャラクターに合わせて「この骨格を体型に取り込む」を押すと、頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。取り込み後は「ポーズを取る」になり、股のドラッグで骨格全体を動かせます(首や胴の長さを直すときは「骨格を調整する」でここに戻れます)。</p>
+        <p class="hint">「参考画像」の区分で立ち絵などを選ぶと、正面図の背面に薄く表示され、そのまま骨格の調整に入ります。画像は端末内でのみ処理され、送信・保存されません。</p>
+        <p class="hint">頭頂の点をキャラクターの頭のいちばん上へ、首のつけ根の点を肩のあたりへ合わせると、その頭身がそのまま取り込まれます(6頭身に固定されません。3頭身のちびキャラでも入ります)。</p>
+        <p class="hint">調整中は正面図の関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を動かして画像に重ねます。ヒジ・手首・ヒザ・足首は骨の長さを保って回り、長さを変えたいときは「骨格の伸縮」をONにします。骨格の位置は既定でロックしてあるので、位置を合わせるときは「参考画像」の区分の「参考画像を動かす」を使ってください(ロックを外すと股のドラッグで骨格全体を動かせます)。「取り込んで終える」で頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。</p>
       </details>
       <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
             <details id="adjustPanel">
@@ -206,6 +210,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260817-2133-a53c10b/js/app.js"></script>
+<script type="module" src="v/20260817-2334-06de7a6/js/app.js"></script>
 </body>
 </html>

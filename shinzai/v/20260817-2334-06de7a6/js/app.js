@@ -93,15 +93,26 @@ function showStep(name) {
   if (name === 'skel') applyViewMode();
   window.scrollTo(0, 0);
 }
-// 骨格ページ: メイン図の切り替え(正面/左側面/右側面/三面)
+// 骨格ページ: メイン図の切り替え(正面/左側面/右側面/三面/3D。3Dは第65弾FB)
+const VIEW_ORDER = ['front', 'side-left', 'side-right', 'turn'];
 function applyViewMode() {
   const mode = uiLayout.viewMode;
-  for (const b of document.querySelectorAll('#viewSwitch button')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
+  for (const b of document.querySelectorAll('#viewSwitch button[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
+  $('turnCtl').hidden = mode !== 'turn'; // 3Dのときだけ視点を回すボタンを出す
   const views = document.querySelector('#calcOutput .views');
   if (!views) return;
   views.classList.toggle('single', mode !== 'all');
-  const order = ['front', 'side-left', 'side-right'];
-  views.querySelectorAll('.view').forEach((v, i) => v.classList.toggle('active', mode === 'all' || order[i] === mode));
+  // 「三面」は正面・左側面・右側面の3枚(3Dは含めない)
+  views.querySelectorAll('.view').forEach((v, i) => v.classList.toggle('active', mode === 'all' ? VIEW_ORDER[i] !== 'turn' : VIEW_ORDER[i] === mode));
+}
+// 3Dの視点を回す(度)。図を作り直しても保つ
+function turnYaw(deg, absolute = false) {
+  const st = poseStates.get($('calcOutput'));
+  const fig = st?.fig;
+  if (!fig) return;
+  fig.setYaw(absolute ? deg : fig.getYaw() + deg);
+  if (st) st.yaw = fig.getYaw();
+  $('turnAngle').textContent = `${Math.round(fig.getYaw())}°`;
 }
 // サイドメニュー(骨格ページ): レールのボタンで区分を開閉
 function openSection(sec, toggle = true) {
@@ -112,10 +123,36 @@ function openSection(sec, toggle = true) {
   for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
   for (const sc of document.querySelectorAll('#sidePanel .side-sec')) sc.hidden = uiLayout.allSections ? false : sc.dataset.sec !== uiLayout.section;
   document.body.classList.toggle('side-open', !panel.hidden);
+  scheduleFigureHeight();
 }
 function applyMenuSide() {
   $('skelLayout').classList.toggle('side-left', uiLayout.menuSide === 'left');
   document.body.classList.toggle('menu-left', uiLayout.menuSide === 'left');
+}
+// 開いたメニューが下部タブに重ならないよう、実測の高さ(セーフエリア込み)をCSS変数に渡す(第63弾FB)
+function syncTabbarHeight() {
+  const bar = document.querySelector('.tabbar');
+  if (bar?.offsetHeight) document.documentElement.style.setProperty('--tabbar-h', `${bar.offsetHeight}px`);
+}
+// メニュー(シート)を開いている間、図がシートに隠れないように高さを実測で決める(第63弾FB)。
+// 図の上の案内文の行数でずれるため、CSSの目安値ではなく実際の余白から求める。
+function syncFigureHeight() {
+  const root = document.documentElement;
+  const svg = document.querySelector('#calcOutput .views .view.active svg.pose-svg')
+    ?? document.querySelector('#calcOutput .views svg.pose-svg');
+  const panel = $('sidePanel');
+  if (!svg || !panel || panel.hidden || window.innerWidth >= 900) {
+    root.style.removeProperty('--fig-open-h');
+    return;
+  }
+  const top = svg.getBoundingClientRect().top;
+  const limit = panel.getBoundingClientRect().top - 6;
+  root.style.setProperty('--fig-open-h', `${Math.max(180, Math.round(limit - top))}px`);
+}
+let figHeightRaf = 0;
+function scheduleFigureHeight() {
+  if (figHeightRaf) return;
+  figHeightRaf = requestAnimationFrame(() => { figHeightRaf = 0; syncFigureHeight(); });
 }
 
 // ---- 共通の結果描画 ----
@@ -309,18 +346,19 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
   toFitBtn.type = 'button';
   const toFitRow = h('div', 'to-fit-row');
   toFitRow.append(toFitBtn);
-  // 骨格合わせの終了操作を図のすぐ上に置く(上の「キャラクターの設定」まで戻らなくてよい。第29弾FB)
-  const fitLockBtn = h('button', 'toggle fit-lock-btn', '位置をロック');
-  fitLockBtn.type = 'button';
+  // 骨格調整の終了操作(骨組み調整の区分)。位置ロックは「参考画像」の区分へ移動(第65弾FB)
   const fitDoneBtn = h('button', 'fit-done-btn', '取り込んで終える');
   fitDoneBtn.type = 'button';
   const fitCancelBtn = h('button', 'ghost fit-cancel-btn', '取り込まずに終える');
   fitCancelBtn.type = 'button';
-  // 腕・脚の関節は既定で「回す(持ち上げる)」。長さを変えるときだけON(第45弾FB「腕が伸びる」)
-  const fitFreeBtn = h('button', 'toggle fit-free-btn', '長さも動かす');
+  // 腕・脚の関節は既定で「回す(持ち上げる)」。長さを変えるときだけON(第45弾FB「腕が伸びる」→ 第65弾FBで「骨格の伸縮」に改名)
+  const fitFreeBtn = h('button', 'toggle fit-free-btn', '骨格の伸縮');
   fitFreeBtn.type = 'button';
+  // 左右対称に動かすスイッチは骨組み調整にも置く(第65弾FB)。ポーズ設定側と同じ状態を共有
+  const mirrorBtn2 = h('button', 'toggle mirror-btn2', '左右対称');
+  mirrorBtn2.type = 'button'; mirrorBtn2.setAttribute('aria-pressed', String(uiAids.mirror));
   const fitActions = h('div', 'fit-actions');
-  fitActions.append(fitLockBtn, fitDoneBtn, fitCancelBtn, fitFreeBtn);
+  fitActions.append(fitDoneBtn, fitCancelBtn, fitFreeBtn, mirrorBtn2);
   fitActions.hidden = true;
   const fitDone = h('p', 'hint fit-done-msg', '');
   fitDone.hidden = true;
@@ -360,13 +398,15 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
         }
         return poseState.on ? poseState.joints : null;
       })(),
-      onStatus: (t) => { poseHint.textContent = t; },
+      // 触った関節名などの状態表示は骨格調整中だけ(ポーズ中は図の上に文字を出さない。第64弾FB)
+      onStatus: (t) => { if (!sides || fitOn) poseHint.textContent = t; },
       onJointPick: (id) => { if ([...jointSel.options].some((o) => o.value === id)) jointSel.value = id; },
       viewport: poseState.on ? poseState.viewport : null,
       axisLock: uiAids.axisLock,
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
       volume: fleshVolume,
+      yaw: poseState.yaw ?? 30, // 3Dの視点(第65弾FB)
       // 単面表示では自動で大きく(はみ出す分は切る slice)。三面では「大きく表示」トグルに従う(第61弾FB: 図をできるだけ大きく)
       big: uiAids.big || (sides && uiLayout.viewMode !== 'all'),
       onViewportChange: (vp) => { poseState.viewport = vp; },
@@ -377,10 +417,11 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       onPoseChange: (joints, posed) => {
         if (fitOn) { fitState.joints = posed ? joints : null; return; }
         poseState.joints = posed ? joints : null;
-        poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
+        if (!sides) poseHint.textContent = posed ? GUIDE_POSED : GUIDE_IDLE;
       },
     });
     poseState.fig = fig;
+    if (isCalc) { scheduleFigureHeight(); $('turnAngle').textContent = `${Math.round(fig.getYaw())}°`; }
     poseTools.hidden = !(poseState.on || fitOn);
     if (poseTools._poseGroup) poseTools._poseGroup.hidden = !(poseState.on || fitOn);
     if (sides) applyViewMode();
@@ -390,9 +431,8 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     for (const el2 of [twistUp.input, twistUp.zero, twistLo.input, twistLo.zero, resetOne, resetAll, jointSel]) el2.disabled = fitOn;
     fitNote.hidden = true; // 文字量削減(第47弾FB): 無効表示で伝わるので注記は出さない
     fitActions.hidden = !fitOn;
-    fitLockBtn.setAttribute('aria-pressed', String(fitState.locked));
     fitFreeBtn.setAttribute('aria-pressed', String(uiAids.fitFree));
-    fitLockBtn.textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
+    mirrorBtn2.setAttribute('aria-pressed', String(uiAids.mirror));
     poseHint.classList.toggle('fit-banner', fitOn);
     toFitRow.hidden = sides ? true : !(isCalc && !fitOn); // サイドメニューでは「骨格を調整する」ボタンが同区分にあるので不要
     // 位置ロック中は表示位置の操作も隠す(関節以外は動かさない)
@@ -402,10 +442,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     views.classList.toggle('big', uiAids.big && (poseState.on || fitOn));
     poseBtn.disabled = fitOn;
     if (isCalc) toggleRow.hidden = false;
+    // 図の上の文言は骨格調整中の案内だけにする(第64弾FB: 取り込み後・ポーズ中の文言はいらない。
+    // ポーズの操作は「ポーズ設定」の区分にあるので説明は不要)
+    if (sides) poseHint.hidden = !fitOn;
     if (fitOn) {
-      poseHint.textContent = (fitIntro ? `${fitIntro} ` : '骨格調整中: 点を動かし、') + '「取り込んで終える」で終了。';
+      poseHint.textContent = (fitIntro ? `${fitIntro}` : '骨格調整中: ') + '点を画像に重ねたら「取り込んで終える」。';
       fitIntro = '';
-    } else if (poseState.on) {
+    } else if (poseState.on && !sides) {
       poseHint.textContent = poseState.joints ? GUIDE_POSED : GUIDE_IDLE;
     }
   };
@@ -414,13 +457,13 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
     renderCalc();
   });
   toFitBtn.addEventListener('click', () => enterFit(true));
-  fitLockBtn.addEventListener('click', () => $('fitLock').click());
+  mirrorBtn2.addEventListener('click', () => mirrorBtn.click());
   fitFreeBtn.addEventListener('click', () => {
     uiAids.fitFree = !uiAids.fitFree;
     fitFreeBtn.setAttribute('aria-pressed', String(uiAids.fitFree));
     poseState.fig?.setFitFree(uiAids.fitFree);
   });
-  fitDoneBtn.addEventListener('click', () => $('fitImport').click());
+  fitDoneBtn.addEventListener('click', () => importFit());
   fitCancelBtn.addEventListener('click', () => { if (fitState.on) $('fitToggle').click(); });
   // 骨格合わせに入る直前の一言は、合わせ中バナーに合流させる(バナーが2枚重ならないように)
   let fitIntro = (root.id === 'calcOutput' && fitState.on && fitFlash) ? fitFlash : '';
@@ -476,7 +519,7 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
   });
   mirrorBtn.addEventListener('click', () => {
     uiAids.mirror = !uiAids.mirror;
-    mirrorBtn.setAttribute('aria-pressed', String(uiAids.mirror));
+    for (const b of [mirrorBtn, mirrorBtn2]) b.setAttribute('aria-pressed', String(uiAids.mirror));
     poseState.fig?.setMirror(uiAids.mirror);
   });
   bigBtn.addEventListener('click', () => {
@@ -652,13 +695,16 @@ function buildAdjustSliders() {
   }
 }
 
-// キャラ設定の「頭身」: プリセットの頭身を初期値に、有料版では 2〜8 頭身を自由に(adjustments.heads)
+// キャラ設定の「頭身」: プリセット(または参考画像から取り込んだ体型)の頭身を初期値に、
+// 有料版では 2〜8 頭身を自由に(adjustments.heads)
 function syncHeadsControl() {
   const baseRatios = importedRatios ?? PROPORTION_PRESETS[$('preset').value].ratios;
   const presetHeads = Math.round(10 / baseRatios.head) / 10;
   const cur = Number.isFinite(adjustments.heads) ? adjustments.heads : presetHeads;
   $('headsInput').value = String(cur);
-  $('headsValue').textContent = `${Number(cur).toFixed(1)}頭身${Number.isFinite(adjustments.heads) ? '' : '(プリセット)'}`;
+  // 取り込み済みの体型では「プリセット」ではなく画像由来だと分かるように(第63弾FB: 6頭身固定に見える)
+  const src = Number.isFinite(adjustments.heads) ? '' : (importedRatios ? '(参考画像から)' : '(プリセット)');
+  $('headsValue').textContent = `${Number(cur).toFixed(1)}頭身${src}`;
   $('headsReset').hidden = !Number.isFinite(adjustments.heads);
   const locked = !LIMITS.adjustments;
   $('headsInput').disabled = locked;
@@ -827,11 +873,11 @@ function initSettings() {
 // ---- 参考画像(キャラクターの設定) ----
 
 function syncRefButtons() {
+  // 位置ロック中でも参考画像は動かせる(ロックは「骨格の位置」を固定するもの。第65弾FB)
   const has = !!refImage.overlay?.src;
-  const locked = fitState.on && fitState.locked;
-  for (const id of ['refMove', 'refZoomIn', 'refZoomOut']) $(id).disabled = !has || locked;
+  for (const id of ['refMove', 'refZoomIn', 'refZoomOut']) $(id).disabled = !has;
   $('refClear').disabled = !has;
-  $('refMove').setAttribute('aria-pressed', String(has && !locked && refImage.dragTarget === 'overlay'));
+  $('refMove').setAttribute('aria-pressed', String(has && refImage.dragTarget === 'overlay'));
 }
 
 function calcFig() {
@@ -843,15 +889,17 @@ function setRefImage(dataUrl) {
   refImage.dragTarget = 'overlay';
   calcFig()?.setDragTarget('overlay');
   syncRefButtons();
-  // 画像を選んだら、そのまま「参考画像に骨格を合わせる」に入る(最初にやることを1つにする。第30弾FB)
+  // 画像を選んだら、そのまま骨格の調整に入る(最初にやることを1つにする。第30弾FB)
+  // 骨格の位置は既定でロック(動かすのは参考画像側。第65弾FB)
   if (!fitState.on) {
-    fitFlash = '参考画像を選びました。画像を合わせ、点をキャラクターに重ねてください。';
-    enterFit(false);
+    fitFlash = '参考画像を選びました。';
+    enterFit(true);
   }
 }
 
-// 骨格合わせ(キャラクターの設定): 参考画像に骨格を合わせて体型を取り込む
+// 骨格調整(参考画像の区分から操作): 参考画像に骨格を合わせて体型を取り込む
 let fitSync = () => {};
+let importFit = () => {}; // 「取り込んで終える」の本体(initFit で設定)
 let fitFlash = ''; // 骨格合わせ終了時の一言(次の描画で1回だけ表示)
 let pendingFitPose = null; // 取り込み直後にポーズへ引き継ぐ正面図の関節位置(px)
 function enterFit(locked) {
@@ -861,6 +909,8 @@ function enterFit(locked) {
   const st = poseStates.get($('calcOutput'));
   if (st) { fitState.resumePose = st.on; st.on = false; }
   fitSync();
+  // 終了・取り込みの操作は「骨組み調整」区分にあるので開いておく(参考画像の区分から入ったとき用。第63弾FB)
+  openSection('frame', false);
   renderCalc();
   $('calcOutput').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -873,25 +923,18 @@ function exitFit() {
 function initFit() {
   const sync = () => {
     $('fitToggle').setAttribute('aria-pressed', String(fitState.on));
-    $('fitImport').hidden = !fitState.on;
     $('fitLock').hidden = !fitState.on;
     $('fitLock').setAttribute('aria-pressed', String(fitState.locked));
     $('fitLock').textContent = fitState.locked ? '位置をロック中(解除)' : '位置をロック';
-    // ロック中は参考画像を動かせない(骨格との位置関係を固定)
-    if (fitState.on && fitState.locked) {
-      refImage.dragTarget = 'view';
-      calcFig()?.setDragTarget('view');
-    }
     syncRefButtons();
   };
   fitSync = sync;
   $('fitToggle').addEventListener('click', () => {
     if (fitState.on) {
       exitFit();
-      fitFlash = '骨格の調整を終了しました(取り込みなし)。';
       sync(); renderCalc(); return;
     }
-    enterFit(false);
+    enterFit(true);
   });
   $('fitLock').addEventListener('click', () => {
     fitState.locked = !fitState.locked;
@@ -902,7 +945,7 @@ function initFit() {
     if (fig) fitState.joints = fig.getJoints();
     renderCalc();
   });
-  $('fitImport').addEventListener('click', () => {
+  importFit = () => {
     const fig = calcFig();
     if (!fig) return;
     const errBox = $('calcError');
@@ -935,20 +978,19 @@ function initFit() {
       const st = poseStates.get($('calcOutput'));
       if (st) { st.joints = null; st.on = true; } // 骨長が変わるのでポーズは直立から。取り込んだらすぐポーズを付けられるようにON
       sync();
-      fitFlash = '体型に取り込みました。ポーズを付けられます。';
       setImportedRatios(ratios); // renderCalc → 再描画
       errBox.hidden = true;
     } catch (e) {
       errBox.hidden = false;
       errBox.textContent = `体型の取り込みに失敗しました: ${e.message}`;
     }
-  });
+  };
   sync();
   if (IS_FREE) {
     const note = document.createElement('p');
     note.className = 'hint';
     note.textContent = '無料版では体型の取り込み1回につき広告が1回表示されます(モバイル版)。';
-    $('fitImport').closest('.row').after(note);
+    $('fitToggle').closest('.row').after(note);
   }
 }
 
@@ -994,20 +1036,28 @@ function main() {
   // ページ間の流れ(第58弾FB): キャラ設定 →(設定)→ 骨格 →(骨組み完成)→ 仕上がり。新規作成はキャラ設定へ
   $('toSkel').addEventListener('click', () => showStep('skel'));
   $('skelDone').addEventListener('click', () => showStep('finish'));
-  $('skelBack').addEventListener('click', () => showStep('char'));
+  // 「設定に戻る」は実質やり直し(第64弾FB: 新規作成ボタンは置かず、ここで破棄の確認をする)
+  $('skelBack').addEventListener('click', () => {
+    if (window.confirm('キャラ設定に戻ります。いまの骨組み(参考画像・骨格の調整・ポーズ)は破棄されます。よろしいですか?')) resetAll();
+  });
   $('finishBack').addEventListener('click', () => showStep('skel'));
   for (const b of document.querySelectorAll('.stepbar button')) b.addEventListener('click', () => showStep(b.dataset.step));
-  $('skelNew').addEventListener('click', () => { if (window.confirm('新規作成しますか?(いまの体型・参考画像・ポーズは初期状態に戻ります。保存済みデータは残ります)')) resetAll(); });
-  // 図の切り替え
-  for (const b of document.querySelectorAll('#viewSwitch button')) {
+  // 図の切り替え(正面/左側面/右側面/三面/3D)
+  for (const b of document.querySelectorAll('#viewSwitch button[data-view]')) {
     b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); renderCalc(); applyViewMode(); });
   }
+  // 3Dの視点変更(第65弾FB)
+  $('turnLeft').addEventListener('click', () => turnYaw(-15));
+  $('turnRight').addEventListener('click', () => turnYaw(15));
+  $('turnReset').addEventListener('click', () => turnYaw(0, true));
   // サイドメニュー
   for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.addEventListener('click', () => openSection(b.dataset.sec));
   $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', 'false'); });
   $('menuSide').value = uiLayout.menuSide;
   $('menuSide').addEventListener('change', () => { uiLayout.menuSide = $('menuSide').value; saveUiLayout(); applyMenuSide(); });
   applyMenuSide();
+  syncTabbarHeight();
+  window.addEventListener('resize', () => { syncTabbarHeight(); scheduleFigureHeight(); });
   // 広い画面ではパネルを常時表示
   const wide = window.matchMedia('(min-width: 900px)');
   const syncWide = () => { if (wide.matches) openSection(uiLayout.section, false); };

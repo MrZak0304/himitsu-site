@@ -13,7 +13,8 @@ import {
 import { dimLineV, dimLineH, geometry, VIEW_W, VIEW_H } from './diagram.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面']];
+// 3D(自由視点)は「関節をY軸まわりに回してから正面として描く」ことで既存の描画をそのまま使う(第65弾FB)
+const VIEWS = [['front', '正面'], ['side-left', '左側面'], ['side-right', '右側面'], ['turn', '3D']];
 // 体型合わせモードで追加・言い換えする関節名
 const FIT_LABELS = { top: '頭頂(上下で頭の大きさ)', neck: 'あご', hip: '股(ロック解除中は骨格全体、ロック中は骨盤だけ移動)', spineTop: '首のつけ根(頭・首もついてくる)' };
 const POSE_LABELS = { hip: '股(骨格全体を移動)' };
@@ -45,7 +46,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     kneeL: ['ankleL', 'toeL'], kneeR: ['ankleR', 'toeR'], ankleL: ['toeL'], ankleR: ['toeR'], toeL: [], toeR: [],
     shoulderL: ['elbowL', 'wristL'], shoulderR: ['elbowR', 'wristR'],
   };
-  const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 } } };
+  const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 }, turn: { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
   // 透かし画像(正面図の背面に半透明で重ねる。「画像から」と「芯材計算」を一体化する第1段階。第18弾FB)
   //   overlay: { src, t:{x,y}(px), s(倍率), opacity }。dragTarget='overlay' のとき背景ドラッグ/ピンチは透かしを動かす
@@ -69,7 +70,33 @@ export function createPoseFigure(container, seg, opts = {}) {
   // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
   // 骨格の位置は全モードで同じ(第24弾FB: モードで位置が変わると取り込みのたびに参考画像とズレが累積した)。
   // 参考画像のほうを、選んだ時点で骨格の中心(hipX)に置く
-  const hipX = (view) => (view === 'side-left' ? VIEW_W - g.cx : g.cx);
+  let turning = false; // 3D(自由視点)の描画中は股の位置を面で変えない(左右にジャンプしないように)
+  const hipX = (view) => (!turning && view === 'side-left' ? VIEW_W - g.cx : g.cx);
+  // 3D(自由視点)の角度。0=正面、+90=右側面、-90=左側面(第65弾FB「3D視点変更の面操作ボタン」)
+  let yawDeg = Number.isFinite(opts.yaw) ? opts.yaw : 30;
+  const rotYJoints = (js, deg) => {
+    const a = (deg * Math.PI) / 180; const c = Math.cos(a); const sn = Math.sin(a);
+    const out = {};
+    for (const id of Object.keys(js)) {
+      const q = js[id];
+      out[id] = { x: q.x * c + q.z * sn, y: q.y, z: -q.x * sn + q.z * c };
+    }
+    return out;
+  };
+  // 3Dの面は「関節をY軸まわりに回してから、いちばん近い面(正面/側面)として描く」。
+  // 投影はどの面を選んでも u = x·cosθ + z·sinθ に一致するので見え方は正しく、
+  // 肉付け(胴のブロック・奥行き)は近い面のものを使う=横向きに近い角度で薄っぺらくならない。
+  const withView = (vkey, fn) => {
+    if (vkey !== 'turn') return fn(vkey);
+    const a = ((((yawDeg % 360) + 540) % 360) - 180); // -180〜180に正規化
+    let style = 'front'; let rot = a;
+    if (a > 45 && a <= 135) { style = 'side-right'; rot = a - 90; } // 前が右
+    else if (a < -45 && a >= -135) { style = 'side-left'; rot = a + 90; } // 前が左
+    const saved = joints;
+    joints = rotYJoints(joints, rot);
+    turning = true;
+    try { return fn(style); } finally { joints = saved; turning = false; }
+  };
   const toPx = (p, view) => {
     const { u, v } = project(p, view);
     return { x: hipX(view) + u * k, y: g.hipY + v * k };
@@ -370,7 +397,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     const svg = el('svg', {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
       preserveAspectRatio: bigView ? 'xMidYMid slice' : 'xMidYMid meet',
-      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView ? ' big' : ''}${view === 'front' ? '' : ' side'}`,
+      class: `pose-svg${opts.flesh ? ' with-flesh' : ''}${interactive ? '' : ' static'}${bigView ? ' big' : ''}${view === 'front' || view === 'turn' ? '' : ' side'}`,
       role: 'img',
       'aria-label': `骨格図(${VIEWS.find((v) => v[0] === view)[1]})`,
     });
@@ -421,7 +448,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     }
     const dims = el('g', { class: 'dims' });
     const jointsG = el('g', { class: 'pose-joints' });
-    if (interactive && (!fitMode || view === 'front')) {
+    if (interactive && view !== 'turn' && (!fitMode || view === 'front')) {
       // ポーズ中も股は掴める(骨格全体の平行移動。第30弾FB: 位置を直したいのに何も起きない/回転する)
       // 骨格合わせの「あご」の点は廃止(首の軸が斜めになって不自然。第31弾FB)。首は常に首のつけ根の真上
       const ids = dragIds(view);
@@ -478,7 +505,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   let pinchStart = null;
   // その面で掴める関節(骨格合わせは正面図だけ。あごは廃止=首の軸は垂直固定)
   function dragIds(view) {
-    if (!interactive) return [];
+    if (!interactive || view === 'turn') return []; // 3Dは表示専用(操作は正面・側面で。第65弾FB)
     if (fitMode) return view === 'front' ? ['top', 'hip', ...DRAGGABLE] : [];
     // 側面図は手前側の腕・脚だけ動かせる(右側面=右、左側面=左。点が重なって混乱するため。第42弾FB)
     const far = view === 'side-right' ? 'L' : view === 'side-left' ? 'R' : null;
@@ -520,7 +547,9 @@ export function createPoseFigure(container, seg, opts = {}) {
     // 「参考画像を動かす」モードでは正面図の背景操作は参考画像に対して行う
     const onOverlay = dragTarget === 'overlay' && view === 'front' && overlayState?.src;
     if (!interactive && !onOverlay) return; // 通常表示では図は動かさない
-    if (fitLocked) return; // 位置ロック中は背景操作(パン/ピンチ)で図も画像も動かさない(第26弾FB)
+    // 位置ロック中は背景操作(パン/ピンチ)で図を動かさない(第26弾FB)。
+    // ただし参考画像は動かせる(骨格に重ねる手段だから。ロックは「骨格の位置」を固定するもの=第65弾FB)
+    if (fitLocked && !onOverlay) return;
     pointers.set(ev.pointerId, svgPoint(svg, ev));
     let last = svgPoint(svg, ev);
     if (pointers.size === 2) {
@@ -588,6 +617,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     let s = Infinity;
     const boxes = {};
     for (const view of Object.keys(svgs)) {
+      if (view === 'turn') continue; // 3Dは正面と同じ位置・倍率にする(下でコピー)
       let minX = Infinity; let minY = Infinity; let maxX = -Infinity; let maxY = -Infinity;
       const pts = Object.keys(joints).map((id) => toPx(joints[id], view));
       const hg = headGeom(view);
@@ -604,6 +634,7 @@ export function createPoseFigure(container, seg, opts = {}) {
       const cx = (b.minX + b.maxX) / 2; const cy = (b.minY + b.maxY) / 2;
       viewport.t[view] = { x: VIEW_W / 2 - cx * s, y: VIEW_H / 2 - cy * s };
     }
+    if (svgs.turn) viewport.t.turn = { ...viewport.t.front };
     applyViewport();
     emitViewport();
   }
@@ -611,6 +642,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   function allJointsVisible() {
     const margin = 6;
     for (const view of Object.keys(svgs)) {
+      if (view === 'turn') continue;
       const t = viewport.t[view] ?? { x: 0, y: 0 };
       for (const id of DRAGGABLE) {
         const p = toPx(joints[id], view);
@@ -651,7 +683,7 @@ export function createPoseFigure(container, seg, opts = {}) {
 
   function redraw() {
     const posed = isPosed(joints, rest);
-    for (const [view, svg] of Object.entries(svgs)) {
+    for (const [vkey, svg] of Object.entries(svgs)) withView(vkey, (view) => {
       // 骨格
       for (const line of svg.querySelectorAll('line[data-bone]')) {
         const [a, b] = line.dataset.bone.split('-');
@@ -731,8 +763,8 @@ export function createPoseFigure(container, seg, opts = {}) {
       // 寸法注記(直立のときだけ)
       const dims = svg.querySelector('.dims');
       dims.replaceChildren();
-      if (!posed && !fitMode) appendDims(dims, view);
-    }
+      if (!posed && !fitMode && vkey !== 'turn') appendDims(dims, view); // 3Dに寸法注記は出さない
+    });
   }
 
   function appendDims(dims, view) {
@@ -1017,6 +1049,9 @@ export function createPoseFigure(container, seg, opts = {}) {
     lastJoint: () => lastJoint,
     setFitLocked(v) { fitLocked = !!v; },
     setFitFree(v) { fitFree = !!v; },
+    // 3D(自由視点)の角度(度)。0=正面、+90=右側面、−90=左側面(第65弾FB)
+    setYaw(deg) { yawDeg = Math.max(-180, Math.min(180, deg)); redraw(); },
+    getYaw: () => yawDeg,
     // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
     standardFrame: () => ({ topY: g.top, soleY: g.soleY, hipX: g.cx }),
     // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
