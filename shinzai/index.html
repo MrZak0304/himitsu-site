@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260817-2334-06de7a6">
+<meta name="build" content="20260818-0750-12bad24">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260817-2334-06de7a6/css/style.css">
+<link rel="stylesheet" href="v/20260818-0750-12bad24/css/style.css">
 </head>
 <body>
 <header>
@@ -73,8 +73,13 @@
         <!-- 3Dの視点変更(第65弾FB): 正面・側面は残したまま、自由な角度から確認する -->
         <div class="turn-ctl" id="turnCtl" hidden>
           <button type="button" id="turnLeft" aria-label="左に回す">◀</button>
-          <span id="turnAngle" class="turn-angle">30°</span>
           <button type="button" id="turnRight" aria-label="右に回す">▶</button>
+          <button type="button" id="turnUp" aria-label="見上げる">▲</button>
+          <button type="button" id="turnDown" aria-label="見下ろす">▼</button>
+          <span id="turnAngle" class="turn-angle">30°/0°</span>
+          <!-- XYZ の向き(触るとその面から見る。第66弾FB) -->
+          <svg id="turnGizmo" class="turn-gizmo" viewBox="0 0 64 64" role="img" aria-label="XYZの向き(軸を押すとその面から見る)"></svg>
+          <span id="turnPlane" class="turn-plane">正面(XY)</span>
           <button type="button" id="turnReset" aria-label="正面に戻す">正面</button>
         </div>
       </div>
@@ -100,27 +105,32 @@
             <div class="row ref-row">
               <div class="ref-controls">
                 <label class="ghost overlay-pick" id="refPick">参考画像を選ぶ<input type="file" id="refFile" accept="image/*" class="overlay-file"></label>
+                <button type="button" id="refShow" class="toggle overlay-show" aria-pressed="false" disabled>表示</button>
                 <button type="button" id="refMove" class="toggle overlay-move" aria-pressed="false" disabled>参考画像を動かす</button>
                 <button type="button" id="refZoomIn" class="ghost overlay-zoom-in" disabled>拡大</button>
                 <button type="button" id="refZoomOut" class="ghost overlay-zoom-out" disabled>縮小</button>
                 <button type="button" id="refClear" class="ghost overlay-clear" disabled>消す</button>
               </div>
             </div>
+            <!-- 参考画像から骨格を作る手順(第66弾FB): 顔を合わせる → 自動で合わせる → 関節を直す → 取り込む -->
             <div class="row fit-row">
               <div class="ref-controls">
-                <button type="button" id="fitToggle" class="toggle" aria-pressed="false">画像と骨格を合わせる</button>
+                <button type="button" id="refFace" class="ghost" disabled>① 顔の大きさを合わせる</button>
+                <button type="button" id="refAuto" class="ghost" disabled>② 自動で骨格を合わせる</button>
+                <button type="button" id="fitToggle" class="toggle" aria-pressed="false">③ 関節を手で調整する</button>
                 <button type="button" id="fitLock" class="toggle" aria-pressed="false" hidden>位置をロック</button>
               </div>
             </div>
+            <p id="refStep" class="hint ref-step" hidden></p>
+            <div id="secRefFit"></div>
           </section>
           <section class="side-sec" data-sec="frame">
             <h3>骨組み調整</h3>
             <div id="secFrame"></div>
       <details class="how">
-        <summary>使い方(参考画像・骨格の調整)</summary>
-        <p class="hint">「参考画像」の区分で立ち絵などを選ぶと、正面図の背面に薄く表示され、そのまま骨格の調整に入ります。画像は端末内でのみ処理され、送信・保存されません。</p>
-        <p class="hint">頭頂の点をキャラクターの頭のいちばん上へ、首のつけ根の点を肩のあたりへ合わせると、その頭身がそのまま取り込まれます(6頭身に固定されません。3頭身のちびキャラでも入ります)。</p>
-        <p class="hint">調整中は正面図の関節(頭頂・首のつけ根・肩・ヒジ・手首・骨盤・ヒザ・足首・つま先)を動かして画像に重ねます。ヒジ・手首・ヒザ・足首は骨の長さを保って回り、長さを変えたいときは「骨格の伸縮」をONにします。骨格の位置は既定でロックしてあるので、位置を合わせるときは「参考画像」の区分の「参考画像を動かす」を使ってください(ロックを外すと股のドラッグで骨格全体を動かせます)。「取り込んで終える」で頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。</p>
+        <summary>使い方(参考画像から骨格を作る)</summary>
+        <p class="hint">操作はすべて「参考画像」の区分で完結します。①立ち絵などを選ぶ(正面図の背面に薄く表示。端末内でのみ処理され送信・保存されません) → ②「顔の大きさを合わせる」で画像をドラッグ・拡大縮小し、キャラクターの頭を骨格の頭の丸に重ねる → ③「自動で骨格を合わせる」でキャラクターの全身の範囲に骨格を合わせる(背景が単色に近いほどうまくいきます) → ④「関節を手で調整する」で合わない関節を直す → 「取り込んで終える」。</p>
+        <p class="hint">関節は骨の長さを保って回ります。長さ(頭の大きさ・肩幅・骨盤幅・手足の長さ)を変えたいときだけ「骨格の伸縮」をONにしてください。骨格の位置は既定でロックしてあり、画像側を動かして合わせます(ロックを外すと股のドラッグで骨格全体が動きます)。「取り込んで終える」で頭身・首・胴・肩幅・骨盤幅・腕・脚の比率が体型に反映され、寸法が再計算されます。</p>
       </details>
       <p id="importedNote" class="hint imported-note" hidden>体型: <strong>参考画像から取り込み済み</strong>(体型プリセットの代わりに使われています) <button type="button" id="importedReset" class="ghost">プリセットに戻す</button></p>
             <details id="adjustPanel">
@@ -210,6 +220,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260817-2334-06de7a6/js/app.js"></script>
+<script type="module" src="v/20260818-0750-12bad24/js/app.js"></script>
 </body>
 </html>
