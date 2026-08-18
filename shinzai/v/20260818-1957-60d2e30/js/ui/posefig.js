@@ -40,11 +40,18 @@ export function createPoseFigure(container, seg, opts = {}) {
   let fitLocked = !!opts.fitLocked;
   // 骨格合わせで腕・脚の関節を動かすときの既定=骨の長さを保って回す(持ち上げる)。長さを変えるのは fitFree=true のときだけ(第45弾FB)
   let fitFree = !!opts.fitFree;
-  const FIT_ROTATE = new Set(['elbowL', 'elbowR', 'wristL', 'wristR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'toeL', 'toeR']);
+  // 「骨格の伸縮」OFF のあいだは骨の長さを変えない(第66弾FB)。肩幅・骨盤幅・胴の長さも
+  // 自由移動ではなく親を中心に回す。頭の大きさ(頭頂)は長さそのものなので触れない。
+  const FIT_ROTATE = new Set([
+    'elbowL', 'elbowR', 'wristL', 'wristR', 'kneeL', 'kneeR', 'ankleL', 'ankleR', 'toeL', 'toeR',
+    'shoulderL', 'shoulderR', 'hipL', 'hipR', 'spineTop',
+  ]);
   const FIT_DESC = {
     elbowL: ['wristL'], elbowR: ['wristR'], wristL: [], wristR: [],
     kneeL: ['ankleL', 'toeL'], kneeR: ['ankleR', 'toeR'], ankleL: ['toeL'], ankleR: ['toeR'], toeL: [], toeR: [],
     shoulderL: ['elbowL', 'wristL'], shoulderR: ['elbowR', 'wristR'],
+    hipL: ['kneeL', 'ankleL', 'toeL'], hipR: ['kneeR', 'ankleR', 'toeR'],
+    spineTop: ['neck', 'top', 'shoulderL', 'shoulderR', 'elbowL', 'elbowR', 'wristL', 'wristR'],
   };
   const viewport = opts.viewport ?? { s: 1, t: { front: { x: 0, y: 0 }, 'side-left': { x: 0, y: 0 }, 'side-right': { x: 0, y: 0 }, turn: { x: 0, y: 0 } } };
   const stages = {}; // view → <g class="stage">
@@ -57,9 +64,10 @@ export function createPoseFigure(container, seg, opts = {}) {
   const MIRROR_PAIR = {
     shoulderL: 'shoulderR', shoulderR: 'shoulderL', elbowL: 'elbowR', elbowR: 'elbowL', wristL: 'wristR', wristR: 'wristL',
     kneeL: 'kneeR', kneeR: 'kneeL', ankleL: 'ankleR', ankleR: 'ankleL', toeL: 'toeR', toeR: 'toeL',
+    hipL: 'hipR', hipR: 'hipL',
   };
   let bigView = !!opts.big; // 大きく表示(枠を画面高さに合わせ、はみ出す分は切る=slice。第33弾FB)
-  let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45 } : null;
+  let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45, hidden: !!overlay.hidden } : null;
   const rest = restPose(seg);
   const lengths = boneLengths(rest);
   let joints = opts.initialJoints ?? rest;
@@ -70,33 +78,71 @@ export function createPoseFigure(container, seg, opts = {}) {
   // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
   // 骨格の位置は全モードで同じ(第24弾FB: モードで位置が変わると取り込みのたびに参考画像とズレが累積した)。
   // 参考画像のほうを、選んだ時点で骨格の中心(hipX)に置く
+  let detectMarks = opts.detectMarks ?? null; // 参考画像から検出した顔・足元の目印
   let turning = false; // 3D(自由視点)の描画中は股の位置を面で変えない(左右にジャンプしないように)
   const hipX = (view) => (!turning && view === 'side-left' ? VIEW_W - g.cx : g.cx);
-  // 3D(自由視点)の角度。0=正面、+90=右側面、-90=左側面(第65弾FB「3D視点変更の面操作ボタン」)
+  // 3D(自由視点)の角度。yaw: 0=正面/+90=右側面/−90=左側面、pitch: +で見下ろし・−で見上げ(第65・66弾FB)
   let yawDeg = Number.isFinite(opts.yaw) ? opts.yaw : 30;
-  const rotYJoints = (js, deg) => {
+  let pitchDeg = Number.isFinite(opts.pitch) ? opts.pitch : 0;
+  // 2軸(a, b)の平面内で回す。a' = a·cos − b·sin / b' = a·sin + b·cos
+  const rotPlane = (js, deg, ka, kb) => {
     const a = (deg * Math.PI) / 180; const c = Math.cos(a); const sn = Math.sin(a);
     const out = {};
     for (const id of Object.keys(js)) {
       const q = js[id];
-      out[id] = { x: q.x * c + q.z * sn, y: q.y, z: -q.x * sn + q.z * c };
+      out[id] = { ...q, [ka]: q[ka] * c - q[kb] * sn, [kb]: q[ka] * sn + q[kb] * c };
     }
     return out;
   };
+  const rotYJoints = (js, deg) => rotPlane(js, deg, 'x', 'z');
+  // 360度ぐるっと回せるように、角度は −180〜180 に正規化する(止まらない。第68弾FB)
+  const normDeg = (d) => ((((d % 360) + 540) % 360) - 180);
   // 3Dの面は「関節をY軸まわりに回してから、いちばん近い面(正面/側面)として描く」。
   // 投影はどの面を選んでも u = x·cosθ + z·sinθ に一致するので見え方は正しく、
   // 肉付け(胴のブロック・奥行き)は近い面のものを使う=横向きに近い角度で薄っぺらくならない。
-  const withView = (vkey, fn) => {
-    if (vkey !== 'turn') return fn(vkey);
+  // 3Dの見え方に合わせて点の集まりを回す(骨格にもギズモの軸ベクトルにも使う)
+  const turnRotate = (js) => {
     const a = ((((yawDeg % 360) + 540) % 360) - 180); // -180〜180に正規化
     let style = 'front'; let rot = a;
     if (a > 45 && a <= 135) { style = 'side-right'; rot = a - 90; } // 前が右
     else if (a < -45 && a >= -135) { style = 'side-left'; rot = a + 90; } // 前が左
-    const saved = joints;
-    joints = rotYJoints(joints, rot);
-    turning = true;
-    try { return fn(style); } finally { joints = saved; turning = false; }
+    let out = rotYJoints(js, rot);
+    // 見上げ/見下ろし: 画面の横軸(その面で u に使う軸)は保ち、縦(v)と奥行きの平面で回す
+    if (pitchDeg) {
+      // front は u=x なので (y, z) 平面、側面は u=±z なので (y, x) 平面。左側面は横軸の向きが逆
+      if (style === 'front') out = rotPlane(out, pitchDeg, 'y', 'z');
+      else out = rotPlane(out, style === 'side-left' ? -pitchDeg : pitchDeg, 'y', 'x');
+    }
+    return { joints: out, style };
   };
+  const withView = (vkey, fn) => {
+    if (vkey !== 'turn') return fn(vkey);
+    const r = turnRotate(joints);
+    const saved = joints;
+    joints = r.joints;
+    turning = true;
+    try { return fn(r.style); } finally { joints = saved; turning = false; }
+  };
+  // いま見ている面の名前(XYZのどの平面か)
+  function planeName() {
+    const a = normDeg(yawDeg); const p = normDeg(pitchDeg);
+    const ap = Math.abs(p);
+    if (ap >= 55 && ap <= 125) return p > 0 ? '上から(XZ)' : '下から(XZ)';
+    const flipped = ap > 125; // 上下が逆さま
+    const ay = Math.abs(a);
+    if (ay <= 45) return flipped ? '背面(XY)' : '正面(XY)';
+    if (ay >= 135) return flipped ? '正面(XY)' : '背面(XY)';
+    return (a > 0) !== flipped ? '右から(ZY)' : '左から(ZY)';
+  }
+  // XYZ の向き(視点切替レールの小さなギズモに描く。図の中だと拡大表示で切れるため外に出す)
+  function turnInfo() {
+    const src = { x: { x: 1, y: 0, z: 0 }, y: { x: 0, y: -1, z: 0 }, z: { x: 0, y: 0, z: 1 } };
+    const r = turnRotate(src);
+    const axes = {};
+    for (const key of Object.keys(src)) axes[key] = project(r.joints[key], r.style);
+    return { yaw: yawDeg, pitch: pitchDeg, plane: planeName(), axes };
+  }
+
   const toPx = (p, view) => {
     const { u, v } = project(p, view);
     return { x: hipX(view) + u * k, y: g.hipY + v * k };
@@ -461,13 +507,23 @@ export function createPoseFigure(container, seg, opts = {}) {
       svg.addEventListener('touchmove', (ev) => ev.preventDefault(), { passive: false });
     }
     if (fitMode && view !== 'front') svg.classList.add('fit-side');
+    if (opts.faceGuide && view === 'front') svg.classList.add('face-guide'); // 顔合わせ中は頭の丸を強調(第66弾FB)
     const stage = el('g', { class: 'stage' });
     if (view === 'front') {
       const img = el('image', { class: 'overlay-img', preserveAspectRatio: 'xMidYMid meet' });
       img.style.display = 'none';
       stage.append(img);
     }
-    stage.append(flesh, bones, dims, jointsG);
+    const marks = el('g', { class: 'detect-marks' });
+    if (view === 'front') {
+      marks.append(
+        el('rect', { class: 'dm-head' }),
+        el('line', { class: 'dm-sole' }),
+        el('text', { class: 'dm-label dm-head-label' }),
+        el('text', { class: 'dm-label dm-sole-label' }),
+      );
+    }
+    stage.append(flesh, bones, dims, marks, jointsG);
     stages[view] = stage;
     svg.append(stage);
     // 背景操作: ポーズモードでは図の移動/ズーム、参考画像モードでは正面図の参考画像の移動/ズーム
@@ -488,7 +544,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   function applyOverlay() {
     const img = svgs.front?.querySelector('.overlay-img');
     if (!img) return;
-    if (!overlayState?.src) { img.style.display = 'none'; return; }
+    if (!overlayState?.src || overlayState.hidden) { img.style.display = 'none'; return; }
     const w = VIEW_W * overlayState.s; const h = VIEW_H * overlayState.s;
     img.setAttribute('href', overlayState.src);
     img.setAttribute('x', fmt(VIEW_W / 2 - w / 2 + overlayState.t.x));
@@ -683,6 +739,7 @@ export function createPoseFigure(container, seg, opts = {}) {
 
   function redraw() {
     const posed = isPosed(joints, rest);
+    for (const sv of Object.values(svgs)) sv.classList.toggle('no-stretch', fitMode && !fitFree);
     for (const [vkey, svg] of Object.entries(svgs)) withView(vkey, (view) => {
       // 骨格
       for (const line of svg.querySelectorAll('line[data-bone]')) {
@@ -765,6 +822,34 @@ export function createPoseFigure(container, seg, opts = {}) {
       dims.replaceChildren();
       if (!posed && !fitMode && vkey !== 'turn') appendDims(dims, view); // 3Dに寸法注記は出さない
     });
+    opts.onTurnDraw?.(turnInfo()); // 視点ギズモの更新(レール側に描く)
+    drawMarks();
+  }
+  // 参考画像から検出した「顔」「足元」を図に重ねて見せる(第68弾FB「どこを顔と認識したか分かるように」)
+  function drawMarks() {
+    const g2 = svgs.front?.querySelector('.detect-marks');
+    if (!g2) return;
+    const m = detectMarks;
+    g2.style.display = m ? '' : 'none';
+    if (!m) return;
+    const rect = g2.querySelector('.dm-head');
+    const hl = g2.querySelector('.dm-head-label');
+    if (m.head) {
+      rect.style.display = '';
+      hl.style.display = '';
+      rect.setAttribute('x', fmt(m.head.x)); rect.setAttribute('y', fmt(m.head.y));
+      rect.setAttribute('width', fmt(Math.max(2, m.head.w))); rect.setAttribute('height', fmt(Math.max(2, m.head.h)));
+      hl.setAttribute('x', fmt(m.head.x)); hl.setAttribute('y', fmt(m.head.y - 4));
+      hl.textContent = '顔と認識した範囲';
+    } else { rect.style.display = 'none'; hl.style.display = 'none'; }
+    const line = g2.querySelector('.dm-sole');
+    const sl = g2.querySelector('.dm-sole-label');
+    if (m.body) {
+      line.style.display = ''; sl.style.display = '';
+      setLine(line, { x: m.body.cx - 60, y: m.body.bottom }, { x: m.body.cx + 60, y: m.body.bottom });
+      sl.setAttribute('x', fmt(m.body.cx + 64)); sl.setAttribute('y', fmt(m.body.bottom + 4));
+      sl.textContent = '足元';
+    } else { line.style.display = 'none'; sl.style.display = 'none'; }
   }
 
   function appendDims(dims, view) {
@@ -840,6 +925,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   const PARENT_OF = {
     elbowL: 'shoulderL', elbowR: 'shoulderR', wristL: 'elbowL', wristR: 'elbowR',
     kneeL: 'hipL', kneeR: 'hipR', ankleL: 'kneeL', ankleR: 'kneeR', toeL: 'ankleL', toeR: 'ankleR',
+    shoulderL: 'spineTop', shoulderR: 'spineTop', hipL: 'hip', hipR: 'hip', spineTop: 'hip',
   };
   // 左右対称: ポーズでは、動かした関節の結果位置を中心線で鏡映した点を目標に反対側もFKで動かす(側面図では同じ位置)
   function mirrorPose(id, view) {
@@ -879,7 +965,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     // (第24弾FB「肩の位置がおかしい」の原因)。案内文の更新は pointerup 後に行う
     const statusText = fitMode
       ? (FIT_ROTATE.has(id) && !fitFree
-        ? `${label}を回しました(長さはそのまま。長さを変えるには「長さも動かす」)`
+        ? `${label}を回しました(長さはそのまま。長さを変えるには「骨格の伸縮」)`
         : `${label}を動かしました(長さが変わります)`)
       : id === 'hip'
         ? '骨格全体を移動しました'
@@ -940,16 +1026,16 @@ export function createPoseFigure(container, seg, opts = {}) {
           redraw();
           return;
         }
-        if (id === 'shoulderL' || id === 'shoulderR') {
-          // 肩は左右(幅)だけ動かし、高さは首のつけ根の線に揃える(取り込み後に肩線がずれない。第32弾FB)
-          joints = { ...joints, [id]: { x: uv.u, y: joints.spineTop.y, z: joints[id].z } };
+        if (!fitFree && FIT_ROTATE.has(id)) {
+          // 伸縮OFF: 長さを保って親を中心に回す(肩幅・骨盤幅・胴の長さも変えない。第66弾FB)
+          fitRotate(id, uv);
           mirrorFit(id);
           redraw();
           return;
         }
-        if (!fitFree && FIT_ROTATE.has(id)) {
-          // 既定: 長さを保って持ち上げる(回す)。長さを変えるのは「長さも動かす」ON のときだけ
-          fitRotate(id, uv);
+        if (id === 'shoulderL' || id === 'shoulderR') {
+          // 肩は左右(幅)だけ動かし、高さは首のつけ根の線に揃える(取り込み後に肩線がずれない。第32弾FB)
+          joints = { ...joints, [id]: { x: uv.u, y: joints.spineTop.y, z: joints[id].z } };
           mirrorFit(id);
           redraw();
           return;
@@ -1048,12 +1134,47 @@ export function createPoseFigure(container, seg, opts = {}) {
     },
     lastJoint: () => lastJoint,
     setFitLocked(v) { fitLocked = !!v; },
-    setFitFree(v) { fitFree = !!v; },
-    // 3D(自由視点)の角度(度)。0=正面、+90=右側面、−90=左側面(第65弾FB)
-    setYaw(deg) { yawDeg = Math.max(-180, Math.min(180, deg)); redraw(); },
+    // 参考画像の一時的な表示/非表示(消さずに隠す。第66弾FB)
+    setOverlayHidden(v) { if (overlayState) { overlayState.hidden = !!v; applyOverlay(); emitOverlay(); } },
+    setDetectMarks(m) { detectMarks = m; drawMarks(); },
+    setFitFree(v) { fitFree = !!v; redraw(); },
+    // 3D(自由視点)の角度(度)。yaw: 0=正面/+90=右側面/−90=左側面、pitch: +見下ろし/−見上げ(第65・66弾FB)
+    setYaw(deg) { yawDeg = normDeg(deg); redraw(); },
     getYaw: () => yawDeg,
+    setPitch(deg) { pitchDeg = normDeg(deg); redraw(); },
+    getPitch: () => pitchDeg,
+    turnInfo,
     // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
     standardFrame: () => ({ topY: g.top, soleY: g.soleY, hipX: g.cx }),
+    headHeightPx: () => seg.head * k, // 頭(頭頂〜あご)の高さ。参考画像の顔合わせに使う(第67弾FB)
+    // 参考画像から検出した人物の範囲(px)に骨格を合わせる。頭の大きさは変えず、
+    // 頭頂を範囲の上端へ移動し、あご から下を縦横同率で伸縮して足裏を下端に合わせる(第66弾FB)
+    autoFitTo({ topPx, bottomPx, centerXPx }) {
+      const a = fromPx({ x: centerXPx, y: topPx }, 'front');
+      const b = fromPx({ x: centerXPx, y: bottomPx }, 'front');
+      const chinV = joints.neck.y;
+      const soleV = Math.max(joints.ankleL.y, joints.ankleR.y) + seg.ankle;
+      const dy = a.v - joints.top.y;
+      const chin2 = chinV + dy;
+      const denom = soleV - chinV;
+      if (!(denom > 1e-6)) return false;
+      const scale = Math.min(4, Math.max(0.25, (b.v - chin2) / denom));
+      const hipU = joints.hip.x;
+      const moved = {};
+      for (const id of Object.keys(joints)) {
+        const j = joints[id];
+        const head = j.y <= chinV + 1e-9;
+        moved[id] = {
+          x: a.u + (j.x - hipU) * (head ? 1 : scale),
+          y: head ? j.y + dy : chin2 + (j.y - chinV) * scale,
+          z: j.z * (head ? 1 : scale),
+        };
+      }
+      joints = moved;
+      redraw();
+      opts.onPoseChange?.(joints, true);
+      return true;
+    },
     // 正面投影の関節位置(px、表示倍率を除く)。体型合わせの取り込み(skeleton2d)用
     getFrontJointsPx() {
       const out = {};
@@ -1086,6 +1207,14 @@ export function createPoseFigure(container, seg, opts = {}) {
     },
     clearOverlay() { overlayState = null; applyOverlay(); emitOverlay(); },
     hasOverlay: () => !!overlayState?.src,
+    // 参考画像の位置・倍率を直接指定する(人物を骨格に自動で合わせる用。第67弾FB)
+    setOverlayFrame({ s: sc, tx, ty }) {
+      if (!overlayState) return;
+      overlayState.s = Math.min(8, Math.max(0.1, sc));
+      overlayState.t = { x: tx, y: ty };
+      applyOverlay();
+      emitOverlay();
+    },
     overlayZoom(f) {
       if (!overlayState) return;
       overlayState.s = Math.min(4, Math.max(0.2, overlayState.s * f));

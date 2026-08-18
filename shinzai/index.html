@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260818-1840-a4f4342">
+<meta name="build" content="20260818-1957-60d2e30">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260818-1840-a4f4342/css/style.css">
+<link rel="stylesheet" href="v/20260818-1957-60d2e30/css/style.css">
 </head>
 <body>
 <header>
@@ -204,6 +204,11 @@
         <label for="menuSide">サイドメニューの位置</label>
         <select id="menuSide"><option value="right">右</option><option value="left">左</option></select>
       </div>
+      <div class="row">
+        <label for="gizmoSpeed">3Dの回転の速さ</label>
+        <input type="range" id="gizmoSpeed" min="0.3" max="3" step="0.1" value="1.2">
+        <span id="gizmoSpeedValue" class="adj-value">1.2</span>
+      </div>
       <p class="hint">表示切り替え(開発用): <a href="./">標準</a> / <a href="./?variant=free">無料版相当</a></p>
       <div class="row">
         <button type="button" id="clearData" class="danger">保存データをすべて削除</button>
@@ -220,6 +225,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260818-1840-a4f4342/js/app.js"></script>
+<script type="module" src="v/20260818-1957-60d2e30/js/app.js"></script>
 </body>
 </html>

@@ -607,6 +607,34 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
   body.side-open .views.single .view.active svg.pose-svg.big { height: var(--fig-open-h); max-height: none; }
   body.side-open .views.big .view svg.pose-svg.big { height: var(--fig-open-h); }
 }
+/* ===== 第66弾FB: XYZギズモ・顔合わせ・伸縮OFFでは頭頂を触らせない ===== */
+/* XYZ の向きギズモ(3Dの面。触るとその面から見る) */
+.turn-gizmo { flex: 1 1 100%; width: 100%; height: auto; touch-action: none; cursor: grab; }
+.turn-gizmo:active { cursor: grabbing; }
+.turn-gizmo .giz-base { fill: rgba(255, 253, 246, 0.85); stroke: var(--stitch); stroke-width: 1; stroke-dasharray: 3 3; }
+.turn-gizmo .giz-axis { stroke-width: 2.5; stroke-linecap: round; }
+.turn-gizmo .giz-x { stroke: #b5654a; }
+.turn-gizmo .giz-y { stroke: #6f8f5a; }
+.turn-gizmo .giz-z { stroke: #5a7fb0; }
+.turn-gizmo text.giz-label { font-size: 13px; font-weight: bold; stroke: none; }
+.turn-gizmo text.giz-x { fill: #b5654a; }
+.turn-gizmo text.giz-y { fill: #6f8f5a; }
+.turn-gizmo text.giz-z { fill: #5a7fb0; }
+.turn-gizmo .giz-hit { fill: transparent; cursor: pointer; }
+.turn-plane { flex: 1 1 100%; text-align: center; font-size: 0.62rem; color: #6d5f4b; line-height: 1.2; }
+/* 参考画像から検出した「顔」「足元」の目印(第68弾FB) */
+.pose-svg .detect-marks .dm-head { fill: none; stroke: var(--thread); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.pose-svg .detect-marks .dm-sole { stroke: var(--thread); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.pose-svg .detect-marks .dm-label { font-size: 11px; fill: var(--thread); stroke: none; }
+/* 顔の大きさを合わせる: 骨格の頭の丸を目立たせる */
+.pose-svg.face-guide .head-ref { stroke: var(--thread); stroke-width: 2.5; stroke-dasharray: 5 4; opacity: 1; }
+/* 「骨格の伸縮」OFF のあいだは頭頂(=頭の大きさ)の点を出さない */
+.pose-svg.no-stretch .pose-dot[data-joint=top], .pose-svg.no-stretch .pose-hit[data-joint=top] { display: none; }
+/* 参考画像の手順の案内 */
+.ref-step { background: rgba(122, 90, 60, 0.10); border-radius: 8px; padding: 5px 8px; margin: 4px 0; }
+.side-sec .ref-controls #refFace, .side-sec .ref-controls #refAuto { flex: 1 1 100%; }
+.side-sec .ref-controls #fitToggle { flex: 1 1 100%; }
+
 /* ===== 第65弾FB: 3D視点・ダブルタップ拡大なし ===== */
 /* ダブルタップでページが拡大しないように(ピンチは有効のまま) */
 body { touch-action: manipulation; }
