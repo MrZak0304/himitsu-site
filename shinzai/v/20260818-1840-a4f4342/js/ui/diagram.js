@@ -52,7 +52,7 @@ export function geometry(seg) {
   const H = seg.figureHeight;
   const pad = 36;
   const k = (VIEW_H - pad * 2) / H;
-  const cx = VIEW_W / 2 - 30;
+  const cx = VIEW_W / 2; // 骨格は画面の中央に(第66弾FB。寸法注記は枠内に収まるよう clamp 済み)
   const y = (cm) => pad + cm * k;
   return {
     k, cx, y,

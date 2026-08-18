@@ -607,6 +607,45 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
   body.side-open .views.single .view.active svg.pose-svg.big { height: var(--fig-open-h); max-height: none; }
   body.side-open .views.big .view svg.pose-svg.big { height: var(--fig-open-h); }
 }
+/* ===== 第66弾FB: XYZギズモ・顔合わせ・伸縮OFFでは頭頂を触らせない ===== */
+/* XYZ の向きギズモ(3Dの面。触るとその面から見る) */
+.turn-gizmo { flex: 1 1 100%; width: 100%; height: auto; touch-action: none; cursor: grab; }
+.turn-gizmo:active { cursor: grabbing; }
+.turn-gizmo .giz-base { fill: rgba(255, 253, 246, 0.85); stroke: var(--stitch); stroke-width: 1; stroke-dasharray: 3 3; }
+.turn-gizmo .giz-axis { stroke-width: 2.5; stroke-linecap: round; }
+.turn-gizmo .giz-x { stroke: #b5654a; }
+.turn-gizmo .giz-y { stroke: #6f8f5a; }
+.turn-gizmo .giz-z { stroke: #5a7fb0; }
+.turn-gizmo text.giz-label { font-size: 13px; font-weight: bold; stroke: none; }
+.turn-gizmo text.giz-x { fill: #b5654a; }
+.turn-gizmo text.giz-y { fill: #6f8f5a; }
+.turn-gizmo text.giz-z { fill: #5a7fb0; }
+.turn-gizmo .giz-hit { fill: transparent; cursor: pointer; }
+.turn-plane { flex: 1 1 100%; text-align: center; font-size: 0.62rem; color: #6d5f4b; line-height: 1.2; }
+/* 顔の大きさを合わせる: 骨格の頭の丸を目立たせる */
+.pose-svg.face-guide .head-ref { stroke: var(--thread); stroke-width: 2.5; stroke-dasharray: 5 4; opacity: 1; }
+/* 「骨格の伸縮」OFF のあいだは頭頂(=頭の大きさ)の点を出さない */
+.pose-svg.no-stretch .pose-dot[data-joint=top], .pose-svg.no-stretch .pose-hit[data-joint=top] { display: none; }
+/* 参考画像の手順の案内 */
+.ref-step { background: rgba(122, 90, 60, 0.10); border-radius: 8px; padding: 5px 8px; margin: 4px 0; }
+.side-sec .ref-controls #refFace, .side-sec .ref-controls #refAuto { flex: 1 1 100%; }
+.side-sec .ref-controls #fitToggle { flex: 1 1 100%; }
+
+/* ===== 第65弾FB: 3D視点・ダブルタップ拡大なし ===== */
+/* ダブルタップでページが拡大しないように(ピンチは有効のまま) */
+body { touch-action: manipulation; }
+/* 「三面」では3Dの面を出さない(active でない面は表示しない) */
+.views:not(.single) .view:not(.active) { display: none; }
+/* 3Dの視点操作(視点切替レールの下) */
+.turn-ctl { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; align-self: stretch; max-width: 64px; margin-top: 4px; padding-top: 4px; border-top: 1.5px dashed var(--stitch); }
+.turn-ctl button { flex: 1 1 40%; width: auto; min-width: 0; padding: 4px 0; font-size: 0.75rem; background: #faf6e9; color: #6d5f4b; border: 1.5px solid var(--stitch); box-shadow: none; border-radius: 6px; }
+.turn-ctl #turnReset { flex: 1 1 100%; font-size: 0.7rem; }
+.turn-ctl .turn-angle { flex: 1 1 100%; text-align: center; font-size: 0.7rem; color: #6d5f4b; }
+/* 骨組み調整の操作(位置ロックは参考画像の区分へ移動) */
+.fit-actions .fit-free-btn, .fit-actions .mirror-btn2 { flex: 1 1 45%; background: #faf6e9; color: #857a6a; border: 1.5px dashed var(--stitch); box-shadow: none; }
+.fit-actions .fit-free-btn[aria-pressed="true"], .fit-actions .mirror-btn2[aria-pressed="true"] { background: var(--felt); color: #fff; border-style: solid; border-color: var(--felt-dark); font-weight: bold; }
+.fit-actions .fit-cancel-btn { flex: 1 1 100%; }
+
 /* ===== 第64弾FB: 調整メニューは横に動かない ===== */
 .side-panel { overflow-x: hidden; overscroll-behavior: contain; } /* 横スクロール禁止(メニューがずれない) */
 /* 中身が幅に収まるように(はみ出すと横スクロールになる。原因は肉付けのスライダー行) */
