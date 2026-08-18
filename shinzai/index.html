@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="build" content="20260818-1957-60d2e30">
+<meta name="build" content="20260818-2215-af06dd7">
 <title>芯材メーカー 〜フィギュア制作のお供に〜</title>
-<link rel="stylesheet" href="v/20260818-1957-60d2e30/css/style.css">
+<link rel="stylesheet" href="v/20260818-2215-af06dd7/css/style.css">
 </head>
 <body>
 <header>
@@ -69,8 +69,7 @@
         <button type="button" data-view="side-left" aria-pressed="false">左側面</button>
         <button type="button" data-view="side-right" aria-pressed="false">右側面</button>
         <button type="button" data-view="all" aria-pressed="false">三面</button>
-        <button type="button" data-view="turn" aria-pressed="false">3D</button>
-        <!-- 3Dの視点変更(第65弾FB): 正面・側面は残したまま、自由な角度から確認する -->
+        <!-- 3D切り替えボタンは廃止(第69弾FB)。単面表示は常に3Dで回せる。◀▶▲▼とギズモで視点変更 -->
         <div class="turn-ctl" id="turnCtl" hidden>
           <button type="button" id="turnLeft" aria-label="左に回す">◀</button>
           <button type="button" id="turnRight" aria-label="右に回す">▶</button>
@@ -205,7 +204,7 @@
         <select id="menuSide"><option value="right">右</option><option value="left">左</option></select>
       </div>
       <div class="row">
-        <label for="gizmoSpeed">3Dの回転の速さ</label>
+        <label for="gizmoSpeed">3Dの感度</label>
         <input type="range" id="gizmoSpeed" min="0.3" max="3" step="0.1" value="1.2">
         <span id="gizmoSpeedValue" class="adj-value">1.2</span>
       </div>
@@ -225,6 +224,6 @@
   <button type="button" data-tab="settings" aria-selected="false">設定</button>
 </nav>
 
-<script type="module" src="v/20260818-1957-60d2e30/js/app.js"></script>
+<script type="module" src="v/20260818-2215-af06dd7/js/app.js"></script>
 </body>
 </html>

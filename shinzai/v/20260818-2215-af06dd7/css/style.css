@@ -580,20 +580,26 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
 
 /* パネルは左の視点切替より手前に(隠れない。第62弾FB) */
 .side-panel { z-index: 31; }
+/* メニュー(シート)自体が縦スクロールする。iOS Safari で fixed 要素の中身が
+   スクロールしない対策として touch-action: pan-y を明示(第69弾FB「メニューがスクロールしない」) */
+.side-panel { touch-action: pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .side-sec[data-sec=flesh] .flesh-toggle-btn { margin-top: 8px; }
 
 /* ===== 第63弾FB: メニューを小さくスッキリ(骨組みと下部メニューを隠さない) =====
    スマホでは開いたメニューを「図の下・下部タブの上」に浮かぶ小さなシートにし、
    開いている間は図を縮めて全体が見えるようにする。--tabbar-h は app.js が実測値(セーフエリア込み)を入れる。 */
 /* 図の高さは「画面 − シート − 下部タブ − 図の上の案内文ぶん」 */
-:root { --tabbar-h: 46px; --sheet-h: 38dvh; --fig-open-h: calc(100dvh - var(--sheet-h) - var(--tabbar-h) - 52px); }
+:root { --tabbar-h: 46px; --sheet-h: 42dvh; --fig-open-h: calc(100dvh - var(--sheet-h) - var(--tabbar-h) - 52px); }
 @media (max-width: 899px) {
   .side-panel {
     top: auto; bottom: calc(var(--tabbar-h) + 6px);
     left: 58px; right: 78px; width: auto; /* 左右のレール(視点切替・サイドレール)に重ねない */
     max-height: var(--sheet-h);
+    overflow-y: auto;
     padding: 8px 10px 10px;
   }
+  /* 下までスクロールできることが分かるよう、最下段に余白 */
+  .side-panel > .side-sec:last-of-type { padding-bottom: 4px; }
   body.menu-left .side-panel { left: 78px; right: 58px; }
   .side-panel h3 { font-size: 0.9rem; margin: 0 26px 4px 0; }
   .side-panel .hint { font-size: 0.78rem; margin: 4px 0; }
@@ -609,7 +615,8 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
 }
 /* ===== 第66弾FB: XYZギズモ・顔合わせ・伸縮OFFでは頭頂を触らせない ===== */
 /* XYZ の向きギズモ(3Dの面。触るとその面から見る) */
-.turn-gizmo { flex: 1 1 100%; width: 100%; height: auto; touch-action: manipulation; }
+.turn-gizmo { flex: 1 1 100%; width: 100%; height: auto; touch-action: none; cursor: grab; }
+.turn-gizmo:active { cursor: grabbing; }
 .turn-gizmo .giz-base { fill: rgba(255, 253, 246, 0.85); stroke: var(--stitch); stroke-width: 1; stroke-dasharray: 3 3; }
 .turn-gizmo .giz-axis { stroke-width: 2.5; stroke-linecap: round; }
 .turn-gizmo .giz-x { stroke: #b5654a; }
@@ -621,6 +628,10 @@ body.menu-left .view-switch { left: auto; right: 0; border-left: 1.5px dashed va
 .turn-gizmo text.giz-z { fill: #5a7fb0; }
 .turn-gizmo .giz-hit { fill: transparent; cursor: pointer; }
 .turn-plane { flex: 1 1 100%; text-align: center; font-size: 0.62rem; color: #6d5f4b; line-height: 1.2; }
+/* 参考画像から検出した「顔」「足元」の目印(第68弾FB) */
+.pose-svg .detect-marks .dm-head { fill: none; stroke: var(--thread); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.pose-svg .detect-marks .dm-sole { stroke: var(--thread); stroke-width: 1.5; stroke-dasharray: 6 4; }
+.pose-svg .detect-marks .dm-label { font-size: 11px; fill: var(--thread); stroke: none; }
 /* 顔の大きさを合わせる: 骨格の頭の丸を目立たせる */
 .pose-svg.face-guide .head-ref { stroke: var(--thread); stroke-width: 2.5; stroke-dasharray: 5 4; opacity: 1; }
 /* 「骨格の伸縮」OFF のあいだは頭頂(=頭の大きさ)の点を出さない */
@@ -636,7 +647,10 @@ body { touch-action: manipulation; }
 /* 「三面」では3Dの面を出さない(active でない面は表示しない) */
 .views:not(.single) .view:not(.active) { display: none; }
 /* 3Dの視点操作(視点切替レールの下) */
-.turn-ctl { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; align-self: stretch; max-width: 64px; margin-top: 4px; padding-top: 4px; border-top: 1.5px dashed var(--stitch); }
+.turn-ctl { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; align-self: stretch; max-width: 46px; margin-top: 4px; padding-top: 4px; border-top: 1.5px dashed var(--stitch); }
+/* 単面表示のレールは常に視点操作を出すので、はみ出さないよう幅を抑える(第69弾FB) */
+.view-switch { max-width: 56px; }
+@media (max-width: 899px) { .view-switch button { width: 44px; } }
 .turn-ctl button { flex: 1 1 40%; width: auto; min-width: 0; padding: 4px 0; font-size: 0.75rem; background: #faf6e9; color: #6d5f4b; border: 1.5px solid var(--stitch); box-shadow: none; border-radius: 6px; }
 .turn-ctl #turnReset { flex: 1 1 100%; font-size: 0.7rem; }
 .turn-ctl .turn-angle { flex: 1 1 100%; text-align: center; font-size: 0.7rem; color: #6d5f4b; }
