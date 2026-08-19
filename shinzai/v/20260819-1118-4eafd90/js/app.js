@@ -5,7 +5,7 @@ import {
   applyAdjustments, ADJUSTMENT_DEFS, DEFAULT_ADJUSTMENTS, isAdjusted,
 } from './core/adjustments.js';
 import { ratiosFromJoints } from './core/skeleton2d.js';
-import { detectFigureBox, detectHead } from './core/imagefit.js';
+import { detectFigureBox } from './core/imagefit.js';
 import { VIEW_W as VIEW_W_PX, VIEW_H as VIEW_H_PX } from './ui/diagram.js';
 import {
   loadPresets, savePreset, deletePreset, hasPreset, STORE_KEY,
@@ -22,7 +22,7 @@ let adjustments = { ...DEFAULT_ADJUSTMENTS };
 let showFlesh = false; // 肉付けイメージの表示(両タブ共通)
 const poseStates = new WeakMap(); // 出力領域ごとのポーズ状態(計算タブ/画像からタブで独立)
 // 参考画像(キャラクターの設定で選ぶ。芯材計算タブの正面図の背面に表示。第18〜19弾FB)
-const refImage = { overlay: null, dragTarget: 'view', hidden: false, faceGuide: false };
+const refImage = { overlay: null, dragTarget: 'view', hidden: false, faceGuide: false, marks: null };
 // 参考画像から取り込んだ体型(比率セット)。null ならプリセット(第2段階=一体化)
 let importedRatios = null;
 // 骨格合わせ(体型合わせ)モード。キャラクターの設定から操作(第23弾FB)。芯材計算タブのみ
@@ -32,9 +32,14 @@ const uiAids = { axisLock: false, mirror: false, big: false, fitFree: false };
 const uiLayout = (() => {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('shinzaiMaker.ui') || '{}') || {}; } catch { /* ignore */ }
-  return { viewMode: saved.viewMode ?? 'front', menuSide: saved.menuSide ?? 'right', section: 'frame' };
+  return {
+    viewMode: (saved.viewMode && saved.viewMode !== 'all') ? saved.viewMode : 'front',
+    menuSide: saved.menuSide ?? 'right',
+    gizmoSpeed: Number.isFinite(saved.gizmoSpeed) ? saved.gizmoSpeed : 1.2, // 3Dの回転の速さ(度/px。第68弾FB)
+    section: 'frame',
+  };
 })();
-function saveUiLayout() { try { localStorage.setItem('shinzaiMaker.ui', JSON.stringify({ viewMode: uiLayout.viewMode, menuSide: uiLayout.menuSide })); } catch { /* ignore */ } }
+function saveUiLayout() { try { localStorage.setItem('shinzaiMaker.ui', JSON.stringify({ viewMode: uiLayout.viewMode, menuSide: uiLayout.menuSide, gizmoSpeed: uiLayout.gizmoSpeed })); } catch { /* ignore */ } }
 // 肉付けのボリューム(キャラクターごと。保存データに含める。第52弾FB)
 const BUST_SHAPES = [
   { key: 'bowl', label: 'おわん型' },
@@ -97,15 +102,37 @@ function showStep(name) {
 }
 // 骨格ページ: メイン図の切り替え(正面/左側面/右側面/三面/3D。3Dは第65弾FB)
 const VIEW_ORDER = ['front', 'side-left', 'side-right', 'turn'];
+// 単面表示(正面/左側面/右側面)の基準角度。ギズモで回すとその角度から動く(第69弾FB)
+const FACE_YAW = { front: 0, 'side-left': -90, 'side-right': 90 };
+let turnActive = false; // 単面表示を回している最中(=3Dの turn レンダラーを見せる)
 function applyViewMode() {
-  const mode = uiLayout.viewMode;
+  // 単面表示のみ(三面は仕上がりページへ移動。第70弾FB)。'all' はスモーク(全面表示)専用で、ボタンはない
+  const testAll = uiLayout.viewMode === 'all';
+  const mode = testAll ? 'front' : uiLayout.viewMode;
+  if (!testAll) uiLayout.viewMode = mode;
   for (const b of document.querySelectorAll('#viewSwitch button[data-view]')) b.setAttribute('aria-pressed', String(b.dataset.view === mode));
-  $('turnCtl').hidden = mode !== 'turn'; // 3Dのときだけ視点を回すボタンを出す
+  $('turnCtl').hidden = testAll; // 常に視点操作を出す(スモークの全面表示時のみ隠す)
   const views = document.querySelector('#calcOutput .views');
   if (!views) return;
-  views.classList.toggle('single', mode !== 'all');
-  // 「三面」は正面・左側面・右側面の3枚(3Dは含めない)
-  views.querySelectorAll('.view').forEach((v, i) => v.classList.toggle('active', mode === 'all' ? VIEW_ORDER[i] !== 'turn' : VIEW_ORDER[i] === mode));
+  views.classList.toggle('single', !testAll);
+  const activeKey = testAll ? null : (turnActive ? 'turn' : mode); // 回している間は turn レンダラー(表示専用)
+  views.querySelectorAll('.view').forEach((v, i) => v.classList.toggle('active', testAll ? VIEW_ORDER[i] !== 'turn' : VIEW_ORDER[i] === activeKey));
+}
+// 面を選ぶ: 平らな(編集できる)面に戻し、その角度をギズモの基準にする
+function selectFace(mode) {
+  uiLayout.viewMode = mode;
+  turnActive = false;
+  saveUiLayout();
+  const fig = poseStates.get($('calcOutput'))?.fig;
+  if (fig && mode !== 'all' && Number.isFinite(FACE_YAW[mode])) { fig.setYaw(FACE_YAW[mode]); fig.setPitch(0); syncTurnLabel(fig); }
+  renderCalc();
+  applyViewMode();
+}
+// 視点を回し始めたら turn レンダラー(表示専用)に切り替える
+function setTurnActive(v) {
+  if (turnActive === v) return;
+  turnActive = v;
+  applyViewMode();
 }
 // XYZ の向きギズモ(視点切替レール)。軸を押すとその面から見る(第66弾FB)
 const GIZMO_AXES = [
@@ -136,18 +163,14 @@ function buildGizmo() {
 let gizmoDragged = false;
 function bindGizmoDrag(svg) {
   let start = null;
-  const DEG_PER_PX = 1.2;
   const move = (ev) => {
     if (!start) return;
     ev.preventDefault();
+    const k = uiLayout.gizmoSpeed; // 設定で変えられる(度/px)
     const dx = ev.clientX - start.x;
     const dy = ev.clientY - start.y;
     if (Math.hypot(dx, dy) > 4) gizmoDragged = true;
-    turnView({
-      yaw: start.yaw + dx * DEG_PER_PX,
-      pitch: start.pitch + dy * DEG_PER_PX,
-      absolute: true,
-    });
+    turnView({ yaw: start.yaw + dx * k, pitch: start.pitch + dy * k, absolute: true });
   };
   const up = () => {
     start = null;
@@ -195,6 +218,7 @@ function syncTurnLabel(fig) {
 function turnView({ yaw = 0, pitch = 0, absolute = false } = {}) {
   const fig = poseStates.get($('calcOutput'))?.fig;
   if (!fig) return;
+  if (uiLayout.viewMode !== 'all') setTurnActive(true); // 回し始めたら3D表示に
   fig.setYaw(absolute ? yaw : fig.getYaw() + yaw);
   fig.setPitch(absolute ? pitch : fig.getPitch() + pitch);
   syncTurnLabel(fig);
@@ -208,6 +232,7 @@ function openSection(sec, toggle = true) {
   for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', String(!panel.hidden && b.dataset.sec === uiLayout.section));
   for (const sc of document.querySelectorAll('#sidePanel .side-sec')) sc.hidden = uiLayout.allSections ? false : sc.dataset.sec !== uiLayout.section;
   document.body.classList.toggle('side-open', !panel.hidden);
+  poseStates.get($('calcOutput'))?.fig?.setDetectMarks(refMarksVisible() ? refImage.marks : null);
   // 参考画像の区分から離れたら画像は動かないようにする(第66弾FB)
   if ((panel.hidden || uiLayout.section !== 'ref') && refImage.dragTarget === 'overlay') {
     refImage.dragTarget = 'view';
@@ -217,6 +242,12 @@ function openSection(sec, toggle = true) {
     renderCalc();
   }
   scheduleFigureHeight();
+}
+// 認識の目印(顔・足元)は参考画像の区分を開いているあいだだけ出す
+function refMarksVisible() {
+  if (!refImage.marks) return false;
+  if (uiLayout.allSections) return true; // スモーク(全区分表示)用
+  return !$('sidePanel').hidden && uiLayout.section === 'ref';
 }
 function applyMenuSide() {
   $('skelLayout').classList.toggle('side-left', uiLayout.menuSide === 'left');
@@ -502,7 +533,7 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       mirror: uiAids.mirror,
       fitFree: uiAids.fitFree,
       volume: fleshVolume,
-      yaw: poseState.yaw ?? 30, // 3Dの視点(第65弾FB)
+      yaw: poseState.yaw ?? 0, // 3Dの視点(第65弾FB。既定は正面=0。第69弾FB)
       pitch: poseState.pitch ?? 0, // 見上げ・見下ろし(第66弾FB)
       onTurnDraw: (info) => { if (isCalc) drawGizmo(info); }, // XYZの向き表示(視点切替レール)
       // 単面表示では自動で大きく(はみ出す分は切る slice)。三面では「大きく表示」トグルに従う(第61弾FB: 図をできるだけ大きく)
@@ -511,6 +542,7 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
       // 参考画像は芯材計算タブ(キャラクターの設定)の正面図にだけ表示。ポーズON/OFFに関わらず出す
       overlay: root.id === 'calcOutput' ? refImage.overlay : null,
       faceGuide: root.id === 'calcOutput' && refImage.faceGuide, // 顔合わせ中は頭の丸を強調(第66弾FB)
+      detectMarks: root.id === 'calcOutput' && refMarksVisible() ? refImage.marks : null, // 顔・足元の認識結果(第68弾FB)
       dragTarget: root.id === 'calcOutput' ? refImage.dragTarget : 'view',
       onOverlayChange: (ov) => { if (root.id === 'calcOutput') { refImage.overlay = ov; syncRefButtons(); } },
       onPoseChange: (joints, posed) => {
@@ -574,6 +606,7 @@ function renderResultInto(root, result, { showScale = true, sides = null, tables
   }
   poseBtn.addEventListener('click', () => {
     poseState.on = !poseState.on;
+    if (poseState.on && turnActive) { turnActive = false; applyViewMode(); } // ポーズ編集は平らな面で(第69弾FB)
     poseBtn.setAttribute('aria-pressed', String(poseState.on));
     renderViews();
   });
@@ -752,11 +785,27 @@ function renderCalc() {
       sides: { ref: $('secRefFit'), frame: $('secFrame'), flesh: $('secFlesh'), pose: $('secPose'), sample: $('secSample') },
       tables: $('finishOutput'),
     });
+    renderFinishViews(result); // 三面図は仕上がりページに置く(第70弾FB)
   } catch (e) {
     out.hidden = true;
     errBox.hidden = false;
     errBox.textContent = e.message;
   }
+}
+
+// 仕上がりページの三面図(表示専用。いまのポーズ・肉付けを反映。寸法注記は直立のとき)。第70弾FB
+function renderFinishViews(result) {
+  const box = $('finishViews');
+  if (!box) return;
+  const st = poseStates.get($('calcOutput'));
+  const joints = st?.on ? st.joints : null; // ポーズ中ならそのポーズで、そうでなければ直立(寸法注記つき)
+  createPoseFigure(box, result.segments, {
+    interactive: false,
+    flesh: showFlesh,
+    initialJoints: joints,
+    volume: fleshVolume,
+  });
+  applyFleshStyle();
 }
 
 // ---- 体型調整(マイ体型) ----
@@ -996,16 +1045,14 @@ function setRefImage(dataUrl) {
   calcFig()?.setDragTarget('overlay');
   refImage.faceGuide = true;
   syncRefButtons();
-  setRefStep('①画像の顔を骨格の頭の丸に合わせています…');
+  setRefStep('画像から全身を認識しています…');
   renderCalc();
-  // 選んだ時点で顔(なければ全身)を骨格に合わせて置く(手で合わせるのが大変=第67弾FB)
-  alignRefImage().then((how) => {
-    setRefStep(how === 'head'
-      ? '①顔の大きさを合わせました。ずれていれば画像をドラッグ・拡大縮小で微調整してください。'
-      : how === 'body'
-        ? '①全身の範囲で合わせました。顔が合っていなければ画像をドラッグ・拡大縮小してください。'
-        : '①画像をドラッグ/拡大縮小して、キャラクターの頭を骨格の頭の丸に重ねてください。');
-    if (how) renderCalc(); // refImage.overlay は onOverlayChange で更新済み
+  // 選んだ時点で全身を検出して骨格に重ねて置く(手で合わせるのは大変=第67弾FB。顔検出は誤認するのでやめた=第70弾FB)
+  alignRefImage().then((ok) => {
+    setRefStep(ok
+      ? '全身を認識して画像と骨格を重ねました(点線が認識した範囲)。頭の大きさが合わないときは①、全身を合わせ直すなら②、関節は③で直せます。'
+      : '人物の範囲を自動で見つけられませんでした。画像をドラッグ・拡大縮小で骨格に合わせてください。');
+    renderCalc();
   });
 }
 // 参考画像の手順の案内(参考画像の区分に出す)
@@ -1023,6 +1070,7 @@ let pendingFitPose = null; // 取り込み直後にポーズへ引き継ぐ正�
 function enterFit(locked) {
   fitState.on = true;
   fitState.locked = !!locked;
+  turnActive = false; // 骨格調整は平らな面で(回した状態だと関節を掴めない。第69弾FB)
   // 関節を調整するあいだは参考画像を動かさない(誤って画像がずれないように。第66弾FB)
   refImage.faceGuide = false;
   if (refImage.dragTarget === 'overlay') { refImage.dragTarget = 'view'; calcFig()?.setDragTarget('view'); }
@@ -1143,19 +1191,11 @@ function initRefImage() {
     if (refImage.faceGuide) {
       refImage.dragTarget = 'overlay';
       calcFig()?.setDragTarget('overlay');
-      setRefStep('①顔の大きさを合わせています…');
-      syncRefButtons();
-      renderCalc();
-      // もう一度押したら自動で合わせ直す(そのあと画像のドラッグ・拡大縮小で微調整)
-      alignRefImage().then((how) => {
-        setRefStep(how
-          ? '①顔の大きさを合わせました。ずれていれば画像をドラッグ・拡大縮小で微調整してください。'
-          : '①画像をドラッグ/拡大縮小して、キャラクターの頭を骨格の頭の丸に重ねてください。');
-        renderCalc();
-      });
-      return;
+      // 手動: 画像をドラッグ・拡大縮小して、キャラの頭を骨格の頭の丸(強調表示)に合わせる
+      setRefStep('①画像をドラッグ・拡大縮小して、キャラクターの頭を骨格の頭の丸に重ねてください。');
+    } else {
+      setRefStep('');
     }
-    setRefStep('');
     syncRefButtons();
     renderCalc();
   });
@@ -1166,6 +1206,7 @@ function initRefImage() {
     refImage.dragTarget = 'view';
     refImage.faceGuide = false;
     refImage.hidden = false;
+    refImage.marks = null;
     calcFig()?.setDragTarget('view');
     setRefStep('');
     syncRefButtons();
@@ -1201,6 +1242,8 @@ function loadRefForAnalysis() {
 
 // 参考画像を骨格に合わせて置く(第67弾FB「顔に合わせると言われても位置が合わず調整が困難」)。
 // 頭(頭頂〜首)を検出できたら顔の大きさを骨格の頭に合わせ、だめなら全身の範囲で合わせる。
+// 参考画像を骨格に合わせて置く。シルエット全体(頭頂〜足先)を検出して骨格の全身に重ねる。
+// 顔だけを検出する方法は上半身を顔と誤認しがち(第70弾FB)なのでやめ、確実に取れる「全身の範囲」で合わせる。
 async function alignRefImage() {
   const fig = calcFig();
   const ov = refImage.overlay;
@@ -1209,35 +1252,34 @@ async function alignRefImage() {
   if (!src) return false;
   const { img, cw, ch } = src;
   const std = fig.standardFrame(); // { topY, soleY, hipX }
-  const head = detectHead(src.imageData);
-  const box = head.found ? head.box : detectFigureBox(src.imageData);
+  const box = detectFigureBox(src.imageData);
   if (!box.found) return false;
-  // 画像のどの範囲を、骨格のどの範囲に合わせるか(いずれも「縦の区間」+「横の中心」)
-  const headPx = fig.headHeightPx();
-  const from = head.found
-    ? { a: head.top / ch, b: head.neckY / ch, cx: head.centerX / cw }
-    : { a: box.top / ch, b: box.bottom / ch, cx: box.centerX / cw };
-  const to = head.found
-    ? { a: std.topY, b: std.topY + headPx }
-    : { a: std.topY, b: std.soleY };
-  const span = from.b - from.a;
-  if (!(span > 0.01)) return false;
-  const dh = (to.b - to.a) / span;           // 画像全体の描画高さ(px)
+  const fa = box.top / ch; const fb = box.bottom / ch; const fcx = box.centerX / cw;
+  const span = fb - fa;
+  if (!(span > 0.05)) return false;
+  const dh = (std.soleY - std.topY) / span; // 画像全体の描画高さ(px)
   const drawS = dh / img.height;
   const scale = drawS * Math.max(img.width / VIEW_W_PX, img.height / VIEW_H_PX);
   const dw = img.width * drawS;
-  const dy = to.a - from.a * dh;
-  const dx = std.hipX - from.cx * dw;
+  const dy = std.topY - fa * dh;
+  const dx = std.hipX - fcx * dw;
   fig.setOverlayFrame({ s: scale, tx: dx - VIEW_W_PX / 2 + dw / 2, ty: dy - VIEW_H_PX / 2 + dh / 2 });
-  return head.found ? 'head' : 'body';
+  // どこを人物(全身)と認識したかを図に重ねて見せる
+  const sx = (ix) => dx + (ix / cw) * dw;
+  const sy = (iy) => dy + (iy / ch) * dh;
+  refImage.marks = {
+    figure: { x: sx(box.left ?? 0), y: sy(box.top), top: sy(box.top), bottom: sy(box.bottom), cx: sx(box.centerX) },
+  };
+  fig.setDetectMarks(refImage.marks);
+  return true;
 }
 
 // 参考画像の人物(前景)を検出して骨格を合わせる(第66弾FB「参考画像に合わせて骨格を自動調整」)。
 // 人物認識(ML)ではなく、背景色との差から人物の上端・下端・中心を求める軽量な方法(js/core/imagefit.js)。
-async function autoFitToImage() {
+async function autoFitToImage({ chain = false } = {}) {
   const ov = refImage.overlay;
   if (!ov?.src) return;
-  setRefStep('②自動で合わせています…');
+  if (!chain) setRefStep('②自動で合わせています…');
   const src = await loadRefForAnalysis();
   if (!src) { setRefStep('画像を読み込めませんでした。'); return; }
   const { img, cw, ch } = src;
@@ -1263,7 +1305,12 @@ async function autoFitToImage() {
       });
       if (ok) {
         fitState.joints = fig.getJoints();
-        setRefStep('②自動で合わせました。ずれている関節は「③関節を手で調整する」で直してください。');
+        // 認識した人物の範囲を見せる
+        refImage.marks = {
+          figure: { x: toSvgX(box.left ?? 0), right: toSvgX(box.right ?? cw), top: toSvgY(box.top), bottom: toSvgY(box.bottom), cx: toSvgX(box.centerX) },
+        };
+        fig.setDetectMarks(refImage.marks);
+        if (!chain) setRefStep('②自動で合わせました(点線が認識した範囲)。ずれている関節は「③関節を手で調整する」で直してください。');
       } else {
         setRefStep('自動で合わせられませんでした。「③関節を手で調整する」で合わせてください。');
       }
@@ -1296,17 +1343,24 @@ function main() {
   for (const b of document.querySelectorAll('.stepbar button')) b.addEventListener('click', () => showStep(b.dataset.step));
   // 図の切り替え(正面/左側面/右側面/三面/3D)
   for (const b of document.querySelectorAll('#viewSwitch button[data-view]')) {
-    b.addEventListener('click', () => { uiLayout.viewMode = b.dataset.view; saveUiLayout(); renderCalc(); applyViewMode(); });
+    b.addEventListener('click', () => selectFace(b.dataset.view));
   }
   // 3Dの視点変更(第65弾FB。見上げ・見下ろしは第66弾FB)
   $('turnLeft').addEventListener('click', () => turnView({ yaw: -15 }));
   $('turnRight').addEventListener('click', () => turnView({ yaw: 15 }));
   $('turnUp').addEventListener('click', () => turnView({ pitch: -15 }));
   $('turnDown').addEventListener('click', () => turnView({ pitch: 15 }));
-  $('turnReset').addEventListener('click', () => turnView({ yaw: 0, pitch: 0, absolute: true }));
+  $('turnReset').addEventListener('click', () => selectFace('front'));
   // サイドメニュー
   for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.addEventListener('click', () => openSection(b.dataset.sec));
   $('sideClose').addEventListener('click', () => { $('sidePanel').hidden = true; document.body.classList.remove('side-open'); for (const b of document.querySelectorAll('#sideRail button[data-sec]')) b.setAttribute('aria-pressed', 'false'); });
+  $('gizmoSpeed').value = String(uiLayout.gizmoSpeed);
+  $('gizmoSpeedValue').textContent = uiLayout.gizmoSpeed.toFixed(1);
+  $('gizmoSpeed').addEventListener('input', () => {
+    uiLayout.gizmoSpeed = Number($('gizmoSpeed').value);
+    $('gizmoSpeedValue').textContent = uiLayout.gizmoSpeed.toFixed(1);
+  });
+  $('gizmoSpeed').addEventListener('change', saveUiLayout);
   $('menuSide').value = uiLayout.menuSide;
   $('menuSide').addEventListener('change', () => { uiLayout.menuSide = $('menuSide').value; saveUiLayout(); applyMenuSide(); });
   applyMenuSide();

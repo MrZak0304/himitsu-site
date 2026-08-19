@@ -67,7 +67,7 @@ export function createPoseFigure(container, seg, opts = {}) {
     hipL: 'hipR', hipR: 'hipL',
   };
   let bigView = !!opts.big; // 大きく表示(枠を画面高さに合わせ、はみ出す分は切る=slice。第33弾FB)
-  let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45 } : null;
+  let overlayState = overlay ? { src: overlay.src, t: { ...(overlay.t ?? { x: 0, y: 0 }) }, s: overlay.s ?? 1, opacity: overlay.opacity ?? 0.45, hidden: !!overlay.hidden } : null;
   const rest = restPose(seg);
   const lengths = boneLengths(rest);
   let joints = opts.initialJoints ?? rest;
@@ -78,6 +78,7 @@ export function createPoseFigure(container, seg, opts = {}) {
   // 鏡映で右寄りに置き注記は左へ(前に出した脚が枠外に出ないように)
   // 骨格の位置は全モードで同じ(第24弾FB: モードで位置が変わると取り込みのたびに参考画像とズレが累積した)。
   // 参考画像のほうを、選んだ時点で骨格の中心(hipX)に置く
+  let detectMarks = opts.detectMarks ?? null; // 参考画像から検出した顔・足元の目印
   let turning = false; // 3D(自由視点)の描画中は股の位置を面で変えない(左右にジャンプしないように)
   const hipX = (view) => (!turning && view === 'side-left' ? VIEW_W - g.cx : g.cx);
   // 3D(自由視点)の角度。yaw: 0=正面/+90=右側面/−90=左側面、pitch: +で見下ろし・−で見上げ(第65・66弾FB)
@@ -94,6 +95,8 @@ export function createPoseFigure(container, seg, opts = {}) {
     return out;
   };
   const rotYJoints = (js, deg) => rotPlane(js, deg, 'x', 'z');
+  // 360度ぐるっと回せるように、角度は −180〜180 に正規化する(止まらない。第68弾FB)
+  const normDeg = (d) => ((((d % 360) + 540) % 360) - 180);
   // 3Dの面は「関節をY軸まわりに回してから、いちばん近い面(正面/側面)として描く」。
   // 投影はどの面を選んでも u = x·cosθ + z·sinθ に一致するので見え方は正しく、
   // 肉付け(胴のブロック・奥行き)は近い面のものを使う=横向きに近い角度で薄っぺらくならない。
@@ -122,11 +125,14 @@ export function createPoseFigure(container, seg, opts = {}) {
   };
   // いま見ている面の名前(XYZのどの平面か)
   function planeName() {
-    const a = ((((yawDeg % 360) + 540) % 360) - 180);
-    if (Math.abs(pitchDeg) >= 55) return pitchDeg > 0 ? '上から(XZ)' : '下から(XZ)';
-    if (Math.abs(a) <= 45) return '正面(XY)';
-    if (Math.abs(a) >= 135) return '背面(XY)';
-    return a > 0 ? '右から(ZY)' : '左から(ZY)';
+    const a = normDeg(yawDeg); const p = normDeg(pitchDeg);
+    const ap = Math.abs(p);
+    if (ap >= 55 && ap <= 125) return p > 0 ? '上から(XZ)' : '下から(XZ)';
+    const flipped = ap > 125; // 上下が逆さま
+    const ay = Math.abs(a);
+    if (ay <= 45) return flipped ? '背面(XY)' : '正面(XY)';
+    if (ay >= 135) return flipped ? '正面(XY)' : '背面(XY)';
+    return (a > 0) !== flipped ? '右から(ZY)' : '左から(ZY)';
   }
   // XYZ の向き(視点切替レールの小さなギズモに描く。図の中だと拡大表示で切れるため外に出す)
   function turnInfo() {
@@ -508,7 +514,16 @@ export function createPoseFigure(container, seg, opts = {}) {
       img.style.display = 'none';
       stage.append(img);
     }
-    stage.append(flesh, bones, dims, jointsG);
+    const marks = el('g', { class: 'detect-marks' });
+    if (view === 'front') {
+      marks.append(
+        el('rect', { class: 'dm-head' }),
+        el('line', { class: 'dm-sole' }),
+        el('text', { class: 'dm-label dm-head-label' }),
+        el('text', { class: 'dm-label dm-sole-label' }),
+      );
+    }
+    stage.append(flesh, bones, dims, marks, jointsG);
     stages[view] = stage;
     svg.append(stage);
     // 背景操作: ポーズモードでは図の移動/ズーム、参考画像モードでは正面図の参考画像の移動/ズーム
@@ -808,6 +823,35 @@ export function createPoseFigure(container, seg, opts = {}) {
       if (!posed && !fitMode && vkey !== 'turn') appendDims(dims, view); // 3Dに寸法注記は出さない
     });
     opts.onTurnDraw?.(turnInfo()); // 視点ギズモの更新(レール側に描く)
+    drawMarks();
+  }
+  // 参考画像から検出した「顔」「足元」を図に重ねて見せる(第68弾FB「どこを顔と認識したか分かるように」)
+  function drawMarks() {
+    const g2 = svgs.front?.querySelector('.detect-marks');
+    if (!g2) return;
+    const m = detectMarks;
+    g2.style.display = m ? '' : 'none';
+    if (!m) return;
+    const rect = g2.querySelector('.dm-head');
+    const hl = g2.querySelector('.dm-head-label');
+    const f = m.figure;
+    if (f) {
+      rect.style.display = ''; hl.style.display = '';
+      const x = Math.min(f.x, f.cx - 4); const w = Math.max(8, (f.right ?? (f.cx + (f.cx - f.x))) - x);
+      rect.setAttribute('x', fmt(x)); rect.setAttribute('y', fmt(f.top));
+      rect.setAttribute('width', fmt(w)); rect.setAttribute('height', fmt(Math.max(8, f.bottom - f.top)));
+      hl.setAttribute('x', fmt(f.cx)); hl.setAttribute('y', fmt(f.top - 4));
+      hl.textContent = '認識した人物の範囲';
+    } else { rect.style.display = 'none'; hl.style.display = 'none'; }
+    const line = g2.querySelector('.dm-sole');
+    const sl = g2.querySelector('.dm-sole-label');
+    const b = m.figure ?? m.body;
+    if (b) {
+      line.style.display = ''; sl.style.display = '';
+      setLine(line, { x: b.cx - 60, y: b.bottom }, { x: b.cx + 60, y: b.bottom });
+      sl.setAttribute('x', fmt(b.cx + 64)); sl.setAttribute('y', fmt(b.bottom + 4));
+      sl.textContent = '足元';
+    } else { line.style.display = 'none'; sl.style.display = 'none'; }
   }
 
   function appendDims(dims, view) {
@@ -1094,11 +1138,12 @@ export function createPoseFigure(container, seg, opts = {}) {
     setFitLocked(v) { fitLocked = !!v; },
     // 参考画像の一時的な表示/非表示(消さずに隠す。第66弾FB)
     setOverlayHidden(v) { if (overlayState) { overlayState.hidden = !!v; applyOverlay(); emitOverlay(); } },
+    setDetectMarks(m) { detectMarks = m; drawMarks(); },
     setFitFree(v) { fitFree = !!v; redraw(); },
     // 3D(自由視点)の角度(度)。yaw: 0=正面/+90=右側面/−90=左側面、pitch: +見下ろし/−見上げ(第65・66弾FB)
-    setYaw(deg) { yawDeg = Math.max(-180, Math.min(180, deg)); redraw(); },
+    setYaw(deg) { yawDeg = normDeg(deg); redraw(); },
     getYaw: () => yawDeg,
-    setPitch(deg) { pitchDeg = Math.max(-80, Math.min(80, deg)); redraw(); },
+    setPitch(deg) { pitchDeg = normDeg(deg); redraw(); },
     getPitch: () => pitchDeg,
     turnInfo,
     // 通常表示(直立)の標準位置: 頭頂y=上端pad、足裏y=下端、股x=既定(取り込み後の参考画像の追従用)
