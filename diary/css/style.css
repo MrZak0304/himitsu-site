@@ -68,14 +68,22 @@ body {
 }
 
 /* カスタム背景画像(有料版)。画像を全面に敷き、可読性のため上に半透明の膜を重ねる。
-   膜の濃さは --bg-overlay(0〜1)。パネルは半透明にして、膜越しの画像がうっすら透ける。 */
-:root.has-bg-image body {
+   膜の濃さは --bg-overlay(0〜1)。パネルは半透明にして、膜越しの画像がうっすら透ける。
+   画像・膜はどちらも position:fixed の擬似要素レイヤに敷く。body の
+   background-attachment:fixed は iOS WebView でスクロール時にガクつく(=「釣られて動く」)
+   ため使わない(2026-08-14 PD実機FB)。::before=画像 / ::after=膜。 */
+:root.has-bg-image body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: var(--bg-image);
   background-size: cover;
   background-position: center;
-  background-attachment: fixed;
   background-repeat: no-repeat;
+  pointer-events: none;
+  z-index: 0;
 }
-:root.has-bg-image body::before {
+:root.has-bg-image body::after {
   content: '';
   position: fixed;
   inset: 0;

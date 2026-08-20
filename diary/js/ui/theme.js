@@ -32,7 +32,7 @@ export async function applyBackgroundImage(settings, variant, imageStore) {
     if (bgUrl) URL.revokeObjectURL(bgUrl);
     bgUrl = null;
     root.classList.remove('has-bg-image');
-    document.body.style.removeProperty('background-image');
+    root.style.removeProperty('--bg-image');
     root.style.removeProperty('--bg-overlay');
   };
   const ct = settings.customTheme;
@@ -62,7 +62,9 @@ export async function applyBackgroundImage(settings, variant, imageStore) {
     }
     if (bgUrl) URL.revokeObjectURL(bgUrl);
     bgUrl = URL.createObjectURL(blob);
-    document.body.style.backgroundImage = `url(${bgUrl})`;
+    // 画像は CSS 変数で渡し、position:fixed の擬似要素レイヤに敷く(iOS対策)。
+    // body の background-attachment:fixed はスクロール追従がバグる=「釣られて動く」(2026-08-14 PD実機FB)
+    root.style.setProperty('--bg-image', `url(${bgUrl})`);
     root.style.setProperty('--bg-overlay', String(ct.overlay ?? 0.45));
     root.classList.add('has-bg-image');
   } catch {
