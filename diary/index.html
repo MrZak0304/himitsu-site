@@ -234,8 +234,16 @@
       <div id="custom-theme-editor" hidden>
         <h4 class="section-title">カスタムテーマ</h4>
         <p class="note-inline">色やスライダーを変えると、その場で画面に反映されます(プレビュー)。気に入ったら「この色に決定」を押してください。</p>
-        <label class="row">背景色 <input type="color" id="custom-bg" value="#22243a"></label>
-        <label class="row">アクセント色 <input type="color" id="custom-accent" value="#f5a623"></label>
+        <div class="custom-color-field">
+          <span class="custom-color-title">背景色</span>
+          <div class="swatch-row" id="custom-bg-swatches" role="group" aria-label="背景色の見本から選ぶ"></div>
+          <label class="row custom-color-fine">ほかの色 <input type="color" id="custom-bg" value="#22243a"></label>
+        </div>
+        <div class="custom-color-field">
+          <span class="custom-color-title">アクセント色</span>
+          <div class="swatch-row" id="custom-accent-swatches" role="group" aria-label="アクセント色の見本から選ぶ"></div>
+          <label class="row custom-color-fine">ほかの色 <input type="color" id="custom-accent" value="#f5a623"></label>
+        </div>
         <label class="row">背景の透け具合 <input type="range" id="custom-panel-transparency" min="0" max="80" step="5" value="12"></label>
         <p class="note-inline">背景(画像・背景色)とメニューをどれだけ透かして見せるかを調整できます。右にするほど背景がよく見えます(文字が読みにくくなったら少し左に戻してください)。</p>
         <button id="custom-theme-save" class="btn">この色に決定</button>

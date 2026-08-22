@@ -44,6 +44,8 @@ export function initSettings(ctx) {
     customEditor: $('custom-theme-editor'),
     customBg: $('custom-bg'),
     customAccent: $('custom-accent'),
+    customBgSwatches: $('custom-bg-swatches'),
+    customAccentSwatches: $('custom-accent-swatches'),
     customSave: $('custom-theme-save'),
     customBgImageAdd: $('custom-bg-image-add'),
     customBgImageClear: $('custom-bg-image-clear'),
@@ -610,6 +612,8 @@ export function initSettings(ctx) {
     if (s.customTheme) {
       els.customBg.value = s.customTheme.bg;
       els.customAccent.value = s.customTheme.accent;
+      markSelectedSwatch(els.customBgSwatches, s.customTheme.bg);
+      markSelectedSwatch(els.customAccentSwatches, s.customTheme.accent);
       els.customOverlay.value = String(Math.round((s.customTheme.overlay ?? 0.45) * 100));
       // 透け具合スライダー: 値=(1-不透明度)*100。大きいほど背景がよく透ける
       els.customPanelTransparency.value = String(Math.round((1 - (s.customTheme.panelAlpha ?? 0.88)) * 100));
@@ -618,6 +622,51 @@ export function initSettings(ctx) {
       els.customBgImageClear.hidden = true;
     }
   }
+
+  // カスタムテーマの色見本。ネイティブのカラーピッカーは黒スタートで「どんな色にできるか
+  // ぱっと分からない」(2026-08-22 PD FB)。タップで即プレビュー+保存できる定番色を並べ、
+  // 細かい調整は「ほかの色」のピッカーに残す。
+  const BG_SWATCHES = [
+    '#ffffff', '#f7f6f2', '#eef1f6', '#fdeef0', '#eaf5ee', '#fbf4e0',
+    '#22243a', '#1a1c2e', '#2b2620', '#14201a', '#2a1f33', '#3a2323',
+  ];
+  const ACCENT_SWATCHES = [
+    '#e2503b', '#f5842a', '#f5a623', '#7bb241', '#2fa36b', '#12a3a3',
+    '#3a8ddb', '#3f6fd6', '#6a5acd', '#9c4dcc', '#e05a8a', '#8a6d3b',
+  ];
+
+  function renderSwatches(container, colors, kind) {
+    const btns = colors.map((hex) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'swatch';
+      b.style.background = hex;
+      b.dataset.color = hex.toLowerCase();
+      b.title = hex;
+      b.setAttribute('aria-label', `${kind === 'bg' ? '背景色' : 'アクセント色'} ${hex}`);
+      b.onclick = async () => {
+        try {
+          if (kind === 'bg') { els.customBg.value = hex; await saveCustomTheme({ bg: hex }); }
+          else { els.customAccent.value = hex; await saveCustomTheme({ accent: hex }); }
+        } catch (err) { note(els.themeNote, err.message); }
+      };
+      return b;
+    });
+    container.replaceChildren(...btns);
+  }
+
+  // 現在の色と一致する見本に選択マークを付ける(いまどの色かひと目で分かるように)
+  function markSelectedSwatch(container, value) {
+    const v = String(value || '').toLowerCase();
+    for (const b of container.children) {
+      const on = b.dataset.color === v;
+      b.classList.toggle('is-selected', on);
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+  }
+
+  renderSwatches(els.customBgSwatches, BG_SWATCHES, 'bg');
+  renderSwatches(els.customAccentSwatches, ACCENT_SWATCHES, 'accent');
 
   // 現在のカスタム設定に部分パッチを当てて保存・適用(bg/accent が無ければ既定値で補う)
   async function saveCustomTheme(patch) {

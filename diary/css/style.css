@@ -595,6 +595,13 @@ input[type="time"], input[type="color"] { width: auto; }
 /* カスタムテーマの色ボタンを大きく・選んだ色がはっきり分かるように(2026-08-11 PD FB) */
 #custom-bg, #custom-accent { width: 56px; height: 40px; border: 2px solid var(--panel-edge); border-radius: 10px; padding: 0; cursor: pointer; vertical-align: middle; margin-left: 8px; }
 #custom-theme-editor .row { align-items: center; margin: 8px 0; }
+/* カスタムテーマの色見本(2026-08-22 PD FB: ネイティブのカラーピッカーは黒スタートで分かりにくい) */
+.custom-color-field { margin: 12px 0; }
+.custom-color-title { font-weight: bold; font-size: 14px; }
+.swatch-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.swatch { width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--panel-edge); padding: 0; cursor: pointer; -webkit-appearance: none; appearance: none; touch-action: manipulation; }
+.swatch.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.custom-color-fine { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
 .folder-manage { margin-bottom: 12px; }
 .ranking-list { list-style: none; counter-reset: rank; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .ranking-list li { counter-increment: rank; display: flex; align-items: center; gap: 8px; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 10px; }
