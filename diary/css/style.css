@@ -601,7 +601,13 @@ input[type="time"], input[type="color"] { width: auto; }
 .swatch-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .swatch { width: 40px; height: 40px; border-radius: 10px; border: 2px solid var(--panel-edge); padding: 0; cursor: pointer; -webkit-appearance: none; appearance: none; touch-action: manipulation; }
 .swatch.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
-.custom-color-fine { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+/* 自前スペクトラムピッカー(iOS/Android共通の見た目) */
+.spectrum { margin: 10px 0 4px; }
+.spectrum-sv { position: relative; width: 100%; height: 168px; border-radius: 12px; border: 1px solid var(--panel-edge); touch-action: none; cursor: crosshair; }
+.spectrum-thumb { position: absolute; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.35); transform: translate(-50%, -50%); pointer-events: none; }
+.spectrum-hue { display: block; width: 100%; height: 18px; margin-top: 12px; border-radius: 9px; -webkit-appearance: none; appearance: none; touch-action: none; background: linear-gradient(to right, #f00 0%, #ff0 17%, #0f0 33%, #0ff 50%, #00f 67%, #f0f 83%, #f00 100%); }
+.spectrum-hue::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid var(--panel-edge); box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: pointer; }
+.spectrum-hue::-moz-range-thumb { width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid var(--panel-edge); box-shadow: 0 1px 3px rgba(0,0,0,.4); cursor: pointer; }
 .folder-manage { margin-bottom: 12px; }
 .ranking-list { list-style: none; counter-reset: rank; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 6px; }
 .ranking-list li { counter-increment: rank; display: flex; align-items: center; gap: 8px; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 10px; }

@@ -2,6 +2,7 @@
 
 import { hashValue, hashAnswer, makeSalt } from '../core/lock.js';
 import { availableThemes, canUseCustomTheme, CUSTOM_THEME_ID } from '../core/themes.js';
+import { hexToHsv, hsvToHex } from '../core/color.js';
 import { applyTheme, applyBackgroundImage } from './theme.js';
 import { CHARACTERS, EXPRESSION_LABELS } from '../characters.js';
 import { UI_ICONS } from '../icons.js';
@@ -46,6 +47,8 @@ export function initSettings(ctx) {
     customAccent: $('custom-accent'),
     customBgSwatches: $('custom-bg-swatches'),
     customAccentSwatches: $('custom-accent-swatches'),
+    customBgSpectrum: $('custom-bg-spectrum'),
+    customAccentSpectrum: $('custom-accent-spectrum'),
     customSave: $('custom-theme-save'),
     customBgImageAdd: $('custom-bg-image-add'),
     customBgImageClear: $('custom-bg-image-clear'),
@@ -586,6 +589,7 @@ export function initSettings(ctx) {
   // --- テーマ ---
   async function refreshThemes() {
     const s = await ctx.stores.settings.get();
+    lastSettings = s; // スペクトラムのプレビューの土台
     const items = availableThemes(ctx.variant).map((t) => {
       const b = document.createElement('button');
       b.className = `choice-item${s.theme === t.id ? ' on' : ''}`;
@@ -614,6 +618,8 @@ export function initSettings(ctx) {
       els.customAccent.value = s.customTheme.accent;
       markSelectedSwatch(els.customBgSwatches, s.customTheme.bg);
       markSelectedSwatch(els.customAccentSwatches, s.customTheme.accent);
+      bgSpectrum.setColor(s.customTheme.bg);
+      accentSpectrum.setColor(s.customTheme.accent);
       els.customOverlay.value = String(Math.round((s.customTheme.overlay ?? 0.45) * 100));
       // 透け具合スライダー: 値=(1-不透明度)*100。大きいほど背景がよく透ける
       els.customPanelTransparency.value = String(Math.round((1 - (s.customTheme.panelAlpha ?? 0.88)) * 100));
@@ -667,6 +673,93 @@ export function initSettings(ctx) {
 
   renderSwatches(els.customBgSwatches, BG_SWATCHES, 'bg');
   renderSwatches(els.customAccentSwatches, ACCENT_SWATCHES, 'accent');
+
+  // 自前スペクトラムカラーピッカー(2026-08-22 PD FB)。OS標準の <input type=color> は
+  // iOS=スペクトラム / Android=HSVスライダー と機種で見た目が違い統一できない。自前描画すれば
+  // 両OSで同じスペクトラム(彩度×明度の面+色相スライダー)にできる。ドラッグ中はプレビューのみ、
+  // 指を離したら保存(透け具合スライダーの oninput/onchange と同じ流儀=ドラッグ中の連続書込を避ける)。
+  let lastSettings = null; // プレビューの土台(refreshThemes が更新)
+
+  function previewColor(patch) {
+    const base = lastSettings?.customTheme ?? { bg: '#22243a', accent: '#f5a623', overlay: 0.45, panelAlpha: 0.88, bgImage: null };
+    applyTheme({ ...(lastSettings ?? {}), theme: CUSTOM_THEME_ID, customTheme: { ...base, ...patch } }, ctx.variant);
+  }
+
+  function createSpectrum(container, { onPreview, onCommit }) {
+    const sv = document.createElement('div');
+    sv.className = 'spectrum-sv';
+    const thumb = document.createElement('div');
+    thumb.className = 'spectrum-thumb';
+    sv.append(thumb);
+    const hue = document.createElement('input');
+    hue.type = 'range'; hue.min = '0'; hue.max = '360'; hue.step = '1';
+    hue.className = 'spectrum-hue';
+    hue.setAttribute('aria-label', '色あい');
+    container.replaceChildren(sv, hue);
+
+    let h = 0, s = 1, v = 1;
+
+    function paint() {
+      sv.style.background =
+        'linear-gradient(to top, #000, rgba(0,0,0,0)),' +
+        'linear-gradient(to right, #fff, rgba(255,255,255,0)),' +
+        `hsl(${h}, 100%, 50%)`;
+      thumb.style.left = (s * 100) + '%';
+      thumb.style.top = ((1 - v) * 100) + '%';
+      thumb.style.background = hsvToHex(h, s, v);
+      hue.value = String(Math.round(h));
+    }
+
+    function svFromPoint(clientX, clientY) {
+      const r = sv.getBoundingClientRect();
+      s = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+      v = 1 - Math.max(0, Math.min(1, (clientY - r.top) / r.height));
+      paint();
+      onPreview(hsvToHex(h, s, v));
+    }
+
+    let dragging = false;
+    sv.addEventListener('pointerdown', (e) => {
+      dragging = true;
+      try { sv.setPointerCapture(e.pointerId); } catch { /* noop */ }
+      svFromPoint(e.clientX, e.clientY);
+      e.preventDefault();
+    });
+    sv.addEventListener('pointermove', (e) => {
+      if (dragging) { svFromPoint(e.clientX, e.clientY); e.preventDefault(); }
+    });
+    const stop = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      try { sv.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+      onCommit(hsvToHex(h, s, v));
+    };
+    sv.addEventListener('pointerup', stop);
+    sv.addEventListener('pointercancel', stop);
+
+    // 色相スライダー: 動かしている間はプレビュー、離したら保存
+    hue.addEventListener('input', () => { h = Number(hue.value); paint(); onPreview(hsvToHex(h, s, v)); });
+    hue.addEventListener('change', () => { h = Number(hue.value); paint(); onCommit(hsvToHex(h, s, v)); });
+
+    paint();
+    // 外部(スウォッチ・保存済み値)から色を反映。onPreview/onCommit は呼ばない(ループ防止)
+    return { setColor(hex) { const c = hexToHsv(hex); h = c.h; s = c.s; v = c.v; paint(); } };
+  }
+
+  const bgSpectrum = createSpectrum(els.customBgSpectrum, {
+    onPreview: (hex) => previewColor({ bg: hex }),
+    onCommit: async (hex) => {
+      els.customBg.value = hex;
+      try { await saveCustomTheme({ bg: hex }); } catch (err) { note(els.themeNote, err.message); }
+    },
+  });
+  const accentSpectrum = createSpectrum(els.customAccentSpectrum, {
+    onPreview: (hex) => previewColor({ accent: hex }),
+    onCommit: async (hex) => {
+      els.customAccent.value = hex;
+      try { await saveCustomTheme({ accent: hex }); } catch (err) { note(els.themeNote, err.message); }
+    },
+  });
 
   // 現在のカスタム設定に部分パッチを当てて保存・適用(bg/accent が無ければ既定値で補う)
   async function saveCustomTheme(patch) {
