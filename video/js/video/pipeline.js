@@ -61,10 +61,12 @@ export async function seekTo(video, t) {
  * 作成処理。
  * @returns {sharedBytes, payload} — format 'B' なら sharedBytes に埋め込み済み(payload も返す)
  */
-export async function processCreate({ file, tracks, filter, format, keyString, beeps = [], beepFile = null, onProgress }) {
+export async function processCreate({ file, tracks, filter, format, keyString, beeps = [], beepFile = null, maxSeconds = Infinity, onProgress }) {
   const src = await loadVideo(file);
   try {
-    const { video, duration, width, height } = src;
+    const { video, width, height } = src;
+    // 無料版の1分制限など: 実処理する長さを maxSeconds までに制限する
+    const duration = Math.min(src.duration, maxSeconds);
     const fps = FPS;
     const frames = Math.max(1, Math.round(duration * fps));
 

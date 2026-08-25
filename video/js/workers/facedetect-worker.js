@@ -12,14 +12,18 @@
 //   { type:'close' }
 
 let detector = null;
-const BASE = new URL('../vendor/mediapipe/', self.location.href).href;
+// ⚠ 末尾スラッシュを付けない。MediaPipe は wasmローダ等を `DIR + '/xxx.js'` で組み立てるため、
+//   末尾スラッシュがあると `mediapipe//xxx.js` の二重スラッシュになり、Capacitor の WebView
+//   ローカルサーバーが 404 を返す(dev server は正規化するので気づけない。
+//   docs/lessons/2026-08-13-capacitor-double-slash.md)。
+const DIR = new URL('../vendor/mediapipe', self.location.href).href;
 
 async function init() {
-  const { FaceDetector, FilesetResolver } = await import(BASE + 'vision_bundle.mjs');
-  const fileset = await FilesetResolver.forVisionTasks(BASE);
+  const { FaceDetector, FilesetResolver } = await import(DIR + '/vision_bundle.mjs');
+  const fileset = await FilesetResolver.forVisionTasks(DIR);
   detector = await FaceDetector.createFromOptions(fileset, {
     baseOptions: {
-      modelAssetPath: BASE + 'blaze_face_short_range.tflite',
+      modelAssetPath: DIR + '/blaze_face_short_range.tflite',
       delegate: 'CPU', // WebGL非依存で全環境(iOS Safari含む)で動く
     },
     runningMode: 'VIDEO',

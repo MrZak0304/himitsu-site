@@ -4,6 +4,8 @@ import { generateKeyString, isValidKeyString } from './core/crypto.js';
 import { applyFilters, regionPath } from './video/filters.js';
 import { loadVideo, processCreate, processRestore } from './video/pipeline.js';
 import { detectFaceTracks, faceDetectAvailable } from './video/facedetect.js';
+import { FEATURES, isFullVersion } from './build-flags.js';
+import { initAds, maybeShowCompletionAd } from './ads.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -43,6 +45,21 @@ function switchTab(name) {
   $('panel-create').hidden = name !== 'create';
   $('panel-restore').hidden = name !== 'restore';
 }
+
+// ---- 無料/有料の機能出し分け(FEATURES) ----
+// 無料版: 復元タブ・自由形状・分割型を隠し、作成を1分までに制限する(SPEC §7)。
+function applyFeatureGating() {
+  if (!FEATURES.restore) $('tab-restore').hidden = true;
+  if (!FEATURES.freeForm) $('addPoly').hidden = true;
+  if (!FEATURES.splitFormat) {
+    // 一体型(B)固定にして形式選択セクションごと隠す
+    $('formatB').checked = true;
+    state.create.format = 'B';
+    const fmt = $('formatB').closest('.control-group');
+    if (fmt) fmt.hidden = true;
+  }
+}
+applyFeatureGating();
 
 // ---- 作成: 動画読み込み ----
 $('createFile').addEventListener('change', async (e) => {
@@ -670,6 +687,7 @@ $('exportBtn').addEventListener('click', async () => {
       keyString,
       beeps: c.beeps.map((b) => ({ start: b.start, end: b.end })),
       beepFile: c.beepFile,
+      maxSeconds: FEATURES.maxCreateSeconds, // 無料版は先頭1分まで
       onProgress: (p) => updateProgress('create', p),
     });
     const base = c.file.name.replace(/\.[^.]+$/, '') || 'video';
@@ -692,7 +710,10 @@ $('exportBtn').addEventListener('click', async () => {
         : '復元データは動画に埋め込み済みです。SNSにアップすると埋め込みが消えるため、ファイルのまま(AirDrop等)で渡してください。')
       + (hasAudio ? '' : ' ※音声は引き継げませんでした(無音になります)。');
     $('createResult').hidden = false;
-    setStatus('createStatus', '書き出しが完了しました。', 'ok');
+    const limited = !isFullVersion() && c.src.duration > FEATURES.maxCreateSeconds;
+    setStatus('createStatus',
+      limited ? '書き出しが完了しました(無料版は先頭1分まで。全編は有料版で)。' : '書き出しが完了しました。', 'ok');
+    maybeShowCompletionAd(); // 無料版ネイティブのみ。作成完了時のリワード広告
   } catch (err) {
     console.warn(err); // 利用者向けメッセージは status に出す(想定内エラーを含むため error にしない)
     setStatus('createStatus', err.message ?? String(err), 'error');
@@ -861,3 +882,6 @@ function downloadLink(blob, filename, label) {
   a.textContent = label;
   return a;
 }
+
+// 広告(無料版ネイティブのみ実動作。Web版・有料版・ブラウザでは何もしない)
+initAds();
