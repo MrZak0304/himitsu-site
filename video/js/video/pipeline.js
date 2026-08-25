@@ -39,6 +39,14 @@ export async function loadVideo(fileOrBlob) {
     URL.revokeObjectURL(url);
     throw new Error('動画の長さを取得できませんでした。');
   }
+  // iOS WKWebView 対策: 一度 play→pause で video を「起動」しておかないと
+  // seek しても 'seeked' が発火せず固まる。muted+playsInline なので自動再生可。
+  try {
+    const p = video.play();
+    if (p && typeof p.then === 'function') await p.catch(() => {});
+    video.pause();
+    video.currentTime = 0;
+  } catch { /* 再生できなくても続行(多くの環境では seek だけで足りる) */ }
   return {
     video,
     url,
