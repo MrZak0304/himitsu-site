@@ -54,11 +54,14 @@
 </div>
 <div class="sticky"><a class="btn" href="https://apps.apple.com/jp/app/id6796336660?pt=site&ct=lp-cta&mt=8">無料でヒミツの暗号をつくる</a><small>ひらがなを入れるだけ</small></div>
 <script>
-// 端末OSで自分のストアのバッジを先頭に(両方表示は維持)+ 有料版リンクをOS判定で出し分け(既定=App Store、AndroidはGoogle Playへ)
+// 端末OSで自分のストアのバッジを先頭に(両方表示は維持)+ CTA/有料版リンクをOS判定で出し分け(既定=App Store、AndroidはGoogle Playへ)
 (function(){
   var ua=navigator.userAgent, ios=/iPhone|iPad|iPod/.test(ua), android=/Android/.test(ua);
   document.querySelectorAll('.badges').forEach(function(b){var a=b.querySelector('[data-store="App Store"]');if(ios&&a)b.prepend(a);});
-  if(android){document.querySelectorAll('a.sec').forEach(function(a){a.href='https://play.google.com/store/apps/details?id=io.github.ttool.himitsu&referrer=utm_source%3Dsite%26utm_medium%3Dlp%26utm_campaign%3Dlp-paid';});}
+  if(android){
+    document.querySelectorAll('a.btn').forEach(function(a){a.href='https://play.google.com/store/apps/details?id=io.github.ttool.himitsu.free&referrer=utm_source%3Dsite%26utm_medium%3Dlp%26utm_campaign%3Dlp-cta';});
+    document.querySelectorAll('a.sec').forEach(function(a){a.href='https://play.google.com/store/apps/details?id=io.github.ttool.himitsu&referrer=utm_source%3Dsite%26utm_medium%3Dlp%26utm_campaign%3Dlp-paid';});
+  }
 })();
 </script>
 </body>
