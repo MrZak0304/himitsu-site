@@ -1,0 +1,76 @@
+/* t_tool(アプリ工房)アプリ一覧 — linkhub
+   マーケCH制作 2026-08-30 / 外部リソース・外部フォント不使用 */
+:root{
+  --bg:#241f1c; --bg2:#191512; --panel:#2f2823; --panel2:#3a312a;
+  --line:#4a3f35; --gold:#d8b86a; --gold2:#f0d79a;
+  --text:#f4efe6; --muted:#b8ac9b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{background:var(--bg2)}
+body{
+  background:
+    radial-gradient(120% 60% at 50% 0%, #352c25 0%, var(--bg) 55%, var(--bg2) 100%)
+    no-repeat;
+  min-height:100vh;
+  color:var(--text);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;
+  line-height:1.75; -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:640px;margin:0 auto;padding:32px 20px 56px}
+
+/* header */
+.head{text-align:center;padding:8px 0 28px}
+.head img{width:84px;height:84px;border-radius:22px;display:block;margin:0 auto 14px}
+.head h1{font-size:1.28rem;margin:0 0 6px;letter-spacing:.04em}
+.head p{margin:0;color:var(--muted);font-size:.92rem}
+.rule{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent);margin:0 0 28px}
+
+/* card */
+.card{
+  background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+  border:1px solid var(--line); border-radius:16px;
+  padding:20px 18px; margin:0 0 18px;
+  box-shadow:0 2px 0 rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.card-head{display:flex;gap:14px;align-items:center;margin-bottom:12px}
+.card-head img{width:64px;height:64px;border-radius:15px;flex:0 0 auto}
+.card-head h2{font-size:1.08rem;margin:0 0 3px;letter-spacing:.02em}
+.card-head .lead{margin:0;color:var(--gold2);font-size:.9rem;text-wrap:balance}
+.desc{margin:0 0 14px;font-size:.92rem;color:var(--muted)}
+
+/* buttons */
+.row{margin:0 0 10px}
+.row:last-child{margin-bottom:0}
+.row-label{
+  display:block;font-size:.78rem;color:var(--muted);
+  margin:0 0 6px;letter-spacing:.06em;
+}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+a.btn{
+  flex:1 1 130px; text-align:center; text-decoration:none;
+  padding:11px 12px; border-radius:10px; font-size:.88rem; font-weight:600;
+  color:#2b2118; background:linear-gradient(180deg,var(--gold2),var(--gold));
+  border:1px solid #b9964e;
+}
+a.btn.sub{
+  color:var(--text); background:transparent; border:1px solid var(--line); font-weight:500;
+}
+a.btn:active{transform:translateY(1px)}
+.soon{
+  flex:1 1 130px; text-align:center; padding:11px 8px; border-radius:10px;
+  font-size:.8rem; color:var(--muted); border:1px dashed var(--line);
+}
+.more{margin:12px 0 0;font-size:.85rem}
+.more a{color:var(--gold2)}
+
+/* footer */
+.foot{margin-top:34px;text-align:center;font-size:.8rem;color:var(--muted)}
+.foot a{color:var(--muted)}
+.foot p{margin:6px 0}
+
+@media (min-width:520px){
+  .wrap{padding-top:44px}
+  .head img{width:96px;height:96px}
+  .head h1{font-size:1.42rem}
+}
