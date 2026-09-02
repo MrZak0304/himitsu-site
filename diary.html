@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポンとにっき 〜タグでスタンプする日記〜 | サポート・アプリ紹介</title>
+<meta name="description" content="「今日どんな日だった?」をタグでポンとスタンプするだけ。書かなくても続く日記アプリ「ポンとにっき」の紹介とサポートページです。">
+<style>
+  :root {
+    color-scheme: light;
+    --accent: #4a7dbd;
+    --accent-dark: #2f5687;
+    --text: #333333;
+    --muted: #666666;
+    --line: #dddddd;
+    --panel: #f3f6fb;
+  }
+  body {
+    margin: 0;
+    padding: 0 0 4rem;
+    background: #ffffff;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    line-height: 1.9;
+  }
+  .hero {
+    background: var(--accent);
+    color: #ffffff;
+    padding: 2.5rem 1.25rem 2.2rem;
+    text-align: center;
+  }
+  .hero .icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    overflow: hidden;
+    margin: 0 auto 1rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+  .hero .icon svg { display: block; width: 100%; height: 100%; }
+  .hero h1 {
+    font-size: 1.6rem;
+    margin: 0 0 0.3rem;
+    line-height: 1.4;
+  }
+  .hero .sub {
+    font-size: 1rem;
+    margin: 0 0 0.8rem;
+    opacity: 0.95;
+  }
+  .hero .lead {
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 30em;
+    opacity: 0.95;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.6rem;
+  }
+  h3 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 1.4rem;
+    margin-bottom: 0.4rem;
+  }
+  p { margin: 0.8rem 0; }
+  ul { margin: 0.8rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  a { color: var(--accent); word-break: break-all; }
+  .features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .features li {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin: 0;
+  }
+  .features b { color: var(--accent-dark); }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  col.label { width: 24%; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--panel); font-weight: bold; }
+  .faq dt {
+    font-weight: bold;
+    margin-top: 1.2rem;
+  }
+  .faq dt::before { content: "Q. "; color: var(--accent); }
+  .faq dd {
+    margin: 0.3rem 0 0;
+  }
+  .faq dd::before { content: "A. "; color: var(--accent); font-weight: bold; }
+  .stores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+  }
+  .stores a {
+    display: inline-block;
+    background: var(--accent);
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    word-break: keep-all;
+  }
+  .stores a.sub { background: #ffffff; color: var(--accent); border: 2px solid var(--accent); }
+  .contact {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+  }
+  .note {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  footer {
+    max-width: 720px;
+    margin: 3rem auto 0;
+    padding: 1.5rem 1.25rem 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    color: #888888;
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="icon" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="#4a7dbd"/>
+      <circle cx="880" cy="150" r="340" fill="#5b8ac6" opacity="0.55"/>
+      <circle cx="120" cy="900" r="300" fill="#4170ab" opacity="0.6"/>
+      <g stroke="#ffd166" stroke-width="34" stroke-linecap="round" fill="none">
+        <path d="M715 205 L775 130"/>
+        <path d="M790 300 L885 260"/>
+        <path d="M600 155 L618 65"/>
+      </g>
+      <g transform="rotate(-8 512 560)">
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#2f5687" opacity="0.35" transform="translate(16 22)"/>
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#ffffff"/>
+        <g fill="#4a7dbd" transform="translate(512 560)">
+          <g transform="skewX(-8)">
+            <rect x="-150" y="-70" width="300" height="52" rx="26"/>
+            <rect x="-150" y="22" width="300" height="52" rx="26"/>
+            <rect x="-86" y="-140" width="52" height="280" rx="26"/>
+            <rect x="36" y="-140" width="52" height="280" rx="26"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <h1>ポンとにっき</h1>
+  <p class="sub">〜タグでスタンプする日記〜</p>
+  <p class="lead">「今日どんな日だった?」をタグでポンとスタンプするだけ。書かなくても続く日記アプリです。</p>
+</header>
+
+<main>
+  <h2>ダウンロード</h2>
+  <p class="stores">
+    <a href="https://apps.apple.com/jp/app/id6799875058">App Store(広告つき・無料)</a>
+    <a class="sub" href="https://apps.apple.com/jp/app/id6799877267">App Store(買い切り・¥300)</a>
+  </p>
+  <p class="note">Android版は近日公開予定です。</p>
+
+  <h2>こんなアプリです</h2>
+  <p>1日のおわりに「#がんばった」「#まったり」などのタグをタップするだけで、今日の記録が完成します。気が向いた日は文章や写真も残せます。月カレンダーに一押し写真とタグが並び、1か月がひと目で振り返れます。</p>
+  <p>日記が三日坊主になりがちな方、1日をサクッと記録したい方におすすめです。</p>
+
+  <h2>主な機能</h2>
+  <ul class="features">
+    <li><b>タグでスタンプ</b>: 定番タグをタップするだけで記録完了。自分のタグも登録できます。</li>
+    <li><b>書きたい日は本文と写真も</b>: 1日10枚まで写真を添付でき、お気に入りの1枚を「一押し」にできます。</li>
+    <li><b>月カレンダーで振り返り</b>: 一押し写真とタグがカレンダーに並びます。よく使うタグの月間ランキングも。</li>
+    <li><b>日課チェック</b>: 毎日の日課にチェック。連続達成日数と5種のキャラクター(男の子・女の子・ねこ・いぬ・文鳥)が応援します。</li>
+    <li><b>リマインダー</b>: 決めた時刻に「きょうの記録をつけましょう」と通知します。</li>
+    <li><b>ふりかえりロック</b>: 過去の日記をパスコードと生体認証(Face ID・指紋)で保護。今日の記録はロックなしでサッと書けます。</li>
+    <li><b>きせかえテーマ</b>: 配色テーマで自分好みの見た目に。</li>
+    <li><b>バックアップ</b>: 機種変更用に全データを1ファイルで書き出し・取り込みできます。</li>
+    <li><b>完全プライベート</b>: 日記の本文・写真・タグ・日課はすべて端末内にのみ保存。外部送信やクラウド同期はありません。</li>
+  </ul>
+
+  <h2>無料版と買い切り版のちがい</h2>
+  <table>
+    <colgroup><col class="label"><col><col></colgroup>
+    <tr><th></th><th>ポンとにっき 広告つき(無料)</th><th>ポンとにっき(買い切り)</th></tr>
+    <tr><td>広告</td><td>あり(バナー・リワード)</td><td>なし</td></tr>
+    <tr><td>自分のタグ</td><td>10個まで(広告視聴で増やせます)</td><td>無制限</td></tr>
+    <tr><td>テーマ</td><td>5種</td><td>20種+カスタムテーマ(背景画像も設定可)</td></tr>
+    <tr><td>その他の機能</td><td colspan="2">日記・写真・日課・カレンダー・ロック・バックアップはどちらも同じです</td></tr>
+  </table>
+  <p class="note">日記の内容が広告のために送信されることはありません(両版共通)。買い切り版は広告の仕組み自体を搭載していません。</p>
+
+  <h2 id="support">サポート・よくある質問</h2>
+  <dl class="faq">
+    <dt>日記のデータはどこに保存されますか?</dt>
+    <dd>すべてお使いの端末の中にだけ保存されます。外部のサーバーへ送信したり、クラウドに同期したりすることはありません。アカウント登録も不要です。</dd>
+
+    <dt>機種変更のときはどうすればいいですか?</dt>
+    <dd>「設定」→「バックアップ」から全データを1つのファイル(.json)に書き出し、新しい端末で取り込んでください。アプリを削除するとデータも消えるため、削除前に必ずバックアップを書き出してください。</dd>
+
+    <dt>ふりかえりロックのパスコードを忘れました。</dt>
+    <dd>ロック設定時に登録した「秘密の合言葉」で解除できます。合言葉も分からない場合、開発者側でも解除・復元はできません(パスコードは端末内にハッシュ化して保存され、外部に送られないためです)。</dd>
+
+    <dt>ふりかえりロックをかければ日記は暗号化されますか?</dt>
+    <dd>ふりかえりロックは「過去の日記を他の人に見られにくくする」ための閲覧ガードで、保存データそのものを暗号化する機能ではありません。端末自体のロック(パスコード・Face ID など)と併用してください。</dd>
+
+    <dt>無料版でタグをもっと登録したいです。</dt>
+    <dd>タグ枠がいっぱいになると「広告を見て枠を+1する」ボタンが表示されます。広告を最後まで見ると枠が1つ増えます。買い切り版ではタグを無制限に登録できます。</dd>
+
+    <dt>リマインダー通知が届きません。</dt>
+    <dd>端末の「設定」→「通知」で本アプリの通知が許可されているかご確認ください。集中モード・おやすみモード中は通知が抑制される場合があります。</dd>
+
+    <dt>買い切り版へデータを引き継げますか?</dt>
+    <dd>無料版でバックアップを書き出し、買い切り版で取り込むことで引き継げます(同じ形式のファイルです)。</dd>
+  </dl>
+
+  <h2>お問い合わせ</h2>
+  <div class="contact">
+    <p>不具合のご報告・ご要望・ご質問は、以下のメールアドレスまでお気軽にご連絡ください。</p>
+    <p>メール: <a href="mailto:t.tool19920312@gmail.com">t.tool19920312@gmail.com</a></p>
+    <p class="note">お使いの機種・OSバージョン・アプリのバージョン(設定画面に表示)・無料版か買い切り版かを添えていただけると、スムーズにご案内できます。</p>
+  </div>
+
+  <h2>プライバシーポリシー</h2>
+  <p><a href="./diary-privacy.html">プライバシーポリシーはこちら</a></p>
+</main>
+<footer>
+  運営: t_tool<br>
+  &copy; 2026 t_tool
+</footer>
+</body>
+</html>
