@@ -1,7 +1,7 @@
 // 「きょうの1枚カード」の作成ダイアログ(v1.1・PD FB 2026-10-05 第1〜3弾)。
 // 2つのモードを持つ:
-//   card : 写真の選択(なし/その日の各写真)・表示範囲(ドラッグで移動・ピンチ/ホイールで拡大)・
-//          タグのシール貼り(貼る/はがす・ドラッグ・回転 90°・縦横)・ライブプレビュー→共有
+//   card : 写真の選択(なし/その日の各写真。切り抜きはサムネイル画面で決めた範囲に固定=PD FB 4)・
+//          タグのシール貼り(貼る/はがす・ドラッグ・つまみで自由回転・90°ボタン・縦横)・ライブプレビュー→共有
 //   thumb: 写真追加直後に開く「サムネイル」画面。切り抜き範囲だけを決めて保存し、
 //          そのままカード編集へ続けられる(PD FB 3: 既定の切り抜きのままだと映えない写真が登録される)
 // 選んだ切り出し範囲はその写真の「サムネイル」として保存する(一押し表示・カレンダーにも反映)。
@@ -11,6 +11,7 @@ import { normalizePushIndex } from '../core/image-rules.js';
 import {
   cardFileName, panCrop, clampCrop, pinchZoom, layoutCard, DEFAULT_CROP,
   autoStickers, clampSticker, hitSticker, placeNewSticker, STICKER_ROTATE_STEP,
+  stickerHandlePoint, hitStickerHandle, rotateStickerTo,
 } from '../core/card.js';
 import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
 import { deliverFile } from '../backup-io.js';
@@ -150,8 +151,8 @@ export function createCardDialog(ctx) {
       els.hint.textContent = 'この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。';
     } else {
       els.hint.textContent = hasPhoto
-        ? '写真はドラッグで移動・2本指で拡大。タグはシールのように動かせます(タップで選んで回転・縦横)。'
-        : 'タグだけのカードです。タグはシールのように動かせます(タップで選んで回転・縦横)。';
+        ? '写真はサムネイルで決めた範囲のまま固定です。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転)。'
+        : 'タグだけのカードです。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転)。';
     }
     if (hasPhoto) {
       const rec = state.photos[idx].rec;
@@ -289,9 +290,11 @@ export function createCardDialog(ctx) {
   }
 
   // --- ポインタ操作(Pointer Events。HTML5 DnD は使わない: 教訓 drag-test) ---
-  // 1本指: シールの上ならシールを動かす、そうでなければ写真を動かす。2本指: ピンチで写真を拡大
+  // thumb: 1本指で写真を動かす・2本指のピンチで拡大。
+  // card : 写真は固定(PD FB 4)。シールの上ならシールを動かす、選択中シールのつまみなら回転
   const pointers = new Map(); // pointerId → {x, y}
-  let gesture = null; // {kind:'sticker'|'photo'|'pinch', ...}
+  let gesture = null; // {kind:'sticker'|'rotate'|'photo'|'pinch', ...}
+  const photoMovable = () => state?.mode === 'thumb' && !!state.bitmap;
 
   function cardPoint(e) {
     const rect = els.preview.getBoundingClientRect();
@@ -307,28 +310,44 @@ export function createCardDialog(ctx) {
       // 合成イベントなど未知の pointerId では例外になるが、操作自体には不要
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2 && state.bitmap) {
+    if (pointers.size === 2 && photoMovable()) {
       const [a, b] = [...pointers.values()];
       gesture = { kind: 'pinch', dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: state.crop.zoom };
       return;
     }
     if (pointers.size > 1) return;
     const p = cardPoint(e);
-    const hit = state.mode === 'card' ? hitSticker(state.stickers, p.x, p.y, els.preview.width) : -1;
-    if (hit >= 0) {
-      gesture = { kind: 'sticker', idx: hit, lastX: e.clientX, lastY: e.clientY, scale: p.scale };
-      select(hit);
-    } else {
-      gesture = state.bitmap ? { kind: 'photo', lastX: e.clientX, lastY: e.clientY } : null;
-      if (state.selected !== -1) select(-1);
+    const size = els.preview.width;
+    if (state.mode === 'card') {
+      if (state.selected >= 0 && hitStickerHandle(state.stickers[state.selected], p.x, p.y, size)) {
+        gesture = { kind: 'rotate', idx: state.selected };
+        return;
+      }
+      const hit = hitSticker(state.stickers, p.x, p.y, size);
+      if (hit >= 0) {
+        gesture = { kind: 'sticker', idx: hit, lastX: e.clientX, lastY: e.clientY, scale: p.scale };
+        select(hit);
+      } else {
+        gesture = null;
+        if (state.selected !== -1) select(-1);
+      }
+      return;
     }
+    gesture = photoMovable() ? { kind: 'photo', lastX: e.clientX, lastY: e.clientY } : null;
   });
   els.preview.addEventListener('pointermove', (e) => {
     if (!state || !pointers.has(e.pointerId)) return;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (!gesture) return;
+    if (gesture.kind === 'rotate') {
+      const p = cardPoint(e);
+      const st = state.stickers[gesture.idx];
+      if (st) state.stickers[gesture.idx] = rotateStickerTo(st, p.x, p.y, els.preview.width);
+      scheduleDraw();
+      return;
+    }
     if (gesture.kind === 'pinch') {
-      if (pointers.size < 2 || !state.bitmap) return;
+      if (pointers.size < 2 || !photoMovable()) return;
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       state.crop = pinchZoom({ ...state.crop, zoom: gesture.zoom }, d / Math.max(1, gesture.dist), state.bitmap.width, state.bitmap.height);
@@ -344,7 +363,7 @@ export function createCardDialog(ctx) {
       const size = els.preview.width;
       state.stickers[gesture.idx] = clampSticker({ ...st, x: st.x + (dx * gesture.scale) / size, y: st.y + (dy * gesture.scale) / size });
       scheduleDraw();
-    } else if (gesture.kind === 'photo' && state.bitmap) {
+    } else if (gesture.kind === 'photo' && photoMovable()) {
       const rect = els.preview.getBoundingClientRect();
       state.crop = panCrop(state.crop, dx, dy, rect.width, state.bitmap.width, state.bitmap.height);
       scheduleDraw();
@@ -357,11 +376,11 @@ export function createCardDialog(ctx) {
   };
   els.preview.addEventListener('pointerup', endPointer);
   els.preview.addEventListener('pointercancel', endPointer);
-  // PC: ホイールで拡大・縮小(スマホはピンチ。スライダーは PD FB 3 で廃止)
+  // PC: ホイールで拡大・縮小(スマホはピンチ。スライダーは PD FB 3 で廃止)。サムネイル画面だけ
   els.preview.addEventListener(
     'wheel',
     (e) => {
-      if (!state?.bitmap) return;
+      if (!photoMovable()) return;
       e.preventDefault();
       const ratio = e.deltaY < 0 ? WHEEL_ZOOM_RATIO : 1 / WHEEL_ZOOM_RATIO;
       state.crop = pinchZoom(state.crop, ratio, state.bitmap.width, state.bitmap.height);
@@ -370,15 +389,16 @@ export function createCardDialog(ctx) {
     { passive: false },
   );
 
-  // リセット: 切り抜きを既定に戻す。カードモードではシールも自動配置に戻す
+  // リセット: サムネイル画面=切り抜きを既定に戻す / カード画面=シールを自動配置に戻す(写真はそのまま)
   els.reset.onclick = () => {
     if (!state) return;
-    state.crop = state.bitmap ? clampCrop({ ...DEFAULT_CROP }, state.bitmap.width, state.bitmap.height) : { ...DEFAULT_CROP };
     if (state.mode === 'card') {
       state.stickers = autoStickersFor();
       state.selected = -1;
       renderPalette();
       renderTools();
+    } else {
+      state.crop = state.bitmap ? clampCrop({ ...DEFAULT_CROP }, state.bitmap.width, state.bitmap.height) : { ...DEFAULT_CROP };
     }
     scheduleDraw();
   };
@@ -457,8 +477,8 @@ export function createCardDialog(ctx) {
     ctx.showLoading('カードを作っています…');
     let result;
     try {
+      // 写真の範囲はサムネイル画面で決めたものを使う(カード画面では変えない=PD FB 4)
       const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers });
-      if (photo) await saveCrop(photo, crop);
       result = await deliverFile(png, cardFileName(dateKey));
     } catch (err) {
       result = { saved: false, reason: err?.message ?? 'カードを作れませんでした。' };
@@ -481,5 +501,7 @@ export function createCardDialog(ctx) {
     debugStickers: () => (state ? state.stickers.map((s) => ({ ...s, px: s.x * els.preview.width, py: s.y * els.preview.width })) : []),
     debugCrop: () => (state ? { ...state.crop } : null),
     debugMode: () => state?.mode ?? null,
+    // 選択中シールの回転つまみの位置(カード座標px)
+    debugHandle: () => (state && state.selected >= 0 ? stickerHandlePoint(state.stickers[state.selected], els.preview.width) : null),
   };
 }

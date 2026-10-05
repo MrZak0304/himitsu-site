@@ -15,7 +15,6 @@ const TAG_GAP = 20;
 const TAG_LINE_H = 96;
 const DATE_FONT = 44;
 const BRAND_FONT = 36;
-const STAMP_TILT = [-3, 2.5, -2, 3, -1.5, 2, -2.5, 1.5]; // 度
 
 // 'YYYY-MM-DD' → '2026年10月5日(月)'
 export function formatCardDate(dateKey) {
@@ -74,17 +73,14 @@ export function layoutCard({ dateKey, tagNames = [], hasPhoto = false, theme = {
   const brandY = size - PAD;
   const dateY = brandY - BRAND_FONT - 28;
   const tagsBottom = dateY - DATE_FONT - 24;
-  let chipSeq = 0;
   const tagRows = rows.map((row, i) => {
     const y = tagsBottom - (rows.length - 1 - i) * TAG_LINE_H; // 行の下端
     let x = PAD;
     const chips = row.chips.map((c) => {
       const chip = {
         text: c.text, x, y: y - TAG_LINE_H + 12, w: c.width, h: TAG_LINE_H - 20, fontSize: TAG_FONT,
-        // ハンコ風: 押した跡のように少しずつ傾ける(並び順で決まる=同じ入力なら同じ見た目)
-        rotate: STAMP_TILT[chipSeq % STAMP_TILT.length],
+        rotate: 0, // 既定は真っ直ぐ(PD FB 4)。回転はカード編集でシールごとに
       };
-      chipSeq += 1;
       x += c.width + TAG_GAP;
       return chip;
     });
@@ -152,6 +148,8 @@ export function cardFileName(dateKey) {
 const STAMP_PAD = 20; // シールの内側余白(縦書き時の上下)
 export const STICKER_ROTATE_STEP = 90; // 回転ボタン1回ぶん(度)。90°/180°/270° を既定にする(PD FB 3)
 export const DEFAULT_CROP = Object.freeze({ cx: 0.5, cy: 0.5, zoom: 1 });
+export const HANDLE_OFFSET = 34; // 回転つまみ: シール角からの距離(px)
+export const HANDLE_R = 24; // 回転つまみの半径(px)
 
 // シールの寸法(カード座標・px)。横は layoutTagRows と同じ計算、縦は文字を縦に積む
 export function stampSize(text, orient = 'h', fontSize = TAG_FONT) {
@@ -203,11 +201,44 @@ export function hitSticker(stickers, px, py, size = CARD_SIZE) {
 // シールを新しく貼るときの位置: 中央付近で、重ならないよう少しずつずらす
 export function placeNewSticker(text, existing) {
   const n = existing?.length ?? 0;
-  return clampSticker({ text, x: 0.5 + ((n % 3) - 1) * 0.08, y: 0.42 + (Math.floor(n / 3) % 3) * 0.08, rotate: STAMP_TILT[n % STAMP_TILT.length], orient: 'h' });
+  return clampSticker({ text, x: 0.5 + ((n % 3) - 1) * 0.08, y: 0.42 + (Math.floor(n / 3) % 3) * 0.08, rotate: 0, orient: 'h' });
 }
 
 // ピンチ: 2本指の距離の比で拡大率を変える(注視点はそのまま。範囲外は clampCrop)
 export function pinchZoom(crop, ratio, imgW, imgH) {
   const r = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
   return clampCrop({ ...crop, zoom: (crop.zoom ?? 1) * r }, imgW, imgH);
+}
+
+// --- 回転つまみ(PD FB 4: スタンプを自由に回転)。選択中シールの右上角の外側に丸いつまみを出し、
+// ドラッグした方向にシールが向く。つまみの基準角(シール中心から見た角度)との差が回転量
+function handleBaseAngle(rect) {
+  return Math.atan2(-rect.h / 2 - HANDLE_OFFSET, rect.w / 2 + HANDLE_OFFSET);
+}
+
+// つまみの位置(カード座標・px)
+export function stickerHandlePoint(sticker, size = CARD_SIZE) {
+  const r = stickerRect(sticker, size);
+  const base = handleBaseAngle(r);
+  const dist = Math.hypot(r.w / 2 + HANDLE_OFFSET, r.h / 2 + HANDLE_OFFSET);
+  const ang = base + (r.rotate * Math.PI) / 180;
+  return { x: r.cx + dist * Math.cos(ang), y: r.cy + dist * Math.sin(ang) };
+}
+
+// つまみの当たり判定(少し広め)
+export function hitStickerHandle(sticker, px, py, size = CARD_SIZE) {
+  if (!sticker) return false;
+  const h = stickerHandlePoint(sticker, size);
+  return Math.hypot(px - h.x, py - h.y) <= HANDLE_R + 12;
+}
+
+// つまみをカード座標 (px, py) までドラッグしたときの回転量をシールに反映
+export const HANDLE_SNAP_DEG = 4; // 90°の倍数に近ければ吸着(真っ直ぐに戻しやすく)
+export function rotateStickerTo(sticker, px, py, size = CARD_SIZE) {
+  const r = stickerRect(sticker, size);
+  const ang = Math.atan2(py - r.cy, px - r.cx) - handleBaseAngle(r);
+  let deg = (((ang * 180) / Math.PI) % 360 + 360) % 360;
+  const near = Math.round(deg / 90) * 90;
+  if (Math.abs(deg - near) <= HANDLE_SNAP_DEG) deg = near % 360;
+  return clampSticker({ ...sticker, rotate: deg });
 }

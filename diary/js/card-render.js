@@ -3,7 +3,7 @@
 // 生成は端末内で完結し、共有は backup-io.js の deliverFile(OS の共有シート)で行う。
 // プレビュー(card-dialog.js)と本番出力(PNG)で同じ drawCard を使う=見たままが出る。
 
-import { layoutCard, photoSourceRect, stickerRect, CARD_SIZE } from './core/card.js';
+import { layoutCard, photoSourceRect, stickerRect, CARD_SIZE, HANDLE_OFFSET, HANDLE_R } from './core/card.js';
 
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
 
@@ -98,6 +98,33 @@ function drawStamp(ctx, box, text, colors, { orient = 'h', fontSize = 52, highli
     ctx.strokeStyle = colors.stampInk;
     ctx.lineWidth = 4;
     roundRect(ctx, x - 10, y - 10, box.w + 20, box.h + 20, r + 6);
+    ctx.stroke();
+    // 回転つまみ(右上角の外側)。core/card.js の stickerHandlePoint と同じ位置
+    const hx = box.w / 2 + HANDLE_OFFSET;
+    const hy = -box.h / 2 - HANDLE_OFFSET;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(box.w / 2 + 10, -box.h / 2 - 10);
+    ctx.lineTo(hx, hy);
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(hx, hy, HANDLE_R, 0, Math.PI * 2);
+    ctx.fillStyle = colors.chipBg;
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    // つまみの中に回転の矢印(円弧+矢先)
+    ctx.beginPath();
+    ctx.arc(hx, hy, HANDLE_R * 0.5, Math.PI * 0.2, Math.PI * 1.6);
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    const ax = hx + HANDLE_R * 0.5 * Math.cos(Math.PI * 1.6);
+    const ay = hy + HANDLE_R * 0.5 * Math.sin(Math.PI * 1.6);
+    ctx.beginPath();
+    ctx.moveTo(ax - 7, ay - 7);
+    ctx.lineTo(ax + 1, ay + 1);
+    ctx.lineTo(ax - 8, ay + 5);
     ctx.stroke();
   }
   ctx.restore();
