@@ -144,3 +144,69 @@ export function clampCrop(crop, imgW, imgH) {
 export function cardFileName(dateKey) {
   return `pontonikki-card-${(dateKey ?? '').replaceAll('-', '')}.png`;
 }
+
+// ---- タグのシール貼り(PD FB 2026-10-05 第2弾)----
+// タグを「シール」として自由に貼る。位置はカード内の相対座標(0〜1・中心)、rotate は度、orient は 'h'(横)|'v'(縦)。
+// 既定は自動配置(layoutCard の tagRows)をそのままシール化したもの=今のデザイン。
+
+const STAMP_PAD = 20; // シールの内側余白(縦書き時の上下)
+export const STICKER_ROTATE_STEP = 15; // 回転ボタン1回ぶん(度)
+
+// シールの寸法(カード座標・px)。横は layoutTagRows と同じ計算、縦は文字を縦に積む
+export function stampSize(text, orient = 'h', fontSize = TAG_FONT) {
+  const chars = [...(text ?? '')];
+  if (orient === 'v') {
+    return { w: TAG_LINE_H - 20, h: Math.max(TAG_LINE_H - 20, chars.length * fontSize * 1.05 + STAMP_PAD * 2) };
+  }
+  return { w: Math.min(CARD_SIZE - PAD * 2, estimateTextWidth(text, fontSize) + TAG_PAD_X * 2), h: TAG_LINE_H - 20 };
+}
+
+// 自動配置(layoutCard の結果)→ シール配列。中心座標を 0〜1 に正規化
+export function autoStickers(layout) {
+  const out = [];
+  for (const row of layout.tagRows ?? []) {
+    for (const chip of row.chips) {
+      out.push({ text: chip.text, x: (chip.x + chip.w / 2) / layout.size, y: (chip.y + chip.h / 2) / layout.size, rotate: chip.rotate ?? 0, orient: 'h' });
+    }
+  }
+  return out;
+}
+
+// 中心が外へ出すぎないように丸める(少しはみ出すのは「貼った感」として許す)
+export function clampSticker(sticker) {
+  const lim = (v) => Math.min(0.97, Math.max(0.03, Number.isFinite(v) ? v : 0.5));
+  const rot = Number.isFinite(sticker.rotate) ? ((sticker.rotate % 360) + 360) % 360 : 0;
+  return { ...sticker, x: lim(sticker.x), y: lim(sticker.y), rotate: rot, orient: sticker.orient === 'v' ? 'v' : 'h' };
+}
+
+// シールの描画矩形(カード座標・px)
+export function stickerRect(sticker, size = CARD_SIZE) {
+  const { w, h } = stampSize(sticker.text, sticker.orient);
+  return { cx: sticker.x * size, cy: sticker.y * size, w, h, rotate: sticker.rotate ?? 0 };
+}
+
+// 当たり判定: カード座標(px)の点が乗っている最前面(配列の最後)のシールの index。無ければ -1
+export function hitSticker(stickers, px, py, size = CARD_SIZE) {
+  for (let i = (stickers?.length ?? 0) - 1; i >= 0; i -= 1) {
+    const r = stickerRect(stickers[i], size);
+    const rad = (-(r.rotate) * Math.PI) / 180; // 逆回転して軸に揃える
+    const dx = px - r.cx;
+    const dy = py - r.cy;
+    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    if (Math.abs(lx) <= r.w / 2 + 8 && Math.abs(ly) <= r.h / 2 + 8) return i;
+  }
+  return -1;
+}
+
+// シールを新しく貼るときの位置: 中央付近で、重ならないよう少しずつずらす
+export function placeNewSticker(text, existing) {
+  const n = existing?.length ?? 0;
+  return clampSticker({ text, x: 0.5 + ((n % 3) - 1) * 0.08, y: 0.42 + (Math.floor(n / 3) % 3) * 0.08, rotate: STAMP_TILT[n % STAMP_TILT.length], orient: 'h' });
+}
+
+// ピンチ: 2本指の距離の比で拡大率を変える(注視点はそのまま。範囲外は clampCrop)
+export function pinchZoom(crop, ratio, imgW, imgH) {
+  const r = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+  return clampCrop({ ...crop, zoom: (crop.zoom ?? 1) * r }, imgW, imgH);
+}

@@ -12,12 +12,23 @@ function normalizeEntry(raw, date) {
   const images = Array.isArray(raw.images) ? raw.images.filter((v) => typeof v === 'string') : [];
   let push = raw.pushImageIndex;
   if (!Number.isInteger(push) || push < 0 || push >= images.length) push = images.length > 0 ? 0 : null;
+  // 写真ごとの切り出し範囲(v1.1 カード/一押しサムネイル用)。存在する写真の分だけ残す
+  const imageCrops = {};
+  if (typeof raw.imageCrops === 'object' && raw.imageCrops !== null) {
+    for (const id of images) {
+      const c = raw.imageCrops[id];
+      if (typeof c === 'object' && c !== null && Number.isFinite(c.cx) && Number.isFinite(c.cy) && Number.isFinite(c.zoom)) {
+        imageCrops[id] = { cx: c.cx, cy: c.cy, zoom: c.zoom };
+      }
+    }
+  }
   return {
     date,
     tags: Array.isArray(raw.tags) ? raw.tags.filter((v) => typeof v === 'string') : [],
     text: typeof raw.text === 'string' ? raw.text : '',
     images,
     pushImageIndex: push,
+    imageCrops,
     createdAt: Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
     updatedAt: Number.isFinite(raw.updatedAt) ? raw.updatedAt : Date.now(),
   };

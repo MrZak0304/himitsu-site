@@ -3,7 +3,7 @@
 // 生成は端末内で完結し、共有は backup-io.js の deliverFile(OS の共有シート)で行う。
 // プレビュー(card-dialog.js)と本番出力(PNG)で同じ drawCard を使う=見たままが出る。
 
-import { layoutCard, photoSourceRect } from './core/card.js';
+import { layoutCard, photoSourceRect, stickerRect } from './core/card.js';
 
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
 
@@ -50,38 +50,63 @@ export function currentThemeColors() {
   return { bg: get('--bg', '#f7f6f2'), accent: get('--accent', '#4a7dbd'), fg: get('--text', '#2b2925') };
 }
 
-// ハンコ風のタグ(二重枠・少し傾ける・インクはテーマ色)
-function drawStamp(ctx, chip, colors) {
-  const cx = chip.x + chip.w / 2;
-  const cy = chip.y + chip.h / 2;
+// ハンコ風のタグ(二重枠・傾き・インクはテーマ色)。box = {cx, cy, w, h, rotate}。
+// orient 'v' は文字を縦に積む(縦書き風)。highlight は編集中の選択枠(プレビューのみ)
+function drawStamp(ctx, box, text, colors, { orient = 'h', fontSize = 52, highlight = false } = {}) {
   ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(((chip.rotate ?? 0) * Math.PI) / 180);
-  const x = -chip.w / 2;
-  const y = -chip.h / 2;
+  ctx.translate(box.cx, box.cy);
+  ctx.rotate(((box.rotate ?? 0) * Math.PI) / 180);
+  const x = -box.w / 2;
+  const y = -box.h / 2;
   const r = 18;
   ctx.fillStyle = colors.chipBg;
-  roundRect(ctx, x, y, chip.w, chip.h, r);
+  roundRect(ctx, x, y, box.w, box.h, r);
   ctx.fill();
   // 外枠(太)+内枠(細)の二重線でハンコらしさを出す
   ctx.strokeStyle = colors.stampInk;
   ctx.lineWidth = 6;
-  roundRect(ctx, x, y, chip.w, chip.h, r);
+  roundRect(ctx, x, y, box.w, box.h, r);
   ctx.stroke();
   ctx.lineWidth = 2;
-  roundRect(ctx, x + 9, y + 9, chip.w - 18, chip.h - 18, r - 8);
+  roundRect(ctx, x + 9, y + 9, box.w - 18, box.h - 18, r - 8);
   ctx.stroke();
   ctx.fillStyle = colors.chipText;
-  ctx.font = font(chip.fontSize);
+  ctx.font = font(fontSize);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(chip.text, 0, 2, chip.w - 36);
+  if (orient === 'v') {
+    const chars = [...text];
+    const step = fontSize * 1.05;
+    const start = -((chars.length - 1) * step) / 2;
+    chars.forEach((ch, i) => {
+      // 長音・伸ばし棒は縦書きで縦向きにする
+      if (ch === 'ー' || ch === '〜' || ch === '-') {
+        ctx.save();
+        ctx.translate(0, start + i * step + 2);
+        ctx.rotate(Math.PI / 2);
+        ctx.fillText(ch, 0, 0);
+        ctx.restore();
+      } else {
+        ctx.fillText(ch, 0, start + i * step + 2);
+      }
+    });
+  } else {
+    ctx.fillText(text, 0, 2, box.w - 36);
+  }
+  if (highlight) {
+    ctx.setLineDash([10, 8]);
+    ctx.strokeStyle = colors.stampInk;
+    ctx.lineWidth = 4;
+    roundRect(ctx, x - 10, y - 10, box.w + 20, box.h + 20, r + 6);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
 // canvas にカードを描く。bitmap は loadBitmap 済みの写真(null なら写真なし)。
 // crop は {cx, cy, zoom}(core/card.js の photoSourceRect)。
-export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme }) {
+// stickers を渡すとタグはシールとして自由配置で描く(省略時は自動配置)。highlightIndex は編集中の選択
+export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme, stickers = null, highlightIndex = -1 }) {
   const layout = layoutCard({ dateKey, tagNames, hasPhoto: !!bitmap, theme });
   const { size } = layout;
   if (canvas.width !== size) canvas.width = size;
@@ -111,9 +136,18 @@ export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme
   ctx.fillStyle = sg;
   ctx.fillRect(0, layout.scrim.y, size, layout.scrim.h);
 
-  // タグ(ハンコ風)
-  for (const row of layout.tagRows) {
-    for (const chip of row.chips) drawStamp(ctx, chip, layout.colors);
+  // タグ(ハンコ風)。シール配列があればその位置・向き・回転で、無ければ自動配置
+  if (stickers) {
+    stickers.forEach((st, i) => {
+      const box = stickerRect(st, size);
+      drawStamp(ctx, box, st.text, layout.colors, { orient: st.orient, highlight: i === highlightIndex });
+    });
+  } else {
+    for (const row of layout.tagRows) {
+      for (const chip of row.chips) {
+        drawStamp(ctx, { cx: chip.x + chip.w / 2, cy: chip.y + chip.h / 2, w: chip.w, h: chip.h, rotate: chip.rotate }, chip.text, layout.colors, { fontSize: chip.fontSize });
+      }
+    }
   }
 
   // 日付・ブランド
@@ -128,12 +162,30 @@ export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme
   return layout;
 }
 
-// { dateKey, tagNames, photoBlob|null, crop, theme } → PNG Blob
-export async function renderCard({ dateKey, tagNames, photoBlob = null, crop, theme }) {
+// 切り出し範囲を反映した正方形サムネイル(320px・JPEG)。カードで選んだ範囲を一押しサムネイルにも使う
+export const THUMB_SIZE = 320;
+export async function cropThumb(photoBlob, crop) {
+  const bitmap = await loadBitmap(photoBlob);
+  try {
+    const { sx, sy, sw, sh } = photoSourceRect(bitmap.width, bitmap.height, crop ?? {});
+    const canvas = document.createElement('canvas');
+    canvas.width = THUMB_SIZE;
+    canvas.height = THUMB_SIZE;
+    canvas.getContext('2d').drawImage(bitmap, sx, sy, sw, sh, 0, 0, THUMB_SIZE, THUMB_SIZE);
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('サムネイルを作れませんでした。'))), 'image/jpeg', 0.85);
+    });
+  } finally {
+    bitmap?.close?.();
+  }
+}
+
+// { dateKey, tagNames, photoBlob|null, crop, theme, stickers } → PNG Blob
+export async function renderCard({ dateKey, tagNames, photoBlob = null, crop, theme, stickers = null }) {
   const bitmap = photoBlob ? await loadBitmap(photoBlob) : null;
   const canvas = document.createElement('canvas');
   try {
-    drawCard(canvas, { dateKey, tagNames, bitmap, crop, theme });
+    drawCard(canvas, { dateKey, tagNames, bitmap, crop, theme, stickers });
   } finally {
     bitmap?.close?.();
   }
