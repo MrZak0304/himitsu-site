@@ -4,7 +4,9 @@ import { tagSlotInfo, slotStatusText } from '../core/tag-slots.js';
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
 import { frequentTagIds } from '../core/tag-stats.js';
 import { UI_ICONS } from '../icons.js';
-import { requestRewarded } from '../ads.js';
+import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
+import { shareCardForDate, canMakeCard } from '../card-share.js';
+import { streak } from '../core/streaks.js';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -27,6 +29,9 @@ export function initToday(ctx) {
     images: $('today-images'),
     habits: $('today-habits'),
     habitNote: $('today-habit-note'),
+    cardBtn: $('today-card-btn'),
+    cardNote: $('today-card-note'),
+    streak: $('today-streak'),
   };
   let urls = [];
   let renderSeq = 0; // 連続操作時に古い描画が新しい描画を上書きしないための世代トークン
@@ -100,7 +105,17 @@ export function initToday(ctx) {
     else els.slotNote.classList.toggle('slot-full', !slots.canAdd);
     // free では枠に余裕があっても「広告を見て+1」を出す(いっぱいになる前から導線が見える)
     els.watchAd.hidden = ctx.variant !== 'free';
+    updateWatchAdState();
     els.tagAdd.disabled = !slots.canAdd;
+
+    // 連続記録(v1.1): 今日を含む連続日数。0日なら出さない(今日が未記録でも昨日までの連続を維持)
+    const diaryDates = new Set(Object.entries(allEntries).filter(([, e]) => (e?.tags?.length ?? 0) > 0 || (e?.text ?? '') !== '' || (e?.images?.length ?? 0) > 0).map(([d]) => d));
+    const days = streak(diaryDates, today);
+    els.streak.hidden = days === 0;
+    els.streak.textContent = days > 0 ? `連続${days}日` : '';
+
+    // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる
+    els.cardBtn.disabled = !canMakeCard(entry);
 
     // 本文
     if (document.activeElement !== els.text) els.text.value = entry?.text ?? '';
@@ -240,6 +255,23 @@ export function initToday(ctx) {
     if (e.key === 'Enter') els.tagAdd.click();
   };
 
+  // リワードボタンは「広告が用意できたときだけ」押せる(App Review 2.1(a)対応:
+  // タップ→広告が出ない、を構造的になくす。導線は常時表示のまま=ボタンの有効/無効だけが変わる)。
+  // ロードに失敗したら60秒おきに静かに再試行する(新規AdMobアプリの配信制限が解けたら自然に有効化)。
+  let adRetryTimer = null;
+  async function updateWatchAdState() {
+    if (ctx.variant !== 'free') return;
+    els.watchAd.disabled = !isRewardedReady();
+    const ok = await preloadRewarded();
+    els.watchAd.disabled = !ok;
+    if (!ok && adRetryTimer === null) {
+      adRetryTimer = setTimeout(() => {
+        adRetryTimer = null;
+        updateWatchAdState();
+      }, 60000);
+    }
+  }
+
   // リワード(Webはダミー視聴)→枠+1(恒久)
   els.watchAd.onclick = async () => {
     const isNative = window.Capacitor?.isNativePlatform?.();
@@ -265,6 +297,15 @@ export function initToday(ctx) {
   els.text.onchange = async () => {
     await ctx.stores.entries.upsert(ctx.todayKey(), { text: els.text.value });
     ctx.notifySaved?.();
+    refresh(); // 本文だけの日も連続記録に数える
+  };
+
+  // きょうの1枚カード(v1.1)
+  els.cardBtn.onclick = async () => {
+    note(els.cardNote, null);
+    const r = await shareCardForDate(ctx, ctx.todayKey());
+    if (r.reason) note(els.cardNote, r.reason);
+    else if (r.saved) ctx.notifySaved?.();
   };
 
   // 画像添付

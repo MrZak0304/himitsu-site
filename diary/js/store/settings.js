@@ -26,6 +26,10 @@ export const DEFAULT_SETTINGS = {
     answerSalt: null,
   },
   reminder: { enabled: false, time: '21:00' },
+  // 月のまとめ通知(v1.1): 毎月1日に前月のまとめをローカル通知。既定ON(ネイティブのみ実動作)
+  monthlySummary: { enabled: true },
+  // 初回起動の案内(v1.1)。done=false のときだけ出す。既存ユーザーは読み出し時に done 扱いへ移行する
+  onboarding: { done: false },
   theme: 'shiro',
   character: { type: 'builtin', value: 'cat', position: 'right', enabled: true },
   customCharacters: [],
@@ -60,7 +64,8 @@ function normalizeCustomCharacter(raw) {
   return { id: raw.id, expressions };
 }
 
-function normalizeSettings(raw) {
+// fresh=true は「保存された設定が無い初回起動」(kv.js の load が渡す)。初回のみ案内を出す判定に使う
+function normalizeSettings(raw, { fresh = false } = {}) {
   if (typeof raw !== 'object' || raw === null) raw = {};
   const d = structuredClone(DEFAULT_SETTINGS);
   const lock = typeof raw.lock === 'object' && raw.lock !== null ? raw.lock : {};
@@ -80,6 +85,14 @@ function normalizeSettings(raw) {
     reminder: {
       enabled: reminder.enabled === true,
       time: /^\d{2}:\d{2}$/.test(reminder.time) ? reminder.time : d.reminder.time,
+    },
+    monthlySummary: {
+      enabled: !(typeof raw.monthlySummary === 'object' && raw.monthlySummary !== null && raw.monthlySummary.enabled === false),
+    },
+    onboarding: {
+      // 保存済み設定にこの項目が無い=v1.0 からの既存ユーザー → 案内済み扱い(更新で案内が出ない)。
+      // 保存された設定が無い初回起動(fresh)のときだけ false。バックアップ取り込みも既存ユーザー扱い
+      done: typeof raw.onboarding === 'object' && raw.onboarding !== null ? raw.onboarding.done === true : !fresh,
     },
     theme: typeof raw.theme === 'string' ? raw.theme : d.theme,
     character: {

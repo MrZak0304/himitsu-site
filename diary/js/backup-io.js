@@ -43,9 +43,13 @@ export const BACKUP_PREFIX = 'pontonikki-backup-';
 const LEGACY_PREFIXES = ['diary-']; // 旧ビルドで書き出したファイルの後始末用
 const LEGACY_BACKUP_EXT = '.diarybak';
 
-// CACHEの掃除対象か(自分が書き出したバックアップだけを消す。無関係なjsonを巻き込まない)
+// 「きょうの1枚カード」(v1.1)の共有用一時ファイル。バックアップと同じく共有後に CACHE から消す
+export const CARD_PREFIX = 'pontonikki-card-';
+
+// CACHEの掃除対象か(自分が書き出したバックアップ・カードだけを消す。無関係なファイルを巻き込まない)
 export function isBackupCacheFile(name) {
   if (typeof name !== 'string') return false;
+  if (name.startsWith(CARD_PREFIX) && name.endsWith('.png')) return true;
   const known = [BACKUP_PREFIX, ...LEGACY_PREFIXES].some((p) => name.startsWith(p));
   if (!known) return false;
   return name.endsWith(BACKUP_EXT) || name.endsWith(LEGACY_BACKUP_EXT);
@@ -100,7 +104,47 @@ export async function deliverBackup(json, filename) {
   return { saved: true };
 }
 
-// 起動時の後始末: 共有後に残ったバックアップの平文コピーをCACHEから削除する
+// Blob → base64 文字列(ネイティブの Filesystem.writeFile は base64 を受ける)
+async function blobToBase64(blob) {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  const STEP = 0x8000;
+  for (let i = 0; i < buf.length; i += STEP) bin += String.fromCharCode(...buf.subarray(i, i + STEP));
+  return btoa(bin);
+}
+
+export const CARD_APP_SHARE_TITLE = 'きょうの1枚カード';
+
+// バイナリ(画像など)の保存部。Web=<a download> / ネイティブ=CACHEへ書き込み→共有シート→後始末。
+// 「きょうの1枚カード」(v1.1)で使う。バックアップと同じく、共有先はユーザーの操作でのみ決まる(不変条件1)。
+// 戻り値 {saved}: 共有シートをキャンセルしたら false
+export async function deliverFile(blob, filename, { title = CARD_APP_SHARE_TITLE } = {}) {
+  const plugins = nativeFs();
+  if (plugins?.Filesystem && plugins?.Share) {
+    const { Filesystem, Share } = plugins;
+    const data = await blobToBase64(blob);
+    await Filesystem.writeFile({ path: filename, directory: 'CACHE', data, recursive: true });
+    let saved = false;
+    try {
+      const { uri } = await Filesystem.getUri({ path: filename, directory: 'CACHE' });
+      await Share.share({ title, files: [uri] });
+      saved = true;
+    } catch {
+      saved = false;
+    } finally {
+      await Filesystem.deleteFile({ path: filename, directory: 'CACHE' }).catch(() => {});
+    }
+    return { saved };
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return { saved: true };
+}
+// 起動時の後始末: 共有後に残ったバックアップ・カードのコピーをCACHEから削除する
 export async function cleanupBackupCache() {
   const plugins = nativeFs();
   if (!plugins?.Filesystem) return;

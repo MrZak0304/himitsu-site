@@ -70,7 +70,56 @@ function setInset(px) {
 let AdMob = null;
 let units = null;
 
-export async function initAds() {
+// リワードの事前ロード状態。UIは「広告が用意できたときだけ」ボタンを押せるようにする
+// (App Review 2.1(a)「タップしたのに広告が出ない」対応。新規AdMobアプリはストア公開前に
+// 配信が制限されることがあり、その間もタップ→エラーではなくボタン無効で吸収する)。
+let rewardReady = false;
+let rewardLoading = null; // Promise<boolean> | null
+
+export function isRewardedReady() {
+  if (!nativePlatform()) return BUILD.ads; // Webはダミー視聴が常に可能
+  return rewardReady;
+}
+
+// リワード広告を裏でロードする。成功で true。冪等(ロード済み/進行中なら使い回す)。
+// initAds() は await されずに呼ばれるため、初期化完了を待ってから判定する
+// (待たないと起動直後の refresh で「AdMob未初期化=無効」に倒れてしまう)。
+export async function preloadRewarded({ timeoutMs = 25000 } = {}) {
+  const platform = nativePlatform();
+  if (!platform) return BUILD.ads;
+  if (initPromise) await initPromise.catch(() => {});
+  if (!AdMob || !units) return false;
+  if (rewardReady) return true;
+  if (rewardLoading) return rewardLoading;
+  rewardLoading = new Promise((resolve) => {
+    let done = false;
+    const handles = [];
+    const finish = (ok) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      for (const h of handles) Promise.resolve(h).then((x) => x?.remove?.()).catch(() => {});
+      rewardReady = ok;
+      rewardLoading = null;
+      resolve(ok);
+    };
+    const listen = (name, fn) => handles.push(AdMob.addListener?.(name, fn));
+    listen(EVENTS.rewardLoaded, () => finish(true));
+    listen(EVENTS.rewardFailedLoad, () => finish(false));
+    Promise.resolve(AdMob.prepareRewardVideoAd({ adId: units.rewarded })).catch(() => finish(false));
+    const timer = setTimeout(() => finish(false), timeoutMs);
+  });
+  return rewardLoading;
+}
+
+let initPromise = null;
+
+export function initAds() {
+  initPromise = doInitAds();
+  return initPromise;
+}
+
+async function doInitAds() {
   const banner = document.getElementById('ad-banner');
   if (!banner) return;
   if (!BUILD.ads) {
@@ -103,6 +152,7 @@ export async function initAds() {
 }
 
 // リワード視聴を要求する。増枠の確定は Rewarded イベント受信時のみ(Dismissed と混同しない: プランR9)。
+// 事前ロード(preloadRewarded)済みの広告を表示する。未ロードならその場でロードを試みる(フォールバック)。
 export async function requestRewarded() {
   const platform = nativePlatform();
   if (!platform) {
@@ -111,6 +161,12 @@ export async function requestRewarded() {
     return { ok: true, dummy: true };
   }
   if (!AdMob || !units) return { ok: false, reason: MESSAGES.loadFailed };
+
+  if (!rewardReady) {
+    const loaded = await preloadRewarded();
+    if (!loaded) return { ok: false, reason: MESSAGES.loadFailed };
+  }
+  rewardReady = false; // 表示ごとに使い切り(次回分は preloadRewarded で再ロード)
 
   return new Promise((resolve) => {
     let rewarded = false;
@@ -131,24 +187,16 @@ export async function requestRewarded() {
     listen(EVENTS.rewardDismissed, () => {
       finish(rewarded ? { ok: true } : { ok: false, reason: MESSAGES.notCompleted });
     });
-    listen(EVENTS.rewardFailedLoad, () => finish({ ok: false, reason: MESSAGES.loadFailed }));
     listen(EVENTS.rewardFailedShow, () => finish({ ok: false, reason: MESSAGES.showFailed }));
-    listen(EVENTS.rewardLoaded, async () => {
-      try {
-        await AdMob.showRewardVideoAd();
-      } catch {
-        finish({ ok: false, reason: MESSAGES.showFailed });
-      }
-    });
 
-    // 表示ごとに再ロードが必要(ワンショット)
-    Promise.resolve(AdMob.prepareRewardVideoAd({ adId: units.rewarded })).catch(() =>
-      finish({ ok: false, reason: MESSAGES.loadFailed }),
-    );
-    const timer = setTimeout(() => finish(rewarded ? { ok: true } : { ok: false, reason: MESSAGES.timeout }), 30000);
+    Promise.resolve(AdMob.showRewardVideoAd()).catch(() => finish({ ok: false, reason: MESSAGES.showFailed }));
+    // 保険のタイムアウト。動画+エンドカードの視聴時間より十分長く取る
+    // (旧30秒は実広告の動画途中に発火しうる)。通常は dismissed/failedShow が先に来る。
+    const timer = setTimeout(() => finish(rewarded ? { ok: true } : { ok: false, reason: MESSAGES.timeout }), 120000);
   });
 }
 
 export function buildLabel() {
-  return { web: 'Web版(プロトタイプ)', free: '無料版', paid: '有料版(広告なし)' }[BUILD.variant] ?? BUILD.variant;
+  // 版名はストア名称と統一(「無料版」の語は使わない: App Store 2.3.7 対応の運用ルール)
+  return { web: 'Web版(プロトタイプ)', free: '広告つき', paid: '広告なし' }[BUILD.variant] ?? BUILD.variant;
 }

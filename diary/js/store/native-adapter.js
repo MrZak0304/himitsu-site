@@ -50,7 +50,11 @@ export function base64ToBlob(b64, mime) {
 
 export function capacitorBackend() {
   const { Filesystem, Preferences } = window.Capacitor.Plugins;
-  const DIR = 'DOCUMENTS';
+  // Android の Directory.Documents は共有(公開)ストレージ扱いで、scoped storage(Android 10+)により
+  // アプリから書き込めず、移行が全端末で失敗する(2026-08-24 Android実機で発覚。mkdir失敗は握りつぶされ、
+  // 続く staging→本番の rename が源泉なしで例外→「データの引っ越しに失敗」)。アプリ内部ストレージの Data
+  // を使う(内部専用でallowBackup=falseと整合・より私的)。iOS は Documents のまま(審査中の挙動を変えない)。
+  const DIR = window.Capacitor.getPlatform() === 'android' ? 'DATA' : 'DOCUMENTS';
 
   // 一時ファイル→rename のアトミック書き込み。renameは既存宛先で失敗しうるため先に削除する。
   // 削除→rename間のクラッシュは readText の .tmp フォールバックで回復する。

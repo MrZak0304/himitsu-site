@@ -27,6 +27,8 @@ export function initSettings(ctx) {
     reminderEnabled: $('reminder-enabled'),
     reminderTime: $('reminder-time'),
     reminderNote: $('reminder-note'),
+    monthlyEnabled: $('monthly-enabled'),
+    monthlyNote: $('monthly-note'),
     lockEnabled: $('lock-enabled'),
     lockSetupBtn: $('lock-setup-btn'),
     lockSetup: $('lock-setup'),
@@ -327,6 +329,12 @@ export function initSettings(ctx) {
   }
   els.reminderEnabled.onchange = saveReminder;
   els.reminderTime.onchange = saveReminder;
+  // 月のまとめ通知(v1.1)。文面の生成と実スケジュールは app.js 側(ctx.syncMonthly)
+  els.monthlyEnabled.onchange = async () => {
+    await ctx.stores.settings.merge({ monthlySummary: { enabled: els.monthlyEnabled.checked } });
+    const r = (await ctx.syncMonthly?.({ requestPermission: true })) ?? { ok: true };
+    note(els.monthlyNote, r.ok ? null : r.reason);
+  };
   // ネイティブでは通知が実際に届くため、Web向けの注記は隠す
   if (window.Capacitor?.isNativePlatform?.()) {
     document.getElementById('reminder-web-note')?.setAttribute('hidden', '');
@@ -910,6 +918,7 @@ export function initSettings(ctx) {
     const s = await ctx.stores.settings.get();
     els.reminderEnabled.checked = s.reminder.enabled;
     els.reminderTime.value = s.reminder.time;
+    els.monthlyEnabled.checked = s.monthlySummary.enabled;
     await Promise.all([refreshFolders(), refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
   }
 

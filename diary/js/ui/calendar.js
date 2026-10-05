@@ -6,6 +6,7 @@ import { monthOfKey } from '../core/dates.js';
 import { monthlyTagRanking } from '../core/tag-stats.js';
 import { monthlyHabitCounts } from '../core/habit-stats.js';
 import { createDayEditor } from './day-editor.js';
+import { shareCardForDate, canMakeCard } from '../card-share.js';
 
 export function initCalendar(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -20,6 +21,8 @@ export function initCalendar(ctx) {
     detailEditView: $('detail-edit-view'),
     detailEdit: $('detail-edit'),
     detailEditDone: $('detail-edit-done'),
+    detailCard: $('detail-card-btn'),
+    detailCardNote: $('detail-card-note'),
     detailTags: $('detail-tags'),
     detailText: $('detail-text'),
     detailImages: $('detail-images'),
@@ -246,6 +249,10 @@ export function initCalendar(ctx) {
       }),
     );
 
+    // この日の1枚カード(v1.1): ロックの内側(ふりかえり)なので過去日もカードにできる(不変条件3)
+    els.detailCard.hidden = !canMakeCard(entry);
+    els.detailCardNote.hidden = true;
+
     const hasAny = entry || Object.keys(checks).length > 0;
     els.detailEmpty.hidden = !!hasAny;
     els.detail.hidden = false;
@@ -284,6 +291,12 @@ export function initCalendar(ctx) {
   }
   els.detailEdit.onclick = startEdit;
   els.detailEditDone.onclick = endEdit;
+  els.detailCard.onclick = async () => {
+    if (!openDate) return;
+    const r = await shareCardForDate(ctx, openDate);
+    els.detailCardNote.hidden = !r.reason;
+    els.detailCardNote.textContent = r.reason ?? '';
+  };
   els.detailClose.onclick = () => {
     if (editing) {
       editing = false;
@@ -306,5 +319,16 @@ export function initCalendar(ctx) {
     if (Math.abs(dx) > 50) move(dx > 0 ? -1 : 1);
   });
 
-  return { refresh, openAt };
+  // 指定の年月を開く(月のまとめ通知からの遷移用)
+  async function showMonth(year, month) {
+    cur = { year, month };
+    editing = false;
+    editor.close();
+    els.detail.hidden = true;
+    openDate = null;
+    showSubview('calendar');
+    await renderGrid();
+  }
+
+  return { refresh, openAt, showMonth };
 }

@@ -13,7 +13,10 @@ import { createSettingsStore } from './store/settings.js';
 import { createImagePipeline } from './images.js';
 import { createImageStore } from './store/images.js';
 import { createBackupIO, cleanupBackupCache } from './backup-io.js';
-import { syncReminder } from './notifications.js';
+import { syncReminder, syncMonthlySummary, onNotificationTap } from './notifications.js';
+import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
+import { monthOfKey } from './core/dates.js';
+import { initOnboarding } from './ui/onboarding.js';
 import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
 import { initCalendar } from './ui/calendar.js';
@@ -203,6 +206,19 @@ async function main() {
   syncReminder(initialSettings.reminder).catch(() => {});
   cleanupBackupCache().catch(() => {});
 
+  // 月のまとめ通知(v1.1): 起動のたびに「前月」の集計で文面を作り直してスケジュールする
+  ctx.syncMonthly = async ({ requestPermission = false } = {}) => {
+    const s = await stores.settings.get();
+    const mo = monthOfKey(todayKey());
+    const { year, month } = prevMonthOf(mo.year, mo.month);
+    const [entriesMap, habitLogsMap, habits, tags] = await Promise.all([
+      stores.entries.all(), stores.habitLogs.all(), stores.habits.list(), stores.tags.list({ includeHidden: true }),
+    ]);
+    const body = monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf: new Map(tags.map((t) => [t.id, t.name])), year, month });
+    return syncMonthlySummary(s.monthlySummary.enabled, body, { requestPermission });
+  };
+  ctx.syncMonthly().catch(() => {});
+
   // --- タブ切替(hidden属性で統一: KTD1)。ふりかえりは進入ガード(R10) ---
   const panels = {
     today: document.getElementById('panel-today'),
@@ -284,7 +300,22 @@ async function main() {
   });
   window.addEventListener('pagehide', () => lock.relock());
 
+  // 通知タップ: 月のまとめ→ふりかえりの前月(ロック中はロック画面が先=不変条件3)。リマインダー→きょう
+  onNotificationTap(async (kind) => {
+    if (kind === 'monthly-summary') {
+      const mo = monthOfKey(todayKey());
+      const { year, month } = prevMonthOf(mo.year, mo.month);
+      await selectTab('calendar');
+      if (currentTab === 'calendar') await calendarUI.showMonth(year, month);
+    } else {
+      await selectTab('today');
+    }
+  });
+
   await selectTab('today');
+
+  // 初回起動の案内(v1.1): データが無い初回だけ。最後にタグを押すと当日の記録になる
+  await initOnboarding(ctx, { onDone: () => selectTab('today') });
 
   // スモークテスト用フック。ストアに出る free/paid ビルドには入れない
   // (日記データを触れるAPIを配布物へ露出させない。PROTOTYPEバッジと同じ扱い)

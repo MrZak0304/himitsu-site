@@ -258,6 +258,13 @@ input[type="time"], input[type="color"] { width: auto; }
 
 /* --- 画像 --- */
 .images-head { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+.today-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.streak-badge { background: var(--accent); color: var(--accent-contrast); border-radius: 999px; padding: 3px 10px; font-size: 13px; font-weight: 700; }
+.card-row { margin-top: 12px; }
+.card-row .btn { display: inline-flex; align-items: center; gap: 6px; }
+.card-row .btn svg, #detail-card-btn svg { width: 18px; height: 18px; }
+.card-hint { display: block; margin-top: 6px; }
+#detail-card-btn { display: inline-flex; align-items: center; gap: 6px; margin: 4px 0 8px; }
 .image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; margin: 10px 0; }
 
 .image-cell {
@@ -552,7 +559,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .nav-item.active { color: var(--accent); }
 
 /* --- ロック画面・ポップアップ・オーバーレイ(すべて position:fixed 全画面) --- */
-#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay {
+#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -629,3 +636,14 @@ input[type="time"], input[type="color"] { width: auto; }
   animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 初回起動の案内(v1.1) */
+#onboarding { z-index: 250; }
+.onboarding-card { text-align: center; }
+.onboarding-card h2 { font-size: 18px; margin: 6px 0 2px; }
+.onboarding-figure svg { width: 100%; max-width: 240px; height: auto; margin: 0 auto; display: block; }
+.onboarding-body { color: var(--text-dim); margin: 0 0 6px; line-height: 1.7; }
+.onboarding-card .tag-stamps { justify-content: center; }
+.onboarding-dots { display: flex; justify-content: center; gap: 6px; margin: 6px 0; }
+.onboarding-dots .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--panel-edge); }
+.onboarding-dots .dot.on { background: var(--accent); }

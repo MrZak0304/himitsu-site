@@ -20,7 +20,7 @@
 <main>
   <!-- きょう -->
   <section class="panel" id="panel-today">
-    <h2 class="panel-title" id="today-date"></h2>
+    <div class="today-head"><h2 class="panel-title" id="today-date"></h2><span class="streak-badge" id="today-streak" hidden></span></div>
     <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
     <div id="today-frequent-wrap" class="frequent-box" hidden>
       <p class="section-hint">⭐ よく使うタグ</p>
@@ -45,6 +45,13 @@
     <input id="image-input" type="file" accept="image/*" multiple hidden>
     <div class="note" id="image-note" hidden></div>
     <div id="today-images" class="image-grid"></div>
+
+    <!-- きょうの1枚カード(v1.1): タグ+写真+日付を画像にして共有。本文は載せない -->
+    <div class="card-row">
+      <button id="today-card-btn" class="btn sub"><span data-ui-icon="share"></span> きょうの1枚カードにする</button>
+      <p class="note-inline card-hint">写真とタグを1枚の画像にして、SNSや写真アプリに共有できます(本文は入りません)。</p>
+    </div>
+    <p class="note" id="today-card-note" hidden></p>
 
     <h3 class="section-title">きょうの日課</h3>
     <ul id="today-habits" class="habit-checklist"></ul>
@@ -112,6 +119,8 @@
         <div id="detail-tags" class="detail-tags"></div>
         <p id="detail-text" class="detail-text"></p>
         <div id="detail-images" class="image-grid"></div>
+        <button id="detail-card-btn" class="btn sub" hidden><span data-ui-icon="share"></span> この日の1枚カードにする</button>
+        <p class="note" id="detail-card-note" hidden></p>
         <h4 class="section-title">日課の達成</h4>
         <ul id="detail-habits" class="habit-checklist readonly"></ul>
         <p class="note" id="detail-empty" hidden>この日の記録はありません。</p>
@@ -188,6 +197,10 @@
       <label class="row">時刻 <input type="time" id="reminder-time" value="21:00"></label>
       <div class="note" id="reminder-note" hidden></div>
       <p class="note-inline" id="reminder-web-note">通知はアプリ版(iPhone/Android)で有効になります。</p>
+      <p class="section-hint">月のまとめ</p>
+      <label class="row"><input type="checkbox" id="monthly-enabled"> 毎月1日に先月のまとめを通知する</label>
+      <p class="note-inline">「9月は12日記録。いちばん多かったタグは #まったり」のように、先月のふりかえりをお知らせします。</p>
+      <div class="note" id="monthly-note" hidden></div>
     </details>
 
     <details class="settings-group" id="lock-group">
@@ -282,7 +295,7 @@
     <details class="settings-group">
       <summary>このアプリについて</summary>
       <p class="note-inline" id="about-build"></p>
-      <p class="note-inline">日記の本文・写真・タグ・日課はすべてこの端末の中だけに保存され、外部に送信されません(無料版の広告表示に伴う通信を除きます)。</p>
+      <p class="note-inline">日記の本文・写真・タグ・日課はすべてこの端末の中だけに保存され、外部に送信されません(広告つき版の広告表示に伴う通信を除きます)。</p>
       <p class="note-inline"><a href="https://mrzak0304.github.io/himitsu-site/diary-privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></p>
     </details>
   </section>
@@ -292,6 +305,22 @@
 <div id="character-layer" hidden>
   <div id="character-balloon" hidden></div>
   <div id="character-figure"></div>
+</div>
+
+<!-- 初回起動の案内(v1.1)。保存済み設定が無い初回だけ表示 -->
+<div id="onboarding" hidden>
+  <div class="popup-card onboarding-card">
+    <div id="onboarding-figure" class="onboarding-figure"></div>
+    <h2 id="onboarding-title"></h2>
+    <p id="onboarding-body" class="onboarding-body"></p>
+    <p class="section-hint" id="onboarding-tags-hint" hidden>きょうはどんな日?タグを1つ押してみましょう</p>
+    <div id="onboarding-tags" class="tag-stamps" hidden></div>
+    <div id="onboarding-dots" class="onboarding-dots"></div>
+    <div class="popup-actions vertical">
+      <button id="onboarding-next" class="btn">つぎへ</button>
+      <button id="onboarding-skip" class="btn ghost">スキップ</button>
+    </div>
+  </div>
 </div>
 
 <!-- 保存確認トースト(記録操作のたびに表示: 2026-08-10 PD FB) -->

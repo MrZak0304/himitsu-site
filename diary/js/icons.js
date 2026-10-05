@@ -57,6 +57,8 @@ export const UI_ICONS = {
   close: svg('<path d="M14 14l20 20M34 14L14 34"/>'),
   up: svg('<path d="M12 28l12-12 12 12"/>'),
   down: svg('<path d="M12 20l12 12 12-12"/>'),
+  // 共有(きょうの1枚カード)
+  share: svg('<path d="M24 30V8M16 16l8-8 8 8"/><path d="M12 24v12a4 4 0 0 0 4 4h16a4 4 0 0 0 4-4V24"/>'),
 };
 
 // data-icon / data-nav-icon / data-ui-icon プレースホルダへ一括差し込み
