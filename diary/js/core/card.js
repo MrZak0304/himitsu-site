@@ -150,7 +150,8 @@ export function cardFileName(dateKey) {
 // 既定は自動配置(layoutCard の tagRows)をそのままシール化したもの=今のデザイン。
 
 const STAMP_PAD = 20; // シールの内側余白(縦書き時の上下)
-export const STICKER_ROTATE_STEP = 15; // 回転ボタン1回ぶん(度)
+export const STICKER_ROTATE_STEP = 90; // 回転ボタン1回ぶん(度)。90°/180°/270° を既定にする(PD FB 3)
+export const DEFAULT_CROP = Object.freeze({ cx: 0.5, cy: 0.5, zoom: 1 });
 
 // シールの寸法(カード座標・px)。横は layoutTagRows と同じ計算、縦は文字を縦に積む
 export function stampSize(text, orient = 'h', fontSize = TAG_FONT) {

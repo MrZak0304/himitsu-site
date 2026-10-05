@@ -3,7 +3,7 @@
 // 生成は端末内で完結し、共有は backup-io.js の deliverFile(OS の共有シート)で行う。
 // プレビュー(card-dialog.js)と本番出力(PNG)で同じ drawCard を使う=見たままが出る。
 
-import { layoutCard, photoSourceRect, stickerRect } from './core/card.js';
+import { layoutCard, photoSourceRect, stickerRect, CARD_SIZE } from './core/card.js';
 
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
 
@@ -160,6 +160,18 @@ export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme
   ctx.font = font(layout.brand.fontSize, 600);
   ctx.fillText(layout.brand.text, layout.brand.x, layout.brand.y);
   return layout;
+}
+
+// サムネイル作成画面のプレビュー: 写真の切り出し範囲だけを正方形に描く(タグ・日付なし)
+export function drawCropPreview(canvas, { bitmap, crop }) {
+  const size = CARD_SIZE;
+  if (canvas.width !== size) canvas.width = size;
+  if (canvas.height !== size) canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+  if (!bitmap) return;
+  const { sx, sy, sw, sh } = photoSourceRect(bitmap.width, bitmap.height, crop ?? {});
+  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, size, size);
 }
 
 // 切り出し範囲を反映した正方形サムネイル(320px・JPEG)。カードで選んだ範囲を一押しサムネイルにも使う

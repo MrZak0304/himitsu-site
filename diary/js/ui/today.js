@@ -136,6 +136,10 @@ export function initToday(ctx) {
           const img = document.createElement('img');
           img.src = url;
           img.alt = '';
+          img.title = 'サムネイルの範囲を変える';
+          img.className = 'thumb-edit';
+          // 写真をタップするとサムネイル(切り抜き範囲)を決め直せる(PD FB 3)
+          img.onclick = () => ctx.cardDialog?.openThumb(today, [id]);
           cell.append(img);
         }
         const push = document.createElement('button');
@@ -320,6 +324,7 @@ export function initToday(ctx) {
     if (verdict.reason) note(els.imageNote, verdict.reason);
     if (verdict.accepted === 0) return;
     ctx.showLoading('写真を保存中…');
+    const added = [];
     try {
       for (const file of files.slice(0, verdict.accepted)) {
         // IDB put の完了後に entry を更新する(逆順禁止)。失敗時は当該画像のみ通知。
@@ -330,14 +335,17 @@ export function initToday(ctx) {
           images,
           pushImageIndex: normalizePushIndex(images, cur?.pushImageIndex ?? null),
         });
+        added.push(id);
       }
       ctx.notifySaved?.();
     } catch (err) {
       note(els.imageNote, err.message);
     } finally {
       ctx.hideLoading();
-      refresh();
+      await refresh();
     }
+    // 追加した写真のサムネイル(切り抜き範囲)をその場で決める(PD FB 3)。既定のままだと映えない切り抜きになるため
+    if (added.length > 0) await ctx.cardDialog?.openThumb(today, added);
   };
 
   return { refresh };

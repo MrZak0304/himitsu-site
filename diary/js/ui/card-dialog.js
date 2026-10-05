@@ -1,18 +1,24 @@
-// 「きょうの1枚カード」の作成ダイアログ(v1.1・PD FB 2026-10-05 第1弾/第2弾)。
-// 写真の選択(なし/その日の各写真)・表示範囲(ドラッグで移動・ピンチ/スライダーで拡大)・
-// タグのシール貼り(貼る/はがす・ドラッグ・回転・縦横)・ライブプレビュー→共有。
-// 共有時に選んだ切り出し範囲はその写真の「サムネイル」として保存する(一押し表示にも反映)。
+// 「きょうの1枚カード」の作成ダイアログ(v1.1・PD FB 2026-10-05 第1〜3弾)。
+// 2つのモードを持つ:
+//   card : 写真の選択(なし/その日の各写真)・表示範囲(ドラッグで移動・ピンチ/ホイールで拡大)・
+//          タグのシール貼り(貼る/はがす・ドラッグ・回転 90°・縦横)・ライブプレビュー→共有
+//   thumb: 写真追加直後に開く「サムネイル」画面。切り抜き範囲だけを決めて保存し、
+//          そのままカード編集へ続けられる(PD FB 3: 既定の切り抜きのままだと映えない写真が登録される)
+// 選んだ切り出し範囲はその写真の「サムネイル」として保存する(一押し表示・カレンダーにも反映)。
 // 本文は載せない。共有はユーザーの操作でのみ外へ出る(不変条件1)。
 
 import { normalizePushIndex } from '../core/image-rules.js';
 import {
-  cardFileName, panCrop, clampCrop, pinchZoom, CROP_MAX_ZOOM, layoutCard,
+  cardFileName, panCrop, clampCrop, pinchZoom, layoutCard, DEFAULT_CROP,
   autoStickers, clampSticker, hitSticker, placeNewSticker, STICKER_ROTATE_STEP,
 } from '../core/card.js';
-import { drawCard, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
+import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
 import { deliverFile } from '../backup-io.js';
 
 export const CARD_EMPTY_MESSAGE = 'タグか写真を記録すると、カードにできます。';
+export const THUMB_TITLE = 'サムネイル';
+export const CARD_TITLE = 'きょうの1枚カード';
+const WHEEL_ZOOM_RATIO = 1.1; // ホイール1ノッチぶん(PC 向け。スマホはピンチ)
 
 // その日のカードを作れるか(タグか写真があるとき)
 export function canMakeCard(entry) {
@@ -23,11 +29,13 @@ export function createCardDialog(ctx) {
   const $ = (id) => document.getElementById(id);
   const els = {
     root: $('card-dialog'),
+    title: $('card-title'),
     preview: $('card-preview'),
     photos: $('card-photos'),
-    zoomRow: $('card-zoom-row'),
-    zoom: $('card-zoom'),
+    photosHint: $('card-photos-hint'),
     hint: $('card-hint-text'),
+    reset: $('card-reset'),
+    tagsHint: $('card-tags-hint'),
     tags: $('card-tags'),
     tools: $('card-sticker-tools'),
     rotL: $('card-rot-l'),
@@ -36,9 +44,12 @@ export function createCardDialog(ctx) {
     peel: $('card-peel'),
     note: $('card-dialog-note'),
     share: $('card-share'),
+    save: $('card-save'),
+    cont: $('card-continue'),
     cancel: $('card-cancel'),
   };
-  // state: { dateKey, tagNames, photos:[{id, rec}], sel, bitmap, crop, theme, stickers, selected }
+  // state: { mode:'card'|'thumb', dateKey, tagNames, photos:[{id, rec}], imageCrops, sel, bitmap, crop, theme,
+  //          stickers, selected, queue:[imageId](thumb モードで続けて開く写真) }
   let state = null;
   let thumbUrls = [];
   let raf = 0;
@@ -53,11 +64,29 @@ export function createCardDialog(ctx) {
     raf = requestAnimationFrame(() => {
       raf = 0;
       if (!state) return;
+      if (state.mode === 'thumb') {
+        drawCropPreview(els.preview, { bitmap: state.bitmap, crop: state.crop });
+        return;
+      }
       drawCard(els.preview, {
         dateKey: state.dateKey, tagNames: state.tagNames, bitmap: state.bitmap, crop: state.crop, theme: state.theme,
         stickers: state.stickers, highlightIndex: state.selected,
       });
     });
+  }
+
+  // モードごとの表示切り替え
+  function applyMode() {
+    const thumb = state.mode === 'thumb';
+    els.title.textContent = thumb ? THUMB_TITLE : CARD_TITLE;
+    els.tagsHint.hidden = thumb;
+    els.tags.hidden = thumb;
+    els.photosHint.hidden = thumb;
+    els.photos.hidden = thumb;
+    els.share.hidden = thumb;
+    els.save.hidden = !thumb;
+    els.cont.hidden = !thumb || !canMakeCard({ tags: state.tagNames, images: state.photos.map((p) => p.id) });
+    if (thumb) els.tools.hidden = true;
   }
 
   // --- タグのパレット(貼る/はがす)と選択中シールのツールバー ---
@@ -88,7 +117,7 @@ export function createCardDialog(ctx) {
   }
 
   function renderTools() {
-    const s = state.selected >= 0 ? state.stickers[state.selected] : null;
+    const s = state.mode === 'card' && state.selected >= 0 ? state.stickers[state.selected] : null;
     els.tools.hidden = !s;
     if (s) els.orient.textContent = s.orient === 'v' ? '横書きにする' : '縦書きにする';
   }
@@ -100,9 +129,13 @@ export function createCardDialog(ctx) {
   }
 
   function initialCropFor(idx) {
-    if (idx < 0) return { cx: 0.5, cy: 0.5, zoom: 1 };
+    if (idx < 0) return { ...DEFAULT_CROP };
     const saved = state.imageCrops?.[state.photos[idx].id];
-    return saved ? { ...saved } : { cx: 0.5, cy: 0.5, zoom: 1 };
+    return saved ? { ...saved } : { ...DEFAULT_CROP };
+  }
+
+  function autoStickersFor() {
+    return autoStickers(layoutCard({ dateKey: state.dateKey, tagNames: state.tagNames, hasPhoto: state.photos.length > 0, theme: state.theme }));
   }
 
   async function selectPhoto(idx) {
@@ -111,13 +144,15 @@ export function createCardDialog(ctx) {
     state.bitmap = null;
     state.sel = idx;
     state.crop = initialCropFor(idx);
-    els.zoom.value = String(state.crop.zoom);
     for (const b of els.photos.querySelectorAll('.card-photo')) b.classList.toggle('on', Number(b.dataset.idx) === idx);
     const hasPhoto = idx >= 0;
-    els.zoomRow.hidden = !hasPhoto;
-    els.hint.textContent = hasPhoto
-      ? '写真はドラッグで移動・2本指で拡大。タグはシールのように動かせます(タップで選んで回転・縦横)。'
-      : 'タグだけのカードです。タグはシールのように動かせます(タップで選んで回転・縦横)。';
+    if (state.mode === 'thumb') {
+      els.hint.textContent = 'この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。';
+    } else {
+      els.hint.textContent = hasPhoto
+        ? '写真はドラッグで移動・2本指で拡大。タグはシールのように動かせます(タップで選んで回転・縦横)。'
+        : 'タグだけのカードです。タグはシールのように動かせます(タップで選んで回転・縦横)。';
+    }
     if (hasPhoto) {
       const rec = state.photos[idx].rec;
       if (rec?.blob) {
@@ -128,32 +163,23 @@ export function createCardDialog(ctx) {
     scheduleDraw();
   }
 
-  async function open(dateKey) {
-    const entry = await ctx.stores.entries.get(dateKey);
-    if (!canMakeCard(entry)) return { opened: false, reason: CARD_EMPTY_MESSAGE };
-    const tags = await ctx.stores.tags.list({ includeHidden: true });
-    const nameOf = new Map(tags.map((t) => [t.id, t.name]));
-    const images = entry.images ?? [];
+  // その日の写真を読み込む(blob のあるものだけ)
+  async function loadPhotos(entry) {
     const photos = [];
-    for (const id of images) {
+    for (const id of entry?.images ?? []) {
       const rec = await ctx.pipeline.store.get(id);
       if (rec?.blob) photos.push({ id, rec });
     }
-    const tagNames = (entry.tags ?? []).map((id) => nameOf.get(id)).filter(Boolean);
-    const theme = currentThemeColors();
-    state = {
-      dateKey,
-      tagNames,
-      photos,
-      imageCrops: entry.imageCrops ?? {},
-      sel: -1,
-      bitmap: null,
-      crop: { cx: 0.5, cy: 0.5, zoom: 1 },
-      theme,
-      // 既定=自動配置をシール化(今のデザイン)。ここから自由に動かせる
-      stickers: autoStickers(layoutCard({ dateKey, tagNames, hasPhoto: photos.length > 0, theme })),
-      selected: -1,
-    };
+    return photos;
+  }
+
+  async function tagNamesOf(entry) {
+    const tags = await ctx.stores.tags.list({ includeHidden: true });
+    const nameOf = new Map(tags.map((t) => [t.id, t.name]));
+    return (entry?.tags ?? []).map((id) => nameOf.get(id)).filter(Boolean);
+  }
+
+  function renderPhotoPicker() {
     for (const u of thumbUrls) URL.revokeObjectURL(u);
     thumbUrls = [];
     const noneBtn = document.createElement('button');
@@ -161,7 +187,7 @@ export function createCardDialog(ctx) {
     noneBtn.dataset.idx = '-1';
     noneBtn.textContent = '写真なし';
     noneBtn.onclick = () => selectPhoto(-1);
-    const thumbs = photos.map((p, i) => {
+    const thumbs = state.photos.map((p, i) => {
       const b = document.createElement('button');
       b.className = 'card-photo';
       b.dataset.idx = String(i);
@@ -177,12 +203,75 @@ export function createCardDialog(ctx) {
       return b;
     });
     els.photos.replaceChildren(noneBtn, ...thumbs);
+  }
+
+  // カード作成モードで開く。photoId を渡すとその写真を選んだ状態で始める
+  async function open(dateKey, { photoId = null } = {}) {
+    const entry = await ctx.stores.entries.get(dateKey);
+    if (!canMakeCard(entry)) return { opened: false, reason: CARD_EMPTY_MESSAGE };
+    const tagNames = await tagNamesOf(entry);
+    const photos = await loadPhotos(entry);
+    const theme = currentThemeColors();
+    state = {
+      mode: 'card',
+      dateKey,
+      tagNames,
+      photos,
+      imageCrops: entry.imageCrops ?? {},
+      sel: -1,
+      bitmap: null,
+      crop: { ...DEFAULT_CROP },
+      theme,
+      stickers: [],
+      selected: -1,
+      queue: [],
+    };
+    // 既定=自動配置をシール化(今のデザイン)。ここから自由に動かせる
+    state.stickers = autoStickersFor();
+    renderPhotoPicker();
     renderPalette();
     renderTools();
+    applyMode();
     note(null);
     els.root.hidden = false;
-    const pushIdx = photos.length > 0 ? normalizePushIndex(images, entry.pushImageIndex ?? null) : -1;
-    await selectPhoto(photos.length > 0 ? Math.min(pushIdx, photos.length - 1) : -1);
+    let idx = photos.findIndex((p) => p.id === photoId);
+    if (idx < 0) {
+      const pushIdx = photos.length > 0 ? normalizePushIndex(entry.images ?? [], entry.pushImageIndex ?? null) : -1;
+      idx = photos.length > 0 ? Math.min(pushIdx, photos.length - 1) : -1;
+    }
+    await selectPhoto(idx);
+    return { opened: true };
+  }
+
+  // サムネイルモードで開く(写真追加直後・写真のタップ)。imageIds が複数なら保存のたびに次の写真へ
+  async function openThumb(dateKey, imageIds) {
+    const ids = (imageIds ?? []).filter(Boolean);
+    if (ids.length === 0) return { opened: false };
+    const entry = await ctx.stores.entries.get(dateKey);
+    const photos = await loadPhotos(entry);
+    const idx = photos.findIndex((p) => p.id === ids[0]);
+    if (idx < 0) return ids.length > 1 ? openThumb(dateKey, ids.slice(1)) : { opened: false };
+    state = {
+      mode: 'thumb',
+      dateKey,
+      tagNames: await tagNamesOf(entry),
+      photos,
+      imageCrops: entry.imageCrops ?? {},
+      sel: -1,
+      bitmap: null,
+      crop: { ...DEFAULT_CROP },
+      theme: currentThemeColors(),
+      stickers: [],
+      selected: -1,
+      queue: ids.slice(1),
+    };
+    renderPhotoPicker();
+    els.tags.replaceChildren();
+    renderTools();
+    applyMode();
+    note(null);
+    els.root.hidden = false;
+    await selectPhoto(idx);
     return { opened: true };
   }
 
@@ -225,7 +314,7 @@ export function createCardDialog(ctx) {
     }
     if (pointers.size > 1) return;
     const p = cardPoint(e);
-    const hit = hitSticker(state.stickers, p.x, p.y, els.preview.width);
+    const hit = state.mode === 'card' ? hitSticker(state.stickers, p.x, p.y, els.preview.width) : -1;
     if (hit >= 0) {
       gesture = { kind: 'sticker', idx: hit, lastX: e.clientX, lastY: e.clientY, scale: p.scale };
       select(hit);
@@ -243,7 +332,6 @@ export function createCardDialog(ctx) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
       state.crop = pinchZoom({ ...state.crop, zoom: gesture.zoom }, d / Math.max(1, gesture.dist), state.bitmap.width, state.bitmap.height);
-      els.zoom.value = String(state.crop.zoom);
       scheduleDraw();
       return;
     }
@@ -269,17 +357,33 @@ export function createCardDialog(ctx) {
   };
   els.preview.addEventListener('pointerup', endPointer);
   els.preview.addEventListener('pointercancel', endPointer);
+  // PC: ホイールで拡大・縮小(スマホはピンチ。スライダーは PD FB 3 で廃止)
+  els.preview.addEventListener(
+    'wheel',
+    (e) => {
+      if (!state?.bitmap) return;
+      e.preventDefault();
+      const ratio = e.deltaY < 0 ? WHEEL_ZOOM_RATIO : 1 / WHEEL_ZOOM_RATIO;
+      state.crop = pinchZoom(state.crop, ratio, state.bitmap.width, state.bitmap.height);
+      scheduleDraw();
+    },
+    { passive: false },
+  );
 
-  els.zoom.min = '1';
-  els.zoom.max = String(CROP_MAX_ZOOM);
-  els.zoom.step = '0.05';
-  els.zoom.oninput = () => {
-    if (!state?.bitmap) return;
-    state.crop = clampCrop({ ...state.crop, zoom: Number(els.zoom.value) }, state.bitmap.width, state.bitmap.height);
+  // リセット: 切り抜きを既定に戻す。カードモードではシールも自動配置に戻す
+  els.reset.onclick = () => {
+    if (!state) return;
+    state.crop = state.bitmap ? clampCrop({ ...DEFAULT_CROP }, state.bitmap.width, state.bitmap.height) : { ...DEFAULT_CROP };
+    if (state.mode === 'card') {
+      state.stickers = autoStickersFor();
+      state.selected = -1;
+      renderPalette();
+      renderTools();
+    }
     scheduleDraw();
   };
 
-  // 選択中シールのツール: 回転(±15度)・縦横・はがす
+  // 選択中シールのツール: 回転(±90度)・縦横・はがす
   function updateSelected(fn) {
     if (!state || state.selected < 0) return;
     state.stickers[state.selected] = clampSticker(fn(state.stickers[state.selected]));
@@ -298,7 +402,54 @@ export function createCardDialog(ctx) {
     scheduleDraw();
   };
 
+  // 選んだ切り出し範囲をその写真のサムネイルとして保存(一押し表示・次回の既定に使う)
+  async function saveCrop(photo, crop) {
+    const thumbBlob = await cropThumb(photo.rec.blob, crop).catch(() => null);
+    if (thumbBlob) await ctx.pipeline.store.put({ ...photo.rec, thumbBlob }).catch(() => {});
+    const cur = await ctx.stores.entries.get(state.dateKey);
+    await ctx.stores.entries.upsert(state.dateKey, { imageCrops: { ...(cur?.imageCrops ?? {}), [photo.id]: crop } });
+    ctx.refreshToday?.();
+  }
+
   els.cancel.onclick = close;
+
+  // サムネイル: 保存して閉じる(続きの写真があれば次へ)
+  els.save.onclick = async () => {
+    if (!state || state.sel < 0) return;
+    const { dateKey, queue, crop } = state;
+    const photo = state.photos[state.sel];
+    ctx.showLoading('サムネイルを保存中…');
+    try {
+      await saveCrop(photo, crop);
+    } catch (err) {
+      note(err?.message ?? 'サムネイルを保存できませんでした。');
+      return;
+    } finally {
+      ctx.hideLoading();
+    }
+    ctx.notifySaved?.();
+    if (queue.length > 0) await openThumb(dateKey, queue);
+    else close();
+  };
+
+  // サムネイル: 保存して、その写真を選んだカード編集へ続ける
+  els.cont.onclick = async () => {
+    if (!state || state.sel < 0) return;
+    const { dateKey, crop } = state;
+    const photo = state.photos[state.sel];
+    ctx.showLoading('サムネイルを保存中…');
+    try {
+      await saveCrop(photo, crop);
+    } catch (err) {
+      note(err?.message ?? 'サムネイルを保存できませんでした。');
+      return;
+    } finally {
+      ctx.hideLoading();
+    }
+    const r = await open(dateKey, { photoId: photo.id });
+    if (!r.opened) close();
+  };
+
   els.share.onclick = async () => {
     if (!state) return;
     const { dateKey, tagNames, crop, theme, stickers } = state;
@@ -307,14 +458,7 @@ export function createCardDialog(ctx) {
     let result;
     try {
       const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers });
-      // 選んだ切り出し範囲をその写真のサムネイルとして保存(一押し表示・次回の既定に使う)
-      if (photo) {
-        const thumbBlob = await cropThumb(photo.rec.blob, crop).catch(() => null);
-        if (thumbBlob) await ctx.pipeline.store.put({ ...photo.rec, thumbBlob }).catch(() => {});
-        const cur = await ctx.stores.entries.get(dateKey);
-        await ctx.stores.entries.upsert(dateKey, { imageCrops: { ...(cur?.imageCrops ?? {}), [photo.id]: crop } });
-        ctx.refreshToday?.();
-      }
+      if (photo) await saveCrop(photo, crop);
       result = await deliverFile(png, cardFileName(dateKey));
     } catch (err) {
       result = { saved: false, reason: err?.message ?? 'カードを作れませんでした。' };
@@ -331,9 +475,11 @@ export function createCardDialog(ctx) {
 
   return {
     open,
+    openThumb,
     close,
     // スモーク用(Web のみ appState 経由で参照)。シールの位置(カード座標px)を返す
     debugStickers: () => (state ? state.stickers.map((s) => ({ ...s, px: s.x * els.preview.width, py: s.y * els.preview.width })) : []),
     debugCrop: () => (state ? { ...state.crop } : null),
+    debugMode: () => state?.mode ?? null,
   };
 }

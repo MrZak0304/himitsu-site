@@ -312,29 +312,31 @@
   <div id="character-figure"></div>
 </div>
 
-<!-- きょうの1枚カードの作成ダイアログ(v1.1)。写真の選択・表示範囲・プレビュー→共有 -->
+<!-- きょうの1枚カードの作成ダイアログ(v1.1)。写真の選択・表示範囲・プレビュー→共有。
+     写真追加直後は「サムネイル」モード(切り抜きだけ)で開き、そのままカード編集へ続けられる(PD FB 3) -->
 <div id="card-dialog" hidden>
   <div class="popup-card card-dialog-card">
-    <h2>きょうの1枚カード</h2>
+    <h2 id="card-title">きょうの1枚カード</h2>
     <canvas id="card-preview" class="card-preview" width="1080" height="1080" aria-label="カードのプレビュー"></canvas>
     <p class="note-inline" id="card-hint-text"></p>
-    <div id="card-zoom-row" class="card-zoom-row" hidden>
-      <span class="note-inline">拡大</span>
-      <input id="card-zoom" type="range" min="1" max="4" step="0.05" value="1" aria-label="写真の拡大">
+    <div class="card-tools">
+      <button id="card-reset" class="btn ghost mini" type="button">リセット</button>
     </div>
-    <p class="section-hint">きょうのタグ(タップで貼る・はがす)</p>
+    <p class="section-hint" id="card-tags-hint">きょうのタグ(タップで貼る・はがす)</p>
     <div id="card-tags" class="tag-stamps card-tags"></div>
     <div id="card-sticker-tools" class="card-tools" hidden>
-      <button id="card-rot-l" class="btn sub mini" type="button">↺ 回転</button>
-      <button id="card-rot-r" class="btn sub mini" type="button">↻ 回転</button>
+      <button id="card-rot-l" class="btn sub mini" type="button">↺ 90°</button>
+      <button id="card-rot-r" class="btn sub mini" type="button">↻ 90°</button>
       <button id="card-orient" class="btn sub mini" type="button">縦書きにする</button>
       <button id="card-peel" class="btn ghost mini" type="button">はがす</button>
     </div>
-    <p class="section-hint">写真を選ぶ</p>
+    <p class="section-hint" id="card-photos-hint">写真を選ぶ</p>
     <div id="card-photos" class="card-photos"></div>
     <p class="note" id="card-dialog-note" hidden></p>
     <div class="popup-actions vertical">
       <button id="card-share" class="btn">この見た目で共有する</button>
+      <button id="card-save" class="btn" hidden>この範囲で保存</button>
+      <button id="card-continue" class="btn sub" hidden>保存してカードを作る</button>
       <button id="card-cancel" class="btn ghost">やめる</button>
     </div>
   </div>
