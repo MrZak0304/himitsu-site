@@ -148,6 +148,9 @@ export function cardFileName(dateKey) {
 const STAMP_PAD = 20; // シールの内側余白(縦書き時の上下)
 export const STICKER_ROTATE_STEP = 90; // 回転ボタン1回ぶん(度)。90°/180°/270° を既定にする(PD FB 3)
 export const DEFAULT_CROP = Object.freeze({ cx: 0.5, cy: 0.5, zoom: 1 });
+export const STICKER_MIN_SCALE = 0.5; // シールの拡大・縮小の範囲(PD FB 5)
+export const STICKER_MAX_SCALE = 2.5;
+export const STICKER_SCALE_STEP = 1.15; // 「大きく/小さく」ボタン1回ぶん
 export const HANDLE_OFFSET = 34; // 回転つまみ: シール角からの距離(px)
 export const HANDLE_R = 24; // 回転つまみの半径(px)
 
@@ -165,7 +168,7 @@ export function autoStickers(layout) {
   const out = [];
   for (const row of layout.tagRows ?? []) {
     for (const chip of row.chips) {
-      out.push({ text: chip.text, x: (chip.x + chip.w / 2) / layout.size, y: (chip.y + chip.h / 2) / layout.size, rotate: chip.rotate ?? 0, orient: 'h' });
+      out.push({ text: chip.text, x: (chip.x + chip.w / 2) / layout.size, y: (chip.y + chip.h / 2) / layout.size, rotate: chip.rotate ?? 0, orient: 'h', scale: 1 });
     }
   }
   return out;
@@ -175,13 +178,21 @@ export function autoStickers(layout) {
 export function clampSticker(sticker) {
   const lim = (v) => Math.min(0.97, Math.max(0.03, Number.isFinite(v) ? v : 0.5));
   const rot = Number.isFinite(sticker.rotate) ? ((sticker.rotate % 360) + 360) % 360 : 0;
-  return { ...sticker, x: lim(sticker.x), y: lim(sticker.y), rotate: rot, orient: sticker.orient === 'v' ? 'v' : 'h' };
+  const scale = Math.min(STICKER_MAX_SCALE, Math.max(STICKER_MIN_SCALE, Number.isFinite(sticker.scale) ? sticker.scale : 1));
+  return { ...sticker, x: lim(sticker.x), y: lim(sticker.y), rotate: rot, orient: sticker.orient === 'v' ? 'v' : 'h', scale };
 }
 
-// シールの描画矩形(カード座標・px)
+// シールの描画矩形(カード座標・px)。w/h は拡大率を掛けたもの、baseW/baseH は等倍
 export function stickerRect(sticker, size = CARD_SIZE) {
   const { w, h } = stampSize(sticker.text, sticker.orient);
-  return { cx: sticker.x * size, cy: sticker.y * size, w, h, rotate: sticker.rotate ?? 0 };
+  const scale = Number.isFinite(sticker.scale) && sticker.scale > 0 ? sticker.scale : 1;
+  return { cx: sticker.x * size, cy: sticker.y * size, w: w * scale, h: h * scale, baseW: w, baseH: h, scale, rotate: sticker.rotate ?? 0 };
+}
+
+// 拡大・縮小(ボタン・ピンチ)。範囲外は clampSticker で丸める
+export function scaleStickerBy(sticker, ratio) {
+  const r = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+  return clampSticker({ ...sticker, scale: (sticker.scale ?? 1) * r });
 }
 
 // 当たり判定: カード座標(px)の点が乗っている最前面(配列の最後)のシールの index。無ければ -1
@@ -201,7 +212,7 @@ export function hitSticker(stickers, px, py, size = CARD_SIZE) {
 // シールを新しく貼るときの位置: 中央付近で、重ならないよう少しずつずらす
 export function placeNewSticker(text, existing) {
   const n = existing?.length ?? 0;
-  return clampSticker({ text, x: 0.5 + ((n % 3) - 1) * 0.08, y: 0.42 + (Math.floor(n / 3) % 3) * 0.08, rotate: 0, orient: 'h' });
+  return clampSticker({ text, x: 0.5 + ((n % 3) - 1) * 0.08, y: 0.42 + (Math.floor(n / 3) % 3) * 0.08, rotate: 0, orient: 'h', scale: 1 });
 }
 
 // ピンチ: 2本指の距離の比で拡大率を変える(注視点はそのまま。範囲外は clampCrop)
@@ -234,6 +245,7 @@ export function hitStickerHandle(sticker, px, py, size = CARD_SIZE) {
 
 // つまみをカード座標 (px, py) までドラッグしたときの回転量をシールに反映
 export const HANDLE_SNAP_DEG = 4; // 90°の倍数に近ければ吸着(真っ直ぐに戻しやすく)
+export const HANDLE_SNAP_SCALE = 0.05; // 等倍に近ければ吸着
 export function rotateStickerTo(sticker, px, py, size = CARD_SIZE) {
   const r = stickerRect(sticker, size);
   const ang = Math.atan2(py - r.cy, px - r.cx) - handleBaseAngle(r);
@@ -241,4 +253,23 @@ export function rotateStickerTo(sticker, px, py, size = CARD_SIZE) {
   const near = Math.round(deg / 90) * 90;
   if (Math.abs(deg - near) <= HANDLE_SNAP_DEG) deg = near % 360;
   return clampSticker({ ...sticker, rotate: deg });
+}
+
+// つまみのドラッグ = 回転+拡大・縮小(PD FB 5)。中心からの距離でシールの大きさが決まる:
+// 距離 D = hypot(baseW*s/2 + off, baseH*s/2 + off) を s について解く(2次方程式の正の根)
+export function dragStickerHandle(sticker, px, py, size = CARD_SIZE) {
+  const r = stickerRect(sticker, size);
+  const D = Math.hypot(px - r.cx, py - r.cy);
+  const a = (r.baseW * r.baseW + r.baseH * r.baseH) / 4;
+  const b = HANDLE_OFFSET * (r.baseW + r.baseH);
+  const c = 2 * HANDLE_OFFSET * HANDLE_OFFSET - D * D;
+  const disc = b * b - 4 * a * c;
+  let scaled = sticker;
+  if (disc > 0 && a > 0) {
+    let s = (-b + Math.sqrt(disc)) / (2 * a);
+    if (Math.abs(s - 1) <= HANDLE_SNAP_SCALE) s = 1;
+    scaled = clampSticker({ ...sticker, scale: s });
+  }
+  // 回転は拡大後の矩形を基準に決める(つまみの基準角は大きさで変わるため)
+  return rotateStickerTo(scaled, px, py, size);
 }

@@ -52,10 +52,12 @@ export function currentThemeColors() {
 
 // ハンコ風のタグ(二重枠・傾き・インクはテーマ色)。box = {cx, cy, w, h, rotate}。
 // orient 'v' は文字を縦に積む(縦書き風)。highlight は編集中の選択枠(プレビューのみ)
-function drawStamp(ctx, box, text, colors, { orient = 'h', fontSize = 52, highlight = false } = {}) {
+// box は中心・等倍の幅高さ・回転。scale でハンコ全体(枠・文字)を拡大縮小する(PD FB 5)
+function drawStamp(ctx, box, text, colors, { orient = 'h', fontSize = 52, highlight = false, scale = 1 } = {}) {
   ctx.save();
   ctx.translate(box.cx, box.cy);
   ctx.rotate(((box.rotate ?? 0) * Math.PI) / 180);
+  ctx.scale(scale, scale);
   const x = -box.w / 2;
   const y = -box.h / 2;
   const r = 18;
@@ -94,17 +96,21 @@ function drawStamp(ctx, box, text, colors, { orient = 'h', fontSize = 52, highli
     ctx.fillText(text, 0, 2, box.w - 36);
   }
   if (highlight) {
+    // 選択枠とつまみは拡大率に関係なく同じ太さ・大きさで描く(等倍座標に戻す)
+    ctx.scale(1 / scale, 1 / scale);
+    const sw = box.w * scale;
+    const sh = box.h * scale;
     ctx.setLineDash([10, 8]);
     ctx.strokeStyle = colors.stampInk;
     ctx.lineWidth = 4;
-    roundRect(ctx, x - 10, y - 10, box.w + 20, box.h + 20, r + 6);
+    roundRect(ctx, -sw / 2 - 10, -sh / 2 - 10, sw + 20, sh + 20, r + 6);
     ctx.stroke();
-    // 回転つまみ(右上角の外側)。core/card.js の stickerHandlePoint と同じ位置
-    const hx = box.w / 2 + HANDLE_OFFSET;
-    const hy = -box.h / 2 - HANDLE_OFFSET;
+    // 回転・拡大つまみ(右上角の外側)。core/card.js の stickerHandlePoint と同じ位置
+    const hx = sw / 2 + HANDLE_OFFSET;
+    const hy = -sh / 2 - HANDLE_OFFSET;
     ctx.setLineDash([]);
     ctx.beginPath();
-    ctx.moveTo(box.w / 2 + 10, -box.h / 2 - 10);
+    ctx.moveTo(sw / 2 + 10, -sh / 2 - 10);
     ctx.lineTo(hx, hy);
     ctx.lineWidth = 3;
     ctx.stroke();
@@ -166,8 +172,9 @@ export function drawCard(canvas, { dateKey, tagNames, bitmap = null, crop, theme
   // タグ(ハンコ風)。シール配列があればその位置・向き・回転で、無ければ自動配置
   if (stickers) {
     stickers.forEach((st, i) => {
-      const box = stickerRect(st, size);
-      drawStamp(ctx, box, st.text, layout.colors, { orient: st.orient, highlight: i === highlightIndex });
+      const rect = stickerRect(st, size);
+      const box = { cx: rect.cx, cy: rect.cy, w: rect.baseW, h: rect.baseH, rotate: rect.rotate };
+      drawStamp(ctx, box, st.text, layout.colors, { orient: st.orient, highlight: i === highlightIndex, scale: rect.scale });
     });
   } else {
     for (const row of layout.tagRows) {

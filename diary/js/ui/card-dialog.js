@@ -11,7 +11,7 @@ import { normalizePushIndex } from '../core/image-rules.js';
 import {
   cardFileName, panCrop, clampCrop, pinchZoom, layoutCard, DEFAULT_CROP,
   autoStickers, clampSticker, hitSticker, placeNewSticker, STICKER_ROTATE_STEP,
-  stickerHandlePoint, hitStickerHandle, rotateStickerTo,
+  stickerHandlePoint, hitStickerHandle, dragStickerHandle, scaleStickerBy, STICKER_SCALE_STEP,
 } from '../core/card.js';
 import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
 import { deliverFile } from '../backup-io.js';
@@ -42,6 +42,8 @@ export function createCardDialog(ctx) {
     rotL: $('card-rot-l'),
     rotR: $('card-rot-r'),
     orient: $('card-orient'),
+    scaleUp: $('card-scale-up'),
+    scaleDown: $('card-scale-down'),
     peel: $('card-peel'),
     note: $('card-dialog-note'),
     share: $('card-share'),
@@ -151,8 +153,8 @@ export function createCardDialog(ctx) {
       els.hint.textContent = 'この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。';
     } else {
       els.hint.textContent = hasPhoto
-        ? '写真はサムネイルで決めた範囲のまま固定です。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転)。'
-        : 'タグだけのカードです。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転)。';
+        ? '写真はサムネイルで決めた範囲のまま固定です。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小)。'
+        : 'タグだけのカードです。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小)。';
     }
     if (hasPhoto) {
       const rec = state.photos[idx].rec;
@@ -291,9 +293,10 @@ export function createCardDialog(ctx) {
 
   // --- ポインタ操作(Pointer Events。HTML5 DnD は使わない: 教訓 drag-test) ---
   // thumb: 1本指で写真を動かす・2本指のピンチで拡大。
-  // card : 写真は固定(PD FB 4)。シールの上ならシールを動かす、選択中シールのつまみなら回転
+  // card : 写真は固定(PD FB 4)。シールの上ならシールを動かす、選択中シールのつまみなら回転+大きさ、
+  //        2本指は選択中シールの拡大・縮小(PD FB 5)
   const pointers = new Map(); // pointerId → {x, y}
-  let gesture = null; // {kind:'sticker'|'rotate'|'photo'|'pinch', ...}
+  let gesture = null; // {kind:'sticker'|'rotate'|'photo'|'pinch'|'pinchSticker', ...}
   const photoMovable = () => state?.mode === 'thumb' && !!state.bitmap;
 
   function cardPoint(e) {
@@ -310,9 +313,12 @@ export function createCardDialog(ctx) {
       // 合成イベントなど未知の pointerId では例外になるが、操作自体には不要
     }
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.size === 2 && photoMovable()) {
+    if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
-      gesture = { kind: 'pinch', dist: Math.hypot(a.x - b.x, a.y - b.y), zoom: state.crop.zoom };
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (photoMovable()) gesture = { kind: 'pinch', dist, zoom: state.crop.zoom };
+      else if (state.mode === 'card' && state.selected >= 0) gesture = { kind: 'pinchSticker', idx: state.selected, dist, scale: state.stickers[state.selected].scale ?? 1 };
+      else gesture = null;
       return;
     }
     if (pointers.size > 1) return;
@@ -342,7 +348,16 @@ export function createCardDialog(ctx) {
     if (gesture.kind === 'rotate') {
       const p = cardPoint(e);
       const st = state.stickers[gesture.idx];
-      if (st) state.stickers[gesture.idx] = rotateStickerTo(st, p.x, p.y, els.preview.width);
+      if (st) state.stickers[gesture.idx] = dragStickerHandle(st, p.x, p.y, els.preview.width);
+      scheduleDraw();
+      return;
+    }
+    if (gesture.kind === 'pinchSticker') {
+      if (pointers.size < 2) return;
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      const st = state.stickers[gesture.idx];
+      if (st) state.stickers[gesture.idx] = clampSticker({ ...st, scale: gesture.scale * (d / Math.max(1, gesture.dist)) });
       scheduleDraw();
       return;
     }
@@ -372,7 +387,7 @@ export function createCardDialog(ctx) {
   const endPointer = (e) => {
     pointers.delete(e.pointerId);
     if (pointers.size === 0) gesture = null;
-    else if (gesture?.kind === 'pinch' && pointers.size === 1) gesture = null; // 片指を離したら操作終了
+    else if ((gesture?.kind === 'pinch' || gesture?.kind === 'pinchSticker') && pointers.size === 1) gesture = null; // 片指を離したら操作終了
   };
   els.preview.addEventListener('pointerup', endPointer);
   els.preview.addEventListener('pointercancel', endPointer);
@@ -413,6 +428,8 @@ export function createCardDialog(ctx) {
   els.rotL.onclick = () => updateSelected((s) => ({ ...s, rotate: (s.rotate ?? 0) - STICKER_ROTATE_STEP }));
   els.rotR.onclick = () => updateSelected((s) => ({ ...s, rotate: (s.rotate ?? 0) + STICKER_ROTATE_STEP }));
   els.orient.onclick = () => updateSelected((s) => ({ ...s, orient: s.orient === 'v' ? 'h' : 'v' }));
+  els.scaleUp.onclick = () => updateSelected((s) => scaleStickerBy(s, STICKER_SCALE_STEP));
+  els.scaleDown.onclick = () => updateSelected((s) => scaleStickerBy(s, 1 / STICKER_SCALE_STEP));
   els.peel.onclick = () => {
     if (!state || state.selected < 0) return;
     state.stickers.splice(state.selected, 1);
