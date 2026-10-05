@@ -5,7 +5,7 @@ import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } f
 import { frequentTagIds } from '../core/tag-stats.js';
 import { UI_ICONS } from '../icons.js';
 import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
-import { shareCardForDate, canMakeCard } from '../card-share.js';
+import { canMakeCard, CARD_EMPTY_MESSAGE } from './card-dialog.js';
 import { streak } from '../core/streaks.js';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -54,12 +54,13 @@ export function initToday(ctx) {
     const now = new Date();
     els.date.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日(${WEEKDAYS[now.getDay()]})`;
 
-    const [entry, tags, habits, checks, slots] = await Promise.all([
+    const [entry, tags, habits, checks, slots, settings] = await Promise.all([
       ctx.stores.entries.get(today),
       ctx.stores.tags.list({ includeHidden: false }), // 隠したタグは入力候補に出さない
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.forDate(today),
       slotState(),
+      ctx.stores.settings.get(),
     ]);
     if (seq !== renderSeq) return; // より新しい refresh が始まっていたら破棄
 
@@ -111,7 +112,7 @@ export function initToday(ctx) {
     // 連続記録(v1.1): 今日を含む連続日数。0日なら出さない(今日が未記録でも昨日までの連続を維持)
     const diaryDates = new Set(Object.entries(allEntries).filter(([, e]) => (e?.tags?.length ?? 0) > 0 || (e?.text ?? '') !== '' || (e?.images?.length ?? 0) > 0).map(([d]) => d));
     const days = streak(diaryDates, today);
-    els.streak.hidden = days === 0;
+    els.streak.hidden = days === 0 || !settings.display.streakBadge; // 設定で非表示にできる(PD FB)
     els.streak.textContent = days > 0 ? `連続${days}日` : '';
 
     // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる
@@ -303,9 +304,8 @@ export function initToday(ctx) {
   // きょうの1枚カード(v1.1)
   els.cardBtn.onclick = async () => {
     note(els.cardNote, null);
-    const r = await shareCardForDate(ctx, ctx.todayKey());
-    if (r.reason) note(els.cardNote, r.reason);
-    else if (r.saved) ctx.notifySaved?.();
+    const r = await ctx.cardDialog.open(ctx.todayKey());
+    if (!r.opened) note(els.cardNote, r.reason ?? CARD_EMPTY_MESSAGE);
   };
 
   // 画像添付

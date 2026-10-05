@@ -192,6 +192,11 @@
     </details>
 
     <details class="settings-group">
+      <summary>表示</summary>
+      <label class="row"><input type="checkbox" id="streak-badge-enabled"> きょう画面に「連続◯日」を表示する</label>
+    </details>
+
+    <details class="settings-group">
       <summary>リマインダー</summary>
       <label class="row"><input type="checkbox" id="reminder-enabled"> 毎日通知する</label>
       <label class="row">時刻 <input type="time" id="reminder-time" value="21:00"></label>
@@ -305,6 +310,26 @@
 <div id="character-layer" hidden>
   <div id="character-balloon" hidden></div>
   <div id="character-figure"></div>
+</div>
+
+<!-- きょうの1枚カードの作成ダイアログ(v1.1)。写真の選択・表示範囲・プレビュー→共有 -->
+<div id="card-dialog" hidden>
+  <div class="popup-card card-dialog-card">
+    <h2>きょうの1枚カード</h2>
+    <canvas id="card-preview" class="card-preview" width="1080" height="1080" aria-label="カードのプレビュー"></canvas>
+    <p class="note-inline" id="card-hint-text"></p>
+    <div id="card-zoom-row" class="card-zoom-row" hidden>
+      <span class="note-inline">拡大</span>
+      <input id="card-zoom" type="range" min="1" max="4" step="0.05" value="1" aria-label="写真の拡大">
+    </div>
+    <p class="section-hint">写真を選ぶ</p>
+    <div id="card-photos" class="card-photos"></div>
+    <p class="note" id="card-dialog-note" hidden></p>
+    <div class="popup-actions vertical">
+      <button id="card-share" class="btn">この見た目で共有する</button>
+      <button id="card-cancel" class="btn ghost">やめる</button>
+    </div>
+  </div>
 </div>
 
 <!-- 初回起動の案内(v1.1)。保存済み設定が無い初回だけ表示 -->

@@ -6,7 +6,7 @@ import { monthOfKey } from '../core/dates.js';
 import { monthlyTagRanking } from '../core/tag-stats.js';
 import { monthlyHabitCounts } from '../core/habit-stats.js';
 import { createDayEditor } from './day-editor.js';
-import { shareCardForDate, canMakeCard } from '../card-share.js';
+import { canMakeCard } from './card-dialog.js';
 
 export function initCalendar(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -293,9 +293,9 @@ export function initCalendar(ctx) {
   els.detailEditDone.onclick = endEdit;
   els.detailCard.onclick = async () => {
     if (!openDate) return;
-    const r = await shareCardForDate(ctx, openDate);
-    els.detailCardNote.hidden = !r.reason;
-    els.detailCardNote.textContent = r.reason ?? '';
+    const r = await ctx.cardDialog.open(openDate);
+    els.detailCardNote.hidden = r.opened;
+    els.detailCardNote.textContent = r.opened ? '' : (r.reason ?? '');
   };
   els.detailClose.onclick = () => {
     if (editing) {

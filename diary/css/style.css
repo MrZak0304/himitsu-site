@@ -559,7 +559,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .nav-item.active { color: var(--accent); }
 
 /* --- ロック画面・ポップアップ・オーバーレイ(すべて position:fixed 全画面) --- */
-#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding {
+#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding, #card-dialog {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -647,3 +647,15 @@ input[type="time"], input[type="color"] { width: auto; }
 .onboarding-dots { display: flex; justify-content: center; gap: 6px; margin: 6px 0; }
 .onboarding-dots .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--panel-edge); }
 .onboarding-dots .dot.on { background: var(--accent); }
+
+/* きょうの1枚カードのダイアログ(v1.1) */
+#card-dialog { z-index: 240; align-items: flex-start; overflow-y: auto; }
+.card-dialog-card { width: min(420px, 100%); margin: 8px auto; }
+.card-dialog-card h2 { font-size: 16px; margin: 0; text-align: center; }
+.card-preview { width: 100%; height: auto; aspect-ratio: 1 / 1; border-radius: 12px; border: 1px solid var(--panel-edge); touch-action: none; cursor: grab; background: var(--bg); }
+.card-zoom-row { display: flex; align-items: center; gap: 10px; }
+.card-zoom-row input[type="range"] { flex: 1; }
+.card-photos { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.card-photo { flex: 0 0 auto; width: 64px; height: 64px; border-radius: 10px; border: 2px solid var(--panel-edge); background: var(--panel); padding: 0; overflow: hidden; cursor: pointer; color: var(--text-dim); font-size: 12px; }
+.card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-photo.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); }

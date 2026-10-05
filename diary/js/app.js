@@ -17,6 +17,7 @@ import { syncReminder, syncMonthlySummary, onNotificationTap } from './notificat
 import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
 import { monthOfKey } from './core/dates.js';
 import { initOnboarding } from './ui/onboarding.js';
+import { createCardDialog } from './ui/card-dialog.js';
 import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
 import { initCalendar } from './ui/calendar.js';
@@ -175,6 +176,7 @@ async function main() {
 
   const lock = createLockGuard(ctx);
   ctx.lock = lock;
+  ctx.cardDialog = createCardDialog(ctx); // きょうの1枚カード(v1.1)。きょう/ふりかえり詳細から開く
 
   const habitsUI = initHabits(ctx);
   ctx.renderCharacter = habitsUI.renderCharacter;
@@ -285,6 +287,7 @@ async function main() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       lock.relock();
+      ctx.cardDialog.close(); // 過去日の写真を出したまま離席させない(ロックの趣旨)
       settingsUI.collapseSections(); // 入力途中のパスコードを残したまま離席させない
       // 別アプリへ移るときは「きょう」に戻す(2026-08-10 PD FB)。
       // 戻るたびにロック解除を求められる煩わしさが消え、アプリスイッチャーの

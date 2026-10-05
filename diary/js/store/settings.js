@@ -28,6 +28,8 @@ export const DEFAULT_SETTINGS = {
   reminder: { enabled: false, time: '21:00' },
   // 月のまとめ通知(v1.1): 毎月1日に前月のまとめをローカル通知。既定ON(ネイティブのみ実動作)
   monthlySummary: { enabled: true },
+  // 表示設定(v1.1): きょう画面の「連続◯日」バッジ。既定ON(PD FB 2026-10-05: 非表示にもできるように)
+  display: { streakBadge: true },
   // 初回起動の案内(v1.1)。done=false のときだけ出す。既存ユーザーは読み出し時に done 扱いへ移行する
   onboarding: { done: false },
   theme: 'shiro',
@@ -88,6 +90,9 @@ function normalizeSettings(raw, { fresh = false } = {}) {
     },
     monthlySummary: {
       enabled: !(typeof raw.monthlySummary === 'object' && raw.monthlySummary !== null && raw.monthlySummary.enabled === false),
+    },
+    display: {
+      streakBadge: !(typeof raw.display === 'object' && raw.display !== null && raw.display.streakBadge === false),
     },
     onboarding: {
       // 保存済み設定にこの項目が無い=v1.0 からの既存ユーザー → 案内済み扱い(更新で案内が出ない)。

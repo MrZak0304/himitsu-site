@@ -28,6 +28,7 @@ export function initSettings(ctx) {
     reminderTime: $('reminder-time'),
     reminderNote: $('reminder-note'),
     monthlyEnabled: $('monthly-enabled'),
+    streakBadge: $('streak-badge-enabled'),
     monthlyNote: $('monthly-note'),
     lockEnabled: $('lock-enabled'),
     lockSetupBtn: $('lock-setup-btn'),
@@ -329,6 +330,11 @@ export function initSettings(ctx) {
   }
   els.reminderEnabled.onchange = saveReminder;
   els.reminderTime.onchange = saveReminder;
+  // 表示(v1.1): 連続バッジのON/OFF
+  els.streakBadge.onchange = async () => {
+    await ctx.stores.settings.merge({ display: { streakBadge: els.streakBadge.checked } });
+    ctx.refreshToday?.();
+  };
   // 月のまとめ通知(v1.1)。文面の生成と実スケジュールは app.js 側(ctx.syncMonthly)
   els.monthlyEnabled.onchange = async () => {
     await ctx.stores.settings.merge({ monthlySummary: { enabled: els.monthlyEnabled.checked } });
@@ -919,6 +925,7 @@ export function initSettings(ctx) {
     els.reminderEnabled.checked = s.reminder.enabled;
     els.reminderTime.value = s.reminder.time;
     els.monthlyEnabled.checked = s.monthlySummary.enabled;
+    els.streakBadge.checked = s.display.streakBadge;
     await Promise.all([refreshFolders(), refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
   }
 

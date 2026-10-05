@@ -15,6 +15,7 @@ const TAG_GAP = 20;
 const TAG_LINE_H = 96;
 const DATE_FONT = 44;
 const BRAND_FONT = 36;
+const STAMP_TILT = [-3, 2.5, -2, 3, -1.5, 2, -2.5, 1.5]; // 度
 
 // 'YYYY-MM-DD' → '2026年10月5日(月)'
 export function formatCardDate(dateKey) {
@@ -73,11 +74,17 @@ export function layoutCard({ dateKey, tagNames = [], hasPhoto = false, theme = {
   const brandY = size - PAD;
   const dateY = brandY - BRAND_FONT - 28;
   const tagsBottom = dateY - DATE_FONT - 24;
+  let chipSeq = 0;
   const tagRows = rows.map((row, i) => {
     const y = tagsBottom - (rows.length - 1 - i) * TAG_LINE_H; // 行の下端
     let x = PAD;
     const chips = row.chips.map((c) => {
-      const chip = { text: c.text, x, y: y - TAG_LINE_H + 12, w: c.width, h: TAG_LINE_H - 20, fontSize: TAG_FONT };
+      const chip = {
+        text: c.text, x, y: y - TAG_LINE_H + 12, w: c.width, h: TAG_LINE_H - 20, fontSize: TAG_FONT,
+        // ハンコ風: 押した跡のように少しずつ傾ける(並び順で決まる=同じ入力なら同じ見た目)
+        rotate: STAMP_TILT[chipSeq % STAMP_TILT.length],
+      };
+      chipSeq += 1;
       x += c.width + TAG_GAP;
       return chip;
     });
@@ -96,13 +103,42 @@ export function layoutCard({ dateKey, tagNames = [], hasPhoto = false, theme = {
     date: { text: formatCardDate(dateKey), x: PAD, y: dateY, fontSize: DATE_FONT },
     brand: { text: CARD_APP_NAME, x: PAD, y: brandY, fontSize: BRAND_FONT },
     colors: {
-      chipBg: hasPhoto ? 'rgba(255,255,255,0.92)' : '#ffffff',
+      chipBg: hasPhoto ? 'rgba(255,255,255,0.90)' : 'rgba(255,255,255,0.96)',
       chipText: accent,
+      stampInk: accent, // ハンコの枠線(二重枠)
       text: hasPhoto ? '#ffffff' : fg,
       brand: hasPhoto ? 'rgba(255,255,255,0.85)' : accent,
       scrim: hasPhoto ? '#000000' : accent,
     },
   };
+}
+
+// 写真の表示範囲(ピュア)。cx, cy = 注視点(画像内の相対位置 0〜1)、zoom = 拡大率(1=正方形いっぱい・最大4)。
+// 正方形カードを cover で埋める元画像の切り出し矩形を返す。範囲外は画像内に収まるようクランプする。
+export const CROP_MAX_ZOOM = 4;
+export function photoSourceRect(imgW, imgH, { cx = 0.5, cy = 0.5, zoom = 1 } = {}) {
+  const w = Math.max(1, imgW);
+  const h = Math.max(1, imgH);
+  const z = Math.min(CROP_MAX_ZOOM, Math.max(1, Number.isFinite(zoom) ? zoom : 1));
+  const side = Math.min(w, h) / z;
+  const x = Number.isFinite(cx) ? cx : 0.5;
+  const y = Number.isFinite(cy) ? cy : 0.5;
+  const sx = Math.min(Math.max(0, x * w - side / 2), w - side);
+  const sy = Math.min(Math.max(0, y * h - side / 2), h - side);
+  return { sx, sy, sw: side, sh: side };
+}
+
+// ドラッグ量(カード上のピクセル)を注視点の移動量へ。cardPx = 表示中のカードの一辺(px)
+export function panCrop(crop, dxPx, dyPx, cardPx, imgW, imgH) {
+  const { sw } = photoSourceRect(imgW, imgH, crop);
+  const perPx = sw / Math.max(1, cardPx); // カード1pxあたりの元画像ピクセル
+  return clampCrop({ ...crop, cx: crop.cx - (dxPx * perPx) / imgW, cy: crop.cy - (dyPx * perPx) / imgH }, imgW, imgH);
+}
+
+// 注視点を「切り出し矩形が画像内に収まる範囲」へ丸める(スライダー操作後の飛びを防ぐ)
+export function clampCrop(crop, imgW, imgH) {
+  const r = photoSourceRect(imgW, imgH, crop);
+  return { cx: (r.sx + r.sw / 2) / Math.max(1, imgW), cy: (r.sy + r.sh / 2) / Math.max(1, imgH), zoom: Math.min(CROP_MAX_ZOOM, Math.max(1, crop.zoom ?? 1)) };
 }
 
 export function cardFileName(dateKey) {
