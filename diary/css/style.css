@@ -658,6 +658,8 @@ input[type="time"], input[type="color"] { width: auto; }
 .card-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .card-photo.on { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); color: var(--accent); }
 .card-tags { margin: 0; }
+/* 編集中のシールのタグを強調(PD FB 7)。貼ってある .on の上に太いリングを重ねる */
+.card-tags .tag-stamp.selected { outline: 3px solid var(--accent); outline-offset: 2px; box-shadow: 0 0 0 5px var(--panel); }
 .image-cell img.thumb-edit { cursor: pointer; }
 .card-tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .card-tools .btn.mini { padding: 6px 10px; font-size: 13px; }

@@ -93,13 +93,16 @@ export function createCardDialog(ctx) {
   }
 
   // --- タグのパレット(貼る/はがす)と選択中シールのツールバー ---
+  // パレット: 貼ってあるタグは .on、編集中(選択中)のシールのタグは .selected で強調(PD FB 7: どれを触っているか分かるように)
   function renderPalette() {
     const placed = new Set(state.stickers.map((s) => s.text));
+    const selectedText = state.selected >= 0 ? state.stickers[state.selected]?.text : null;
     els.tags.replaceChildren(
       ...state.tagNames.map((name) => {
         const b = document.createElement('button');
-        b.className = `tag-stamp${placed.has(name) ? ' on' : ''}`;
+        b.className = `tag-stamp${placed.has(name) ? ' on' : ''}${name === selectedText ? ' selected' : ''}`;
         b.textContent = name;
+        if (name === selectedText) b.setAttribute('aria-current', 'true');
         b.dataset.tag = name;
         b.onclick = () => {
           const idx = state.stickers.findIndex((s) => s.text === name);
@@ -127,6 +130,7 @@ export function createCardDialog(ctx) {
 
   function select(i) {
     state.selected = i;
+    renderPalette();
     renderTools();
     scheduleDraw();
   }
