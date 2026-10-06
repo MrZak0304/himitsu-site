@@ -661,3 +661,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .image-cell img.thumb-edit { cursor: pointer; }
 .card-tools { display: flex; flex-wrap: wrap; gap: 6px; }
 .card-tools .btn.mini { padding: 6px 10px; font-size: 13px; }
+/* シールのツールバーは1行に収める(PD FB 6)。狭い端末では横スクロール */
+.card-tools.sticker-tools { flex-wrap: nowrap; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.card-tools.sticker-tools .btn.mini { padding: 6px 7px; font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
+.card-tools.sticker-tools #card-rot-l, .card-tools.sticker-tools #card-rot-r { font-size: 15px; padding: 4px 8px; }

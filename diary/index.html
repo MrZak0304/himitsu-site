@@ -324,12 +324,13 @@
     </div>
     <p class="section-hint" id="card-tags-hint">きょうのタグ(タップで貼る・はがす)</p>
     <div id="card-tags" class="tag-stamps card-tags"></div>
-    <div id="card-sticker-tools" class="card-tools" hidden>
-      <button id="card-rot-l" class="btn sub mini" type="button">↺ 90°</button>
-      <button id="card-rot-r" class="btn sub mini" type="button">↻ 90°</button>
-      <button id="card-orient" class="btn sub mini" type="button">縦書きにする</button>
-      <button id="card-scale-up" class="btn sub mini" type="button">大きく</button>
-      <button id="card-scale-down" class="btn sub mini" type="button">小さく</button>
+    <!-- 選択中シールのツールバー: 1行に収める(PD FB 6)。回転は記号だけ、縦横は「タテ書き/ヨコ書き」 -->
+    <div id="card-sticker-tools" class="card-tools sticker-tools" hidden>
+      <button id="card-rot-l" class="btn sub mini" type="button" title="左に90度回す" aria-label="左に90度回す">↺</button>
+      <button id="card-rot-r" class="btn sub mini" type="button" title="右に90度回す" aria-label="右に90度回す">↻</button>
+      <button id="card-orient" class="btn sub mini" type="button">タテ書き</button>
+      <button id="card-scale-up" class="btn sub mini" type="button" title="大きくする">拡大</button>
+      <button id="card-scale-down" class="btn sub mini" type="button" title="小さくする">縮小</button>
       <button id="card-peel" class="btn ghost mini" type="button">はがす</button>
     </div>
     <p class="section-hint" id="card-photos-hint">写真を選ぶ</p>

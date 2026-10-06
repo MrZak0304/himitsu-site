@@ -122,7 +122,7 @@ export function createCardDialog(ctx) {
   function renderTools() {
     const s = state.mode === 'card' && state.selected >= 0 ? state.stickers[state.selected] : null;
     els.tools.hidden = !s;
-    if (s) els.orient.textContent = s.orient === 'v' ? '横書きにする' : '縦書きにする';
+    if (s) els.orient.textContent = s.orient === 'v' ? 'ヨコ書き' : 'タテ書き';
   }
 
   function select(i) {
