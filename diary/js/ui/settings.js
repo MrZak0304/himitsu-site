@@ -12,6 +12,8 @@ import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
 import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
+import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha } from '../core/stamp.js';
+import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
 
 export function initSettings(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -206,22 +208,209 @@ export function initSettings(ctx) {
     if (e.key === 'Enter') els.tagAdd.click();
   };
 
+  // --- タグのスタンプ設定ダイアログ(v1.05) ---
+  const sd = {
+    root: $('stamp-dialog'),
+    title: $('stamp-title'),
+    preview: $('stamp-preview'),
+    colors: $('stamp-colors'),
+    alpha: $('stamp-alpha'),
+    alphaValue: $('stamp-alpha-value'),
+    shapes: $('stamp-shapes'),
+    imagePick: $('stamp-image-pick'),
+    imageClear: $('stamp-image-clear'),
+    imageInput: $('stamp-image-input'),
+    note: $('stamp-note'),
+    save: $('stamp-save'),
+    reset: $('stamp-default'),
+    cancel: $('stamp-cancel'),
+  };
+  // 編集中の下書き: { tag, draft(stamp|null=既定), pendingFile(選び直した画像), bitmap(プレビュー用) }
+  let stampEdit = null;
+
+  function stampBuiltinDraft() {
+    const d = stampEdit.draft;
+    return d?.type === 'builtin' ? d : { ...DEFAULT_BUILTIN_STAMP };
+  }
+
+  async function renderStampDialog() {
+    const { tag, draft } = stampEdit;
+    sd.title.textContent = `タグのスタンプ: ${tag.name}`;
+    const builtin = draft?.type === 'builtin' ? draft : null;
+    sd.colors.replaceChildren(
+      ...STAMP_COLORS.map((c) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `swatch ${c.id === 'theme' ? 'theme' : c.id === 'transparent' ? 'transparent' : ''}${builtin?.color === c.id ? ' is-selected' : ''}`;
+        if (c.hex) b.style.background = c.hex;
+        b.dataset.color = c.id;
+        b.title = c.name;
+        b.setAttribute('aria-label', c.name);
+        b.onclick = () => {
+          stampEdit.draft = { ...stampBuiltinDraft(), color: c.id };
+          stampEdit.pendingFile = null;
+          stampEdit.bitmap = null;
+          renderStampDialog();
+        };
+        return b;
+      }),
+    );
+    sd.alpha.disabled = !builtin;
+    sd.alpha.value = String(Math.round((builtin?.alpha ?? 1) * 100));
+    sd.alphaValue.textContent = `${sd.alpha.value}%`;
+    sd.shapes.replaceChildren(
+      ...STAMP_SHAPES.map((sh) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `mini-btn${builtin?.shape === sh.id ? ' on' : ''}`;
+        b.dataset.shape = sh.id;
+        b.textContent = sh.name;
+        b.onclick = () => {
+          stampEdit.draft = { ...stampBuiltinDraft(), shape: sh.id };
+          stampEdit.pendingFile = null;
+          stampEdit.bitmap = null;
+          renderStampDialog();
+        };
+        return b;
+      }),
+    );
+    const isImage = draft?.type === 'image';
+    sd.imageClear.hidden = !isImage;
+    sd.imagePick.textContent = isImage ? '別の画像にする' : '画像をえらぶ';
+    // プレビュー(画像は選んだファイル or 保存済みの画像)
+    if (isImage && !stampEdit.bitmap) {
+      if (stampEdit.pendingFile) stampEdit.bitmap = await loadBitmap(stampEdit.pendingFile).catch(() => null);
+      else {
+        const rec = await ctx.pipeline.store.get(draft.imageId).catch(() => null);
+        if (rec?.blob) stampEdit.bitmap = await loadBitmap(rec.blob).catch(() => null);
+      }
+    }
+    if (!stampEdit) return; // 待っている間に閉じられた
+    const cs = getComputedStyle(document.documentElement);
+    drawStampPreview(sd.preview, { text: tag.name, stamp: draft, theme: currentThemeColors(), bitmap: stampEdit.bitmap, panel: cs.getPropertyValue('--panel').trim() || '#ffffff' });
+  }
+
+  function openStampDialog(tag) {
+    stampEdit = { tag, draft: tag.stamp ? structuredClone(tag.stamp) : null, pendingFile: null, bitmap: null };
+    note(sd.note, null);
+    sd.root.hidden = false;
+    renderStampDialog();
+  }
+
+  function closeStampDialog() {
+    stampEdit = null;
+    sd.root.hidden = true;
+    sd.imageInput.value = '';
+  }
+
+  sd.alpha.oninput = () => {
+    if (!stampEdit) return;
+    stampEdit.draft = { ...stampBuiltinDraft(), alpha: clampAlpha(Number(sd.alpha.value) / 100) };
+    sd.alphaValue.textContent = `${sd.alpha.value}%`;
+    const cs = getComputedStyle(document.documentElement);
+    drawStampPreview(sd.preview, { text: stampEdit.tag.name, stamp: stampEdit.draft, theme: currentThemeColors(), bitmap: null, panel: cs.getPropertyValue('--panel').trim() || '#ffffff' });
+  };
+  sd.imagePick.onclick = () => sd.imageInput.click();
+  sd.imageInput.onchange = () => {
+    const file = sd.imageInput.files[0];
+    sd.imageInput.value = '';
+    if (!file || !stampEdit) return;
+    stampEdit.draft = { type: 'image', imageId: stampEdit.draft?.type === 'image' ? stampEdit.draft.imageId : '' };
+    stampEdit.pendingFile = file;
+    stampEdit.bitmap = null;
+    renderStampDialog();
+  };
+  sd.imageClear.onclick = () => {
+    if (!stampEdit) return;
+    stampEdit.draft = { ...DEFAULT_BUILTIN_STAMP };
+    stampEdit.pendingFile = null;
+    stampEdit.bitmap = null;
+    renderStampDialog();
+  };
+  sd.cancel.onclick = closeStampDialog;
+
+  // 保存: 画像を選んでいれば画像ストアへ(kind:'stamp')。前の画像スタンプは参照が外れたら消す
+  async function saveStamp(nextDraft) {
+    const { tag } = stampEdit;
+    const prevImageId = tag.stamp?.type === 'image' ? tag.stamp.imageId : null;
+    let stamp = nextDraft;
+    ctx.showLoading('スタンプを保存中…');
+    try {
+      if (stamp?.type === 'image' && stampEdit.pendingFile) {
+        const { id } = await ctx.pipeline.saveImage(stampEdit.pendingFile, 'stamp');
+        stamp = { type: 'image', imageId: id };
+      }
+      if (stamp?.type === 'image' && !stamp.imageId) stamp = null;
+      await ctx.stores.tags.setStamp(tag.id, stamp);
+      if (prevImageId && stamp?.imageId !== prevImageId) await ctx.pipeline.store.remove(prevImageId).catch(() => {});
+    } catch (err) {
+      note(sd.note, err.message ?? 'スタンプを保存できませんでした。');
+      return false;
+    } finally {
+      ctx.hideLoading();
+    }
+    return true;
+  }
+  sd.save.onclick = async () => {
+    if (!stampEdit) return;
+    if (await saveStamp(stampEdit.draft)) {
+      closeStampDialog();
+      note(els.tagNote, null);
+      refreshTags();
+    }
+  };
+  sd.reset.onclick = async () => {
+    if (!stampEdit) return;
+    if (await saveStamp(null)) {
+      closeStampDialog();
+      refreshTags();
+    }
+  };
+
+  // 展開中のタグ(1つだけ)。再描画(改名・並べ替え後)でも開いたままにする
+  let openTagId = null;
+
   async function refreshTags() {
     const [tags, folders] = await Promise.all([ctx.stores.tags.list(), ctx.stores.tagFolders.list()]);
     els.tagList.replaceChildren(
       ...tags.map((tag, i) => {
+        // 1行=タグ名の見出し(タップで開閉)+操作メニュー(開いたときだけ表示)。
+        // 2026-10-09 PD 報告「タグ名が潰れて読めない」→ ボタンを横に並べず、名前を全幅で出す
         const li = document.createElement('li');
-        if (tag.hidden) li.className = 'hidden-tag';
+        li.className = `tag-item${tag.hidden ? ' hidden-tag' : ''}${openTagId === tag.id ? ' open' : ''}`;
+        const head = document.createElement('div');
+        head.className = 'tag-head';
+        head.setAttribute('role', 'button');
+        head.setAttribute('aria-expanded', String(openTagId === tag.id));
         const name = document.createElement('span');
         name.className = 'name';
         name.textContent = tag.name;
-        li.append(name);
+        head.append(name);
         if (tag.builtin) {
           const badge = document.createElement('span');
           badge.className = 'badge';
           badge.textContent = '定番';
-          li.append(badge);
+          head.append(badge);
         }
+        if (tag.stamp) {
+          const badge = document.createElement('span');
+          badge.className = 'badge stamp';
+          badge.textContent = 'スタンプ';
+          head.append(badge);
+        }
+        const chev = document.createElement('span');
+        chev.className = 'chev';
+        chev.innerHTML = UI_ICONS.down;
+        head.append(chev);
+        head.onclick = (e) => {
+          if (e.target.closest('input')) return; // 改名の入力中は開閉しない
+          openTagId = openTagId === tag.id ? null : tag.id;
+          refreshTags();
+        };
+        const actions = document.createElement('div');
+        actions.className = 'tag-actions';
+        actions.hidden = openTagId !== tag.id;
+        li.append(head, actions);
         // 隠したタグは「表示に戻す」ボタンを出す
         if (tag.hidden) {
           const show = document.createElement('button');
@@ -233,7 +422,7 @@ export function initSettings(ctx) {
             refreshTags();
             ctx.refreshToday?.();
           };
-          li.append(show);
+          actions.append(show);
         }
         const rename = document.createElement('button');
         rename.className = 'mini-btn';
@@ -314,7 +503,12 @@ export function initSettings(ctx) {
         folderSel.onchange = async () => {
           await ctx.stores.tags.setFolder(tag.id, folderSel.value || null);
         };
-        li.append(rename, folderSel, up, down, del);
+        // タグのスタンプ設定(v1.05・PD 要望 2026-10-09)。反映先はカードだけ
+        const stampBtn = document.createElement('button');
+        stampBtn.className = 'mini-btn stamp-btn';
+        stampBtn.textContent = 'スタンプ';
+        stampBtn.onclick = () => openStampDialog(tag);
+        actions.append(rename, folderSel, stampBtn, up, down, del);
         return li;
       }),
     );

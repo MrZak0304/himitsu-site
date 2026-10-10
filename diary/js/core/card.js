@@ -182,9 +182,25 @@ export function clampSticker(sticker) {
   return { ...sticker, x: lim(sticker.x), y: lim(sticker.y), rotate: rot, orient: sticker.orient === 'v' ? 'v' : 'h', scale };
 }
 
-// シールの描画矩形(カード座標・px)。w/h は拡大率を掛けたもの、baseW/baseH は等倍
+// 画像スタンプ(v1.05)の等倍サイズ: 高さ基準で、横長すぎる画像は幅で抑える
+export const IMAGE_STAMP_H = 170;
+export const IMAGE_STAMP_MAX_W = 480;
+export function imageStampSize(imgW, imgH) {
+  const ratio = imgW > 0 && imgH > 0 ? imgW / imgH : 1;
+  let h = IMAGE_STAMP_H;
+  let w = h * ratio;
+  if (w > IMAGE_STAMP_MAX_W) {
+    w = IMAGE_STAMP_MAX_W;
+    h = w / ratio;
+  }
+  return { w: Math.round(w), h: Math.round(h) };
+}
+
+// シールの描画矩形(カード座標・px)。w/h は拡大率を掛けたもの、baseW/baseH は等倍。
+// sticker.w/h があればそれを等倍サイズにする(画像スタンプ)。無ければ文字から計算
 export function stickerRect(sticker, size = CARD_SIZE) {
-  const { w, h } = stampSize(sticker.text, sticker.orient);
+  const hasBox = Number.isFinite(sticker.w) && sticker.w > 0 && Number.isFinite(sticker.h) && sticker.h > 0;
+  const { w, h } = hasBox ? { w: sticker.w, h: sticker.h } : stampSize(sticker.text, sticker.orient);
   const scale = Number.isFinite(sticker.scale) && sticker.scale > 0 ? sticker.scale : 1;
   return { cx: sticker.x * size, cy: sticker.y * size, w: w * scale, h: h * scale, baseW: w, baseH: h, scale, rotate: sticker.rotate ?? 0 };
 }

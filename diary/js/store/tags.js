@@ -2,6 +2,7 @@
 // 枠制限の判定は core/tag-slots.js が担当し、ここでは数の管理のみ行う。
 
 import { createKvStore, makeId } from './kv.js';
+import { normalizeStamp } from '../core/stamp.js';
 
 const KEY = 'diary-tags-v1';
 
@@ -33,6 +34,8 @@ function normalizeTag(raw, i) {
     hidden: raw.hidden === true,
     // folderId: タグ整理用フォルダの参照。未設定・不正値は null(未分類)
     folderId: typeof raw.folderId === 'string' ? raw.folderId : null,
+    // stamp: カード用スタンプ(v1.05)。null=既定(テーマ色のハンコ風)。反映先はカードだけ
+    stamp: normalizeStamp(raw.stamp),
     order: Number.isInteger(raw.order) ? raw.order : i,
     createdAt: Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
   };
@@ -89,6 +92,7 @@ export function createTagsStore(storage) {
         builtin: false,
         hidden: false,
         folderId: null,
+        stamp: null,
         order: list.length,
         createdAt: Date.now(),
       };
@@ -124,6 +128,15 @@ export function createTagsStore(storage) {
       persist(kv.load().filter((t) => t.id !== id));
     },
     // 一覧から隠す/戻す。過去の記録のスタンプは変えない(C案の既定動作)。
+    // カード用スタンプの設定(null で既定に戻す)。更新後のタグを返す。無ければ null
+    async setStamp(id, stamp) {
+      const list = kv.load();
+      const tag = list.find((t) => t.id === id);
+      if (!tag) return null;
+      tag.stamp = normalizeStamp(stamp);
+      kv.save(list);
+      return tag;
+    },
     async setHidden(id, hidden) {
       const list = kv.load();
       const tag = list.find((t) => t.id === id);

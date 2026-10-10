@@ -48,10 +48,11 @@
 
     <!-- きょうの1枚カード(v1.1): タグ+写真+日付を画像にして共有。本文は載せない -->
     <div class="card-row">
-      <button id="today-card-btn" class="btn sub"><span data-ui-icon="share"></span> きょうの1枚カードにする</button>
+      <button id="today-card-btn" class="btn sub"><span data-ui-icon="share"></span> きょうの1枚カードを作成</button>
       <p class="note-inline card-hint">写真とタグを1枚の画像にして、SNSや写真アプリに共有できます(本文は入りません)。</p>
     </div>
     <p class="note" id="today-card-note" hidden></p>
+    <div id="today-cards" class="image-grid card-grid" hidden></div>
 
     <h3 class="section-title">きょうの日課</h3>
     <ul id="today-habits" class="habit-checklist"></ul>
@@ -119,8 +120,9 @@
         <div id="detail-tags" class="detail-tags"></div>
         <p id="detail-text" class="detail-text"></p>
         <div id="detail-images" class="image-grid"></div>
-        <button id="detail-card-btn" class="btn sub" hidden><span data-ui-icon="share"></span> この日の1枚カードにする</button>
+        <button id="detail-card-btn" class="btn sub" hidden><span data-ui-icon="share"></span> この日の1枚カードを作成</button>
         <p class="note" id="detail-card-note" hidden></p>
+        <div id="detail-cards" class="image-grid card-grid" hidden></div>
         <h4 class="section-title">日課の達成</h4>
         <ul id="detail-habits" class="habit-checklist readonly"></ul>
         <p class="note" id="detail-empty" hidden>この日の記録はありません。</p>
@@ -336,8 +338,11 @@
     <p class="section-hint" id="card-photos-hint">写真を選ぶ</p>
     <div id="card-photos" class="card-photos"></div>
     <p class="note" id="card-dialog-note" hidden></p>
+    <p class="note-inline" id="card-slot-note" hidden></p>
     <div class="popup-actions vertical">
-      <button id="card-share" class="btn">この見た目で共有する</button>
+      <button id="card-create" class="btn">作成して日記に保存</button>
+      <button id="card-slot-ad" class="btn sub" hidden>広告を見てもう1枚作る</button>
+      <button id="card-share" class="btn sub">この見た目で共有する</button>
       <button id="card-save" class="btn" hidden>この範囲で保存</button>
       <button id="card-continue" class="btn sub" hidden>保存してカードを作る</button>
       <button id="card-cancel" class="btn ghost">やめる</button>
@@ -415,6 +420,32 @@
       <button id="tag-action-jump" class="btn sub">使用した日を見る</button>
       <button id="tag-action-delete" class="btn danger">完全に削除する</button>
       <button id="tag-action-cancel" class="btn ghost">やめる</button>
+    </div>
+  </div>
+</div>
+
+<!-- タグのスタンプ設定(v1.05)。設定「タグの管理」でタグを開いた「スタンプ」から。反映先はカードだけ -->
+<div id="stamp-dialog" hidden>
+  <div class="popup-card">
+    <h2 id="stamp-title">タグのスタンプ</h2>
+    <canvas id="stamp-preview" class="stamp-preview" width="480" height="200" aria-label="スタンプのプレビュー"></canvas>
+    <p class="note-inline">カードに貼るときの見た目です(きょう画面のタグの色は変わりません)。</p>
+    <p class="section-hint">色(「透明」は背景なしで文字だけ)</p>
+    <div id="stamp-colors" class="swatch-row"></div>
+    <label class="row stamp-alpha-row">透過度 <input id="stamp-alpha" type="range" min="20" max="100" step="5" value="100"> <span id="stamp-alpha-value">100%</span></label>
+    <p class="section-hint">形</p>
+    <div id="stamp-shapes" class="choice-row"></div>
+    <p class="section-hint">自作のスタンプ画像</p>
+    <div class="tag-add-row">
+      <button id="stamp-image-pick" class="mini-btn" type="button">画像をえらぶ</button>
+      <button id="stamp-image-clear" class="mini-btn" type="button" hidden>画像をやめる</button>
+    </div>
+    <input id="stamp-image-input" type="file" accept="image/*" hidden>
+    <p class="note" id="stamp-note" hidden></p>
+    <div class="popup-actions vertical">
+      <button id="stamp-save" class="btn">保存</button>
+      <button id="stamp-default" class="btn sub">既定に戻す</button>
+      <button id="stamp-cancel" class="btn ghost">やめる</button>
     </div>
   </div>
 </div>

@@ -26,7 +26,10 @@ function getWorker() {
 }
 
 export function createImagePipeline(imageStore = createImageStore()) {
-  async function process(file) {
+  // kind ごとの取り込み方。スタンプ画像(v1.05)は透明を保つため PNG・長辺1000px(カード上で最大 2.5 倍まで拡大するため)
+  const OPTIONS_BY_KIND = { stamp: { format: 'image/png', maxEdge: 1000 } };
+
+  async function process(file, opts = {}) {
     if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined') {
       throw new Error(UNSUPPORTED_MESSAGE);
     }
@@ -34,7 +37,7 @@ export function createImagePipeline(imageStore = createImageStore()) {
     const id = seq;
     const result = await new Promise((resolve) => {
       pending.set(id, resolve);
-      getWorker().postMessage({ id, file });
+      getWorker().postMessage({ id, file, ...opts });
     });
     if (!result.ok) throw new Error(result.message);
     return result;
@@ -44,7 +47,7 @@ export function createImagePipeline(imageStore = createImageStore()) {
     store: imageStore,
     // リサイズ→IndexedDB put の完了後にIDを返す。呼び出し元はその後に entry を更新する(逆順禁止)。
     async saveImage(file, kind = 'entry') {
-      const r = await process(file);
+      const r = await process(file, OPTIONS_BY_KIND[kind]);
       const id = makeId('img');
       await imageStore.put({ id, blob: r.blob, thumbBlob: r.thumbBlob, width: r.width, height: r.height, kind });
       return { id, width: r.width, height: r.height };

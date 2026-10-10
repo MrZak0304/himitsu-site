@@ -23,6 +23,7 @@ export function initCalendar(ctx) {
     detailEditDone: $('detail-edit-done'),
     detailCard: $('detail-card-btn'),
     detailCardNote: $('detail-card-note'),
+    detailCards: $('detail-cards'),
     detailTags: $('detail-tags'),
     detailText: $('detail-text'),
     detailImages: $('detail-images'),
@@ -252,6 +253,8 @@ export function initCalendar(ctx) {
     // この日の1枚カード(v1.1): ロックの内側(ふりかえり)なので過去日もカードにできる(不変条件3)
     els.detailCard.hidden = !canMakeCard(entry);
     els.detailCardNote.hidden = true;
+    // 保存済みカード(v1.05)。削除したらこの詳細を描き直す
+    await ctx.cardList?.render(els.detailCards, date, entry, { onChange: () => openDetail(date) });
 
     const hasAny = entry || Object.keys(checks).length > 0;
     els.detailEmpty.hidden = !!hasAny;
@@ -330,5 +333,10 @@ export function initCalendar(ctx) {
     await renderGrid();
   }
 
-  return { refresh, openAt, showMonth };
+  // 開いている日別詳細があれば描き直す(カードの保存・削除後)
+  async function refreshDetail() {
+    if (openDate && !editing && !els.detail.hidden) await openDetail(openDate);
+  }
+
+  return { refresh, openAt, showMonth, refreshDetail };
 }

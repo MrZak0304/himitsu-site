@@ -18,6 +18,7 @@ import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
 import { monthOfKey } from './core/dates.js';
 import { initOnboarding } from './ui/onboarding.js';
 import { createCardDialog } from './ui/card-dialog.js';
+import { createCardList } from './ui/card-list.js';
 import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
 import { initCalendar } from './ui/calendar.js';
@@ -176,6 +177,7 @@ async function main() {
 
   const lock = createLockGuard(ctx);
   ctx.lock = lock;
+  ctx.cardList = createCardList(ctx); // 日記内に保存したカードの一覧(v1.05)。きょう/日別詳細で共用
   ctx.cardDialog = createCardDialog(ctx); // きょうの1枚カード(v1.1)。きょう/ふりかえり詳細から開く
 
   const habitsUI = initHabits(ctx);
@@ -198,6 +200,7 @@ async function main() {
   const todayUI = initToday(ctx);
   ctx.refreshToday = todayUI.refresh;
   const calendarUI = initCalendar(ctx);
+  ctx.refreshDetail = calendarUI.refreshDetail; // カード保存後に開いている日別詳細を描き直す(v1.05)
   const settingsUI = initSettings(ctx);
 
   const initialSettings = await stores.settings.get();

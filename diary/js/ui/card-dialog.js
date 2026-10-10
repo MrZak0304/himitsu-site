@@ -11,10 +11,13 @@ import { normalizePushIndex } from '../core/image-rules.js';
 import {
   cardFileName, panCrop, clampCrop, pinchZoom, layoutCard, DEFAULT_CROP,
   autoStickers, clampSticker, hitSticker, placeNewSticker, STICKER_ROTATE_STEP,
-  stickerHandlePoint, hitStickerHandle, dragStickerHandle, scaleStickerBy, STICKER_SCALE_STEP,
+  stickerHandlePoint, hitStickerHandle, dragStickerHandle, scaleStickerBy, STICKER_SCALE_STEP, imageStampSize,
 } from '../core/card.js';
 import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
 import { deliverFile } from '../backup-io.js';
+import { cardSlotInfo, cardSlotStatusText } from '../core/card-slots.js';
+import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
+import { makeId } from '../store/kv.js';
 
 export const CARD_EMPTY_MESSAGE = 'タグか写真を記録すると、カードにできます。';
 export const THUMB_TITLE = 'サムネイル';
@@ -46,13 +49,17 @@ export function createCardDialog(ctx) {
     scaleDown: $('card-scale-down'),
     peel: $('card-peel'),
     note: $('card-dialog-note'),
+    slotNote: $('card-slot-note'),
+    create: $('card-create'),
+    slotAd: $('card-slot-ad'),
     share: $('card-share'),
     save: $('card-save'),
     cont: $('card-continue'),
     cancel: $('card-cancel'),
   };
   // state: { mode:'card'|'thumb', dateKey, tagNames, photos:[{id, rec}], imageCrops, sel, bitmap, crop, theme,
-  //          stickers, selected, queue:[imageId](thumb モードで続けて開く写真) }
+  //          stickers, selected, queue:[imageId](thumb モードで続けて開く写真),
+  //          cardId(作り直し中の保存済みカード。新規なら null) }
   let state = null;
   let thumbUrls = [];
   let raf = 0;
@@ -73,7 +80,7 @@ export function createCardDialog(ctx) {
       }
       drawCard(els.preview, {
         dateKey: state.dateKey, tagNames: state.tagNames, bitmap: state.bitmap, crop: state.crop, theme: state.theme,
-        stickers: state.stickers, highlightIndex: state.selected,
+        stickers: state.stickers, highlightIndex: state.selected, stampBitmaps: state.stampBitmaps,
       });
     });
   }
@@ -87,6 +94,9 @@ export function createCardDialog(ctx) {
     els.photosHint.hidden = thumb;
     els.photos.hidden = thumb;
     els.share.hidden = thumb;
+    els.create.hidden = thumb;
+    els.slotAd.hidden = true;
+    els.slotNote.hidden = true;
     els.save.hidden = !thumb;
     els.cont.hidden = !thumb || !canMakeCard({ tags: state.tagNames, images: state.photos.map((p) => p.id) });
     if (thumb) els.tools.hidden = true;
@@ -110,7 +120,7 @@ export function createCardDialog(ctx) {
             state.stickers.splice(idx, 1);
             state.selected = -1;
           } else {
-            state.stickers.push(placeNewSticker(name, state.stickers));
+            state.stickers.push(decorate(placeNewSticker(name, state.stickers)));
             state.selected = state.stickers.length - 1;
           }
           renderPalette();
@@ -142,7 +152,43 @@ export function createCardDialog(ctx) {
   }
 
   function autoStickersFor() {
-    return autoStickers(layoutCard({ dateKey: state.dateKey, tagNames: state.tagNames, hasPhoto: state.photos.length > 0, theme: state.theme }));
+    return autoStickers(layoutCard({ dateKey: state.dateKey, tagNames: state.tagNames, hasPhoto: state.photos.length > 0, theme: state.theme })).map(decorate);
+  }
+
+  // タグのスタンプ設定(v1.05)をシールに付ける。画像スタンプは等倍サイズ(w/h)も持つ
+  function decorate(st) {
+    const stamp = state?.stampByName?.get(st.text) ?? null;
+    const out = { ...st, stamp };
+    delete out.w;
+    delete out.h;
+    if (stamp?.type === 'image') {
+      const bmp = state.stampBitmaps.get(stamp.imageId);
+      if (bmp) {
+        const sz = imageStampSize(bmp.width, bmp.height);
+        out.w = sz.w;
+        out.h = sz.h;
+      } else {
+        out.stamp = null; // 画像が無ければ既定のハンコで描く
+      }
+    }
+    return out;
+  }
+
+  // その日のタグのスタンプ設定と、画像スタンプの bitmap を読む
+  async function loadStamps(tagNames) {
+    const tags = await ctx.stores.tags.list({ includeHidden: true });
+    const names = new Set(tagNames);
+    const stampByName = new Map();
+    const stampBitmaps = new Map();
+    for (const t of tags) {
+      if (!names.has(t.name) || !t.stamp) continue;
+      stampByName.set(t.name, t.stamp);
+      if (t.stamp.type === 'image' && !stampBitmaps.has(t.stamp.imageId)) {
+        const rec = await ctx.pipeline.store.get(t.stamp.imageId).catch(() => null);
+        if (rec?.blob) stampBitmaps.set(t.stamp.imageId, await loadBitmap(rec.blob));
+      }
+    }
+    return { stampByName, stampBitmaps };
   }
 
   async function selectPhoto(idx) {
@@ -212,13 +258,16 @@ export function createCardDialog(ctx) {
     els.photos.replaceChildren(noneBtn, ...thumbs);
   }
 
-  // カード作成モードで開く。photoId を渡すとその写真を選んだ状態で始める
-  async function open(dateKey, { photoId = null } = {}) {
+  // カード作成モードで開く。photoId を渡すとその写真を選んだ状態で始める。
+  // cardId を渡すと保存済みカードの作り直し(保存したシール配置と写真から再開。保存で上書き)
+  async function open(dateKey, { photoId = null, cardId = null } = {}) {
     const entry = await ctx.stores.entries.get(dateKey);
     if (!canMakeCard(entry)) return { opened: false, reason: CARD_EMPTY_MESSAGE };
     const tagNames = await tagNamesOf(entry);
     const photos = await loadPhotos(entry);
     const theme = currentThemeColors();
+    const card = cardId ? (entry.cards ?? []).find((c) => c.id === cardId) ?? null : null;
+    const { stampByName, stampBitmaps } = await loadStamps(tagNames);
     state = {
       mode: 'card',
       dateKey,
@@ -232,23 +281,114 @@ export function createCardDialog(ctx) {
       stickers: [],
       selected: -1,
       queue: [],
+      cardId: card?.id ?? null,
+      stampByName,
+      stampBitmaps,
     };
-    // 既定=自動配置をシール化(今のデザイン)。ここから自由に動かせる
-    state.stickers = autoStickersFor();
+    // 既定=自動配置をシール化(今のデザイン)。作り直しなら保存したシール配置(今あるタグのぶんだけ)から
+    const tagSet = new Set(tagNames);
+    const saved = card ? card.stickers.filter((st) => tagSet.has(st.text)).map((st) => decorate(clampSticker({ ...st }))) : null;
+    state.stickers = saved && saved.length > 0 ? saved : autoStickersFor();
     renderPhotoPicker();
     renderPalette();
     renderTools();
     applyMode();
     note(null);
+    els.create.textContent = card ? '作り直して保存' : '作成して日記に保存';
     els.root.hidden = false;
-    let idx = photos.findIndex((p) => p.id === photoId);
-    if (idx < 0) {
+    let idx = photos.findIndex((p) => p.id === (card ? card.photoId : photoId));
+    if (idx < 0 && !(card && card.photoId === null)) {
       const pushIdx = photos.length > 0 ? normalizePushIndex(entry.images ?? [], entry.pushImageIndex ?? null) : -1;
       idx = photos.length > 0 ? Math.min(pushIdx, photos.length - 1) : -1;
     }
     await selectPhoto(idx);
+    await refreshSlot(entry);
     return { opened: true };
   }
+
+  // --- 日記内への保存(v1.05): 1日1枚+広告つき版はリワードで追加、買い切り版は無制限 ---
+  async function refreshSlot(entry) {
+    if (!state || state.mode !== 'card') return;
+    const info = cardSlotInfo(entry ?? (await ctx.stores.entries.get(state.dateKey)), ctx.variant);
+    const editing = !!state.cardId;
+    const blocked = !editing && !info.canAdd;
+    els.create.disabled = blocked;
+    const status = cardSlotStatusText(info);
+    els.slotNote.hidden = editing || !status;
+    els.slotNote.textContent = editing || !status ? '' : status;
+    els.slotAd.hidden = !blocked;
+    if (blocked) {
+      // 広告が用意できたときだけ押せる(タグ枠のリワードと同じ作法)
+      els.slotAd.disabled = !isRewardedReady();
+      const ok = await preloadRewarded();
+      if (state && state.mode === 'card') els.slotAd.disabled = !ok;
+    }
+  }
+
+  // カードを PNG にして画像ストアへ(kind:'card')。サムネイルは中央の正方形=カード全体
+  async function renderAndStore() {
+    const { dateKey, tagNames, crop, theme, stickers } = state;
+    const photo = state.sel >= 0 ? state.photos[state.sel] : null;
+    const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers, stampBitmaps: state.stampBitmaps });
+    const thumbBlob = await cropThumb(png, { ...DEFAULT_CROP }).catch(() => png);
+    const id = makeId('img');
+    await ctx.pipeline.store.put({ id, blob: png, thumbBlob, width: els.preview.width, height: els.preview.height, kind: 'card' });
+    return { imageId: id, photoId: photo?.id ?? null };
+  }
+
+  els.create.onclick = async () => {
+    if (!state || state.mode !== 'card') return;
+    const { dateKey, cardId } = state;
+    const stickers = state.stickers.map(({ stamp, ...st }) => st); // スタンプの見た目はタグ設定を正とする(保存しない)
+    const entry = await ctx.stores.entries.get(dateKey);
+    if (!cardId) {
+      const info = cardSlotInfo(entry, ctx.variant);
+      if (!info.canAdd) {
+        note(info.reason);
+        await refreshSlot(entry);
+        return;
+      }
+    }
+    ctx.showLoading('カードを保存しています…');
+    try {
+      const { imageId, photoId } = await renderAndStore();
+      if (cardId) {
+        const prev = entry?.cards.find((c) => c.id === cardId);
+        await ctx.stores.entries.updateCard(dateKey, cardId, { imageId, photoId, stickers });
+        if (prev?.imageId && prev.imageId !== imageId) await ctx.pipeline.store.remove(prev.imageId).catch(() => {});
+      } else {
+        await ctx.stores.entries.addCard(dateKey, { imageId, photoId, stickers });
+      }
+    } catch (err) {
+      note(err?.message ?? 'カードを保存できませんでした。');
+      return;
+    } finally {
+      ctx.hideLoading();
+    }
+    close();
+    ctx.notifySaved?.();
+    ctx.refreshToday?.();
+    ctx.refreshDetail?.();
+  };
+
+  // リワード(Web はダミー視聴)→その日のカード枠+1
+  els.slotAd.onclick = async () => {
+    if (!state) return;
+    const { dateKey } = state;
+    const isNative = window.Capacitor?.isNativePlatform?.();
+    ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
+    let failReason = null;
+    try {
+      const r = await requestRewarded();
+      if (r.ok) await ctx.stores.entries.earnCardSlot(dateKey);
+      else failReason = r.reason;
+    } finally {
+      ctx.hideLoading();
+    }
+    if (!state) return;
+    await refreshSlot();
+    note(failReason);
+  };
 
   // サムネイルモードで開く(写真追加直後・写真のタップ)。imageIds が複数なら保存のたびに次の写真へ
   async function openThumb(dateKey, imageIds) {
@@ -260,6 +400,8 @@ export function createCardDialog(ctx) {
     if (idx < 0) return ids.length > 1 ? openThumb(dateKey, ids.slice(1)) : { opened: false };
     state = {
       mode: 'thumb',
+      stampByName: new Map(),
+      stampBitmaps: new Map(),
       dateKey,
       tagNames: await tagNamesOf(entry),
       photos,
@@ -499,7 +641,7 @@ export function createCardDialog(ctx) {
     let result;
     try {
       // 写真の範囲はサムネイル画面で決めたものを使う(カード画面では変えない=PD FB 4)
-      const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers });
+      const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers, stampBitmaps: state.stampBitmaps });
       result = await deliverFile(png, cardFileName(dateKey));
     } catch (err) {
       result = { saved: false, reason: err?.message ?? 'カードを作れませんでした。' };
@@ -522,6 +664,7 @@ export function createCardDialog(ctx) {
     debugStickers: () => (state ? state.stickers.map((s) => ({ ...s, px: s.x * els.preview.width, py: s.y * els.preview.width })) : []),
     debugCrop: () => (state ? { ...state.crop } : null),
     debugMode: () => state?.mode ?? null,
+    debugCardId: () => state?.cardId ?? null,
     // 選択中シールの回転つまみの位置(カード座標px)
     debugHandle: () => (state && state.selected >= 0 ? stickerHandlePoint(state.stickers[state.selected], els.preview.width) : null),
   };

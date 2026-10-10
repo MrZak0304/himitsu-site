@@ -435,6 +435,16 @@ input[type="time"], input[type="color"] { width: auto; }
 .manage-list li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 8px; }
 .manage-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .manage-list .badge { font-size: 10px; color: var(--text-dim); border: 1px solid var(--panel-edge); border-radius: 999px; padding: 1px 6px; }
+/* タグ一覧: 名前を全幅で出し、タップで操作メニューを開く(PD 報告 2026-10-09: 名前が潰れて読めない) */
+.manage-list li.tag-item { flex-direction: column; align-items: stretch; gap: 0; padding: 0; }
+.tag-item .tag-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; cursor: pointer; min-height: 40px; }
+.tag-item .tag-head .name { white-space: normal; overflow-wrap: anywhere; }
+.tag-item .tag-head input { flex: 1; min-width: 0; }
+.tag-item .chev { display: flex; color: var(--text-dim); transition: transform .15s ease; }
+.tag-item .chev svg { width: 16px; height: 16px; }
+.tag-item.open .chev { transform: rotate(180deg); }
+.tag-item .tag-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px 10px; border-top: 1px dashed var(--panel-edge); }
+.tag-item .tag-actions[hidden] { display: none; }
 .mini-btn { appearance: none; border: 1px solid var(--panel-edge); background: transparent; color: var(--text); border-radius: 8px; padding: 4px 8px; font-size: 12px; font-family: inherit; cursor: pointer; }
 .mini-btn svg { width: 14px; height: 14px; display: block; }
 .mini-btn.danger { color: var(--danger); border-color: var(--danger); }
@@ -559,7 +569,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .nav-item.active { color: var(--accent); }
 
 /* --- ロック画面・ポップアップ・オーバーレイ(すべて position:fixed 全画面) --- */
-#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding, #card-dialog {
+#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding, #card-dialog, #stamp-dialog {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -667,3 +677,19 @@ input[type="time"], input[type="color"] { width: auto; }
 .card-tools.sticker-tools { flex-wrap: nowrap; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .card-tools.sticker-tools .btn.mini { padding: 6px 7px; font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
 .card-tools.sticker-tools #card-rot-l, .card-tools.sticker-tools #card-rot-r { font-size: 15px; padding: 4px 8px; }
+
+/* 日記内に保存したカード(v1.05)。写真のグリッドと同じ見た目。タップで再編集 */
+.card-grid .image-cell { cursor: pointer; }
+.card-grid .image-cell .card-badge { position: absolute; left: 4px; bottom: 4px; font-size: 10px; color: #fff; background: rgba(0,0,0,.45); border-radius: 6px; padding: 1px 6px; }
+
+/* タグのスタンプ設定(v1.05) */
+#stamp-dialog { z-index: 230; align-items: flex-start; overflow-y: auto; }
+#stamp-dialog .popup-card { margin: 8px auto; }
+.stamp-preview { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); display: block; }
+.swatch.theme { background: var(--accent); }
+.swatch.transparent { background: repeating-conic-gradient(#d9d6cf 0 25%, #ffffff 0 50%) 0 0 / 14px 14px; }
+.stamp-alpha-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.stamp-alpha-row input[type="range"] { flex: 1; }
+.choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.choice-row .mini-btn.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.manage-list .badge.stamp { color: var(--accent); border-color: var(--accent); }

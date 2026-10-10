@@ -31,6 +31,7 @@ export function initToday(ctx) {
     habitNote: $('today-habit-note'),
     cardBtn: $('today-card-btn'),
     cardNote: $('today-card-note'),
+    cards: $('today-cards'),
     streak: $('today-streak'),
   };
   let urls = [];
@@ -115,8 +116,9 @@ export function initToday(ctx) {
     els.streak.hidden = days === 0 || !settings.display.streakBadge; // 設定で非表示にできる(PD FB)
     els.streak.textContent = days > 0 ? `連続${days}日` : '';
 
-    // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる
+    // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる。保存済みカード(v1.05)はボタンの下に並べる
     els.cardBtn.disabled = !canMakeCard(entry);
+    ctx.cardList?.render(els.cards, today, entry, { onChange: refresh });
 
     // 本文
     if (document.activeElement !== els.text) els.text.value = entry?.text ?? '';
