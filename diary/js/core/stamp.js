@@ -1,7 +1,8 @@
 // タグ用スタンプの設定(v1.05・SPEC §10「タグ用スタンプの自作」)。ピュア関数。
 // tag.stamp: null(既定=テーマ色のハンコ風)
-//          | { type:'builtin', color, alpha, shape }  … 内蔵スタンプ(色・透過度・形)
-//          | { type:'image', imageId }                 … 自作画像(画像ストアに kind:'stamp' で保存)
+//          | { type:'builtin', color, alpha, shape, rotate }  … 内蔵スタンプ(色・透過度・形・回転)
+//          | { type:'image', imageId, rotate }                 … 自作画像(画像ストアに kind:'stamp' で保存)
+// rotate(度・-180〜180)はスタンプ自体の傾き(2026-10-12 PD FB)。カードのシールの回転(配置)に足して描く。
 // 反映先はカードだけ(2026-10-10 PD 決定。きょう画面・カレンダーのチップは変えない)。
 
 // 定番色 8 色+テーマ色('theme')+透明('transparent'=背景なし・文字だけ)
@@ -27,7 +28,11 @@ export const STAMP_SHAPES = Object.freeze([
 
 export const STAMP_ALPHA_MIN = 0.2;
 export const STAMP_ALPHA_MAX = 1;
-export const DEFAULT_BUILTIN_STAMP = Object.freeze({ type: 'builtin', color: 'theme', alpha: 1, shape: 'round' });
+export const STAMP_ROTATE_MIN = -180;
+export const STAMP_ROTATE_MAX = 180;
+export const STAMP_ROTATE_STEP = 5; // スライダー1目盛り(度)
+// 既定は真っ直ぐ(rotate 0)。斜めにしたければ設定で回す(2026-10-12 PD FB「デフォルトで斜めにしない」)
+export const DEFAULT_BUILTIN_STAMP = Object.freeze({ type: 'builtin', color: 'theme', alpha: 1, shape: 'round', rotate: 0 });
 
 const COLOR_IDS = new Set(STAMP_COLORS.map((c) => c.id));
 const SHAPE_IDS = new Set(STAMP_SHAPES.map((s) => s.id));
@@ -37,11 +42,25 @@ export function clampAlpha(v) {
   return Math.min(STAMP_ALPHA_MAX, Math.max(STAMP_ALPHA_MIN, Math.round(v * 100) / 100));
 }
 
+// 回転(度)。整数に丸め、-180〜180 に収める(360 の周期で折り返す)。不正値は 0
+export function clampRotate(v) {
+  if (!Number.isFinite(v)) return 0;
+  let d = Math.round(v) % 360;
+  if (d > STAMP_ROTATE_MAX) d -= 360;
+  if (d < STAMP_ROTATE_MIN) d += 360;
+  return d === -0 ? 0 : d;
+}
+
+// スタンプ自体の傾き(度)。null(既定)や rotate 無し(1.05 下書き時の形)は 0
+export function stampRotate(stamp) {
+  return clampRotate(stamp?.rotate);
+}
+
 // 保存前・読み出し時の正規化。不正な値は既定(null=既定スタンプ)に落とし、落ちない。
 export function normalizeStamp(raw) {
   if (typeof raw !== 'object' || raw === null) return null;
   if (raw.type === 'image') {
-    return typeof raw.imageId === 'string' && raw.imageId !== '' ? { type: 'image', imageId: raw.imageId } : null;
+    return typeof raw.imageId === 'string' && raw.imageId !== '' ? { type: 'image', imageId: raw.imageId, rotate: clampRotate(raw.rotate) } : null;
   }
   if (raw.type === 'builtin') {
     return {
@@ -49,6 +68,7 @@ export function normalizeStamp(raw) {
       color: COLOR_IDS.has(raw.color) ? raw.color : DEFAULT_BUILTIN_STAMP.color,
       alpha: clampAlpha(raw.alpha),
       shape: SHAPE_IDS.has(raw.shape) ? raw.shape : DEFAULT_BUILTIN_STAMP.shape,
+      rotate: clampRotate(raw.rotate),
     };
   }
   return null;

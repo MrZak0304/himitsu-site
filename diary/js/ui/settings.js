@@ -12,7 +12,7 @@ import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
 import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
-import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha } from '../core/stamp.js';
+import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate } from '../core/stamp.js';
 import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
 
 export function initSettings(ctx) {
@@ -217,20 +217,27 @@ export function initSettings(ctx) {
     alpha: $('stamp-alpha'),
     alphaValue: $('stamp-alpha-value'),
     shapes: $('stamp-shapes'),
+    rotate: $('stamp-rotate'),
+    rotateValue: $('stamp-rotate-value'),
     imagePick: $('stamp-image-pick'),
     imageClear: $('stamp-image-clear'),
     imageInput: $('stamp-image-input'),
     note: $('stamp-note'),
     save: $('stamp-save'),
-    reset: $('stamp-default'),
+    reset: $('stamp-reset'),
     cancel: $('stamp-cancel'),
   };
   // 編集中の下書き: { tag, draft(stamp|null=既定), pendingFile(選び直した画像), bitmap(プレビュー用) }
   let stampEdit = null;
 
+  // 内蔵スタンプの下書き(色・形・透過度を触ったとき)。画像から切り替えても回転は引き継ぐ
   function stampBuiltinDraft() {
     const d = stampEdit.draft;
-    return d?.type === 'builtin' ? d : { ...DEFAULT_BUILTIN_STAMP };
+    return d?.type === 'builtin' ? d : { ...DEFAULT_BUILTIN_STAMP, rotate: stampRotate(d) };
+  }
+
+  function previewPanel() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--panel').trim() || '#ffffff';
   }
 
   async function renderStampDialog() {
@@ -258,6 +265,8 @@ export function initSettings(ctx) {
     sd.alpha.disabled = !builtin;
     sd.alpha.value = String(Math.round((builtin?.alpha ?? 1) * 100));
     sd.alphaValue.textContent = `${sd.alpha.value}%`;
+    sd.rotate.value = String(stampRotate(draft));
+    sd.rotateValue.textContent = `${stampRotate(draft)}°`;
     sd.shapes.replaceChildren(
       ...STAMP_SHAPES.map((sh) => {
         const b = document.createElement('button');
@@ -286,8 +295,7 @@ export function initSettings(ctx) {
       }
     }
     if (!stampEdit) return; // 待っている間に閉じられた
-    const cs = getComputedStyle(document.documentElement);
-    drawStampPreview(sd.preview, { text: tag.name, stamp: draft, theme: currentThemeColors(), bitmap: stampEdit.bitmap, panel: cs.getPropertyValue('--panel').trim() || '#ffffff' });
+    drawStampPreview(sd.preview, { text: tag.name, stamp: draft, theme: currentThemeColors(), bitmap: stampEdit.bitmap, panel: previewPanel() });
   }
 
   function openStampDialog(tag) {
@@ -307,22 +315,30 @@ export function initSettings(ctx) {
     if (!stampEdit) return;
     stampEdit.draft = { ...stampBuiltinDraft(), alpha: clampAlpha(Number(sd.alpha.value) / 100) };
     sd.alphaValue.textContent = `${sd.alpha.value}%`;
-    const cs = getComputedStyle(document.documentElement);
-    drawStampPreview(sd.preview, { text: stampEdit.tag.name, stamp: stampEdit.draft, theme: currentThemeColors(), bitmap: null, panel: cs.getPropertyValue('--panel').trim() || '#ffffff' });
+    drawStampPreview(sd.preview, { text: stampEdit.tag.name, stamp: stampEdit.draft, theme: currentThemeColors(), bitmap: null, panel: previewPanel() });
+  };
+  // 回転(2026-10-12 PD FB): 内蔵・画像のどちらにも効く。既定(null)から回すと内蔵スタンプの下書きになる
+  sd.rotate.oninput = () => {
+    if (!stampEdit) return;
+    const rotate = clampRotate(Number(sd.rotate.value));
+    const d = stampEdit.draft;
+    stampEdit.draft = d?.type === 'image' ? { ...d, rotate } : { ...stampBuiltinDraft(), rotate };
+    sd.rotateValue.textContent = `${rotate}°`;
+    drawStampPreview(sd.preview, { text: stampEdit.tag.name, stamp: stampEdit.draft, theme: currentThemeColors(), bitmap: stampEdit.bitmap, panel: previewPanel() });
   };
   sd.imagePick.onclick = () => sd.imageInput.click();
   sd.imageInput.onchange = () => {
     const file = sd.imageInput.files[0];
     sd.imageInput.value = '';
     if (!file || !stampEdit) return;
-    stampEdit.draft = { type: 'image', imageId: stampEdit.draft?.type === 'image' ? stampEdit.draft.imageId : '' };
+    stampEdit.draft = { type: 'image', imageId: stampEdit.draft?.type === 'image' ? stampEdit.draft.imageId : '', rotate: stampRotate(stampEdit.draft) };
     stampEdit.pendingFile = file;
     stampEdit.bitmap = null;
     renderStampDialog();
   };
   sd.imageClear.onclick = () => {
     if (!stampEdit) return;
-    stampEdit.draft = { ...DEFAULT_BUILTIN_STAMP };
+    stampEdit.draft = { ...DEFAULT_BUILTIN_STAMP, rotate: stampRotate(stampEdit.draft) };
     stampEdit.pendingFile = null;
     stampEdit.bitmap = null;
     renderStampDialog();
@@ -338,7 +354,7 @@ export function initSettings(ctx) {
     try {
       if (stamp?.type === 'image' && stampEdit.pendingFile) {
         const { id } = await ctx.pipeline.saveImage(stampEdit.pendingFile, 'stamp');
-        stamp = { type: 'image', imageId: id };
+        stamp = { type: 'image', imageId: id, rotate: stampRotate(stamp) };
       }
       if (stamp?.type === 'image' && !stamp.imageId) stamp = null;
       await ctx.stores.tags.setStamp(tag.id, stamp);
@@ -359,12 +375,15 @@ export function initSettings(ctx) {
       refreshTags();
     }
   };
-  sd.reset.onclick = async () => {
+  // 編集をリセット(2026-10-12 PD FB): 下書きを既定(テーマ色・真っ直ぐ)に戻すだけ。保存も閉じもしない。
+  // 保存するのは「保存」、取り消すのは「やめる」(以前は既定を保存して閉じていたので、画面ごと消えて見えた)
+  sd.reset.onclick = () => {
     if (!stampEdit) return;
-    if (await saveStamp(null)) {
-      closeStampDialog();
-      refreshTags();
-    }
+    stampEdit.draft = null;
+    stampEdit.pendingFile = null;
+    stampEdit.bitmap = null;
+    note(sd.note, null);
+    renderStampDialog();
   };
 
   // 展開中のタグ(1つだけ)。再描画(改名・並べ替え後)でも開いたままにする

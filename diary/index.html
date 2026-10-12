@@ -342,7 +342,7 @@
     <div class="popup-actions vertical">
       <button id="card-create" class="btn">作成して日記に保存</button>
       <button id="card-slot-ad" class="btn sub" hidden>広告を見てもう1枚作る</button>
-      <button id="card-share" class="btn sub">この見た目で共有する</button>
+      <button id="card-share" class="btn sub">共有する</button>
       <button id="card-save" class="btn" hidden>この範囲で保存</button>
       <button id="card-continue" class="btn sub" hidden>保存してカードを作る</button>
       <button id="card-cancel" class="btn ghost">やめる</button>
@@ -435,6 +435,7 @@
     <label class="row stamp-alpha-row">透過度 <input id="stamp-alpha" type="range" min="20" max="100" step="5" value="100"> <span id="stamp-alpha-value">100%</span></label>
     <p class="section-hint">形</p>
     <div id="stamp-shapes" class="choice-row"></div>
+    <label class="row stamp-alpha-row">回転 <input id="stamp-rotate" type="range" min="-180" max="180" step="5" value="0"> <span id="stamp-rotate-value">0°</span></label>
     <p class="section-hint">自作のスタンプ画像</p>
     <div class="tag-add-row">
       <button id="stamp-image-pick" class="mini-btn" type="button">画像をえらぶ</button>
@@ -444,7 +445,7 @@
     <p class="note" id="stamp-note" hidden></p>
     <div class="popup-actions vertical">
       <button id="stamp-save" class="btn">保存</button>
-      <button id="stamp-default" class="btn sub">既定に戻す</button>
+      <button id="stamp-reset" class="btn sub" type="button">編集をリセット</button>
       <button id="stamp-cancel" class="btn ghost">やめる</button>
     </div>
   </div>

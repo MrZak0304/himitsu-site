@@ -4,7 +4,7 @@
 // プレビュー(card-dialog.js)と本番出力(PNG)で同じ drawCard を使う=見たままが出る。
 
 import { layoutCard, photoSourceRect, stickerRect, stampSize, imageStampSize, CARD_SIZE, HANDLE_OFFSET, HANDLE_R } from './core/card.js';
-import { resolveStampColors } from './core/stamp.js';
+import { resolveStampColors, stampRotate } from './core/stamp.js';
 
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
 
@@ -306,7 +306,8 @@ export function drawStampPreview(canvas, { text, stamp = null, theme, bitmap = n
   const scale = Math.min(1, (STAMP_PREVIEW_W - 60) / base.w, (STAMP_PREVIEW_H - 60) / base.h);
   const accent = theme?.accent ?? '#4a7dbd';
   const colors = { chipBg: 'rgba(255,255,255,0.96)', chipText: accent, stampInk: accent };
-  drawStamp(ctx, { cx: STAMP_PREVIEW_W / 2, cy: STAMP_PREVIEW_H / 2, w: base.w, h: base.h, rotate: -4 }, text, colors, { scale, stamp, bitmap });
+  // 傾きは設定の回転だけ(既定は真っ直ぐ。2026-10-12 PD FB)
+  drawStamp(ctx, { cx: STAMP_PREVIEW_W / 2, cy: STAMP_PREVIEW_H / 2, w: base.w, h: base.h, rotate: stampRotate(stamp) }, text, colors, { scale, stamp, bitmap });
 }
 
 // { dateKey, tagNames, photoBlob|null, crop, theme, stickers, stampBitmaps } → PNG Blob

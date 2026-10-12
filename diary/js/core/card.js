@@ -198,11 +198,18 @@ export function imageStampSize(imgW, imgH) {
 
 // シールの描画矩形(カード座標・px)。w/h は拡大率を掛けたもの、baseW/baseH は等倍。
 // sticker.w/h があればそれを等倍サイズにする(画像スタンプ)。無ければ文字から計算
+// rotate はシールの回転(配置)にスタンプ自体の傾き(sticker.stamp.rotate・設定で決める)を足した見た目の角度
 export function stickerRect(sticker, size = CARD_SIZE) {
   const hasBox = Number.isFinite(sticker.w) && sticker.w > 0 && Number.isFinite(sticker.h) && sticker.h > 0;
   const { w, h } = hasBox ? { w: sticker.w, h: sticker.h } : stampSize(sticker.text, sticker.orient);
   const scale = Number.isFinite(sticker.scale) && sticker.scale > 0 ? sticker.scale : 1;
-  return { cx: sticker.x * size, cy: sticker.y * size, w: w * scale, h: h * scale, baseW: w, baseH: h, scale, rotate: sticker.rotate ?? 0 };
+  return { cx: sticker.x * size, cy: sticker.y * size, w: w * scale, h: h * scale, baseW: w, baseH: h, scale, rotate: (sticker.rotate ?? 0) + stampTilt(sticker) };
+}
+
+// スタンプ設定の傾き(度)。シールに stamp が付いていなければ 0
+export function stampTilt(sticker) {
+  const r = sticker?.stamp?.rotate;
+  return Number.isFinite(r) ? r : 0;
 }
 
 // 拡大・縮小(ボタン・ピンチ)。範囲外は clampSticker で丸める
@@ -262,13 +269,14 @@ export function hitStickerHandle(sticker, px, py, size = CARD_SIZE) {
 // つまみをカード座標 (px, py) までドラッグしたときの回転量をシールに反映
 export const HANDLE_SNAP_DEG = 4; // 90°の倍数に近ければ吸着(真っ直ぐに戻しやすく)
 export const HANDLE_SNAP_SCALE = 0.05; // 等倍に近ければ吸着
+// 見た目の角度(スタンプの傾き込み)を決めてから、配置の回転=見た目−傾き を保存する
 export function rotateStickerTo(sticker, px, py, size = CARD_SIZE) {
   const r = stickerRect(sticker, size);
   const ang = Math.atan2(py - r.cy, px - r.cx) - handleBaseAngle(r);
   let deg = (((ang * 180) / Math.PI) % 360 + 360) % 360;
   const near = Math.round(deg / 90) * 90;
   if (Math.abs(deg - near) <= HANDLE_SNAP_DEG) deg = near % 360;
-  return clampSticker({ ...sticker, rotate: deg });
+  return clampSticker({ ...sticker, rotate: deg - stampTilt(sticker) });
 }
 
 // つまみのドラッグ = 回転+拡大・縮小(PD FB 5)。中心からの距離でシールの大きさが決まる:
