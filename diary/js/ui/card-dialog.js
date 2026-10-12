@@ -115,11 +115,11 @@ export function createCardDialog(ctx) {
         b.textContent = name;
         if (name === selectedText) b.setAttribute('aria-current', 'true');
         b.dataset.tag = name;
+        // タップ: 貼ってあれば選ぶだけ(はがすのはツールバーの「はがす」だけ。2026-10-12 PD FB 3 回目)、無ければ貼って選ぶ
         b.onclick = () => {
           const idx = state.stickers.findIndex((s) => s.text === name);
           if (idx >= 0) {
-            state.stickers.splice(idx, 1);
-            state.selected = -1;
+            state.selected = idx;
           } else {
             state.stickers.push(decorate(placeNewSticker(name, state.stickers), { fresh: true }));
             state.selected = state.stickers.length - 1;
