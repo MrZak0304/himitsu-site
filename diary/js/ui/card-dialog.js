@@ -17,6 +17,7 @@ import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentTh
 import { deliverFile } from '../backup-io.js';
 import { cardSlotInfo, cardSlotStatusText } from '../core/card-slots.js';
 import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
+import { stampOrient } from '../core/stamp.js';
 import { makeId } from '../store/kv.js';
 
 export const CARD_EMPTY_MESSAGE = 'タグか写真を記録すると、カードにできます。';
@@ -120,7 +121,7 @@ export function createCardDialog(ctx) {
             state.stickers.splice(idx, 1);
             state.selected = -1;
           } else {
-            state.stickers.push(decorate(placeNewSticker(name, state.stickers)));
+            state.stickers.push(decorate(placeNewSticker(name, state.stickers), { fresh: true }));
             state.selected = state.stickers.length - 1;
           }
           renderPalette();
@@ -152,13 +153,15 @@ export function createCardDialog(ctx) {
   }
 
   function autoStickersFor() {
-    return autoStickers(layoutCard({ dateKey: state.dateKey, tagNames: state.tagNames, hasPhoto: state.photos.length > 0, theme: state.theme })).map(decorate);
+    return autoStickers(layoutCard({ dateKey: state.dateKey, tagNames: state.tagNames, hasPhoto: state.photos.length > 0, theme: state.theme })).map((st) => decorate(st, { fresh: true }));
   }
 
-  // タグのスタンプ設定(v1.05)をシールに付ける。画像スタンプは等倍サイズ(w/h)も持つ
-  function decorate(st) {
+  // タグのスタンプ設定(v1.05)をシールに付ける。画像スタンプは等倍サイズ(w/h)も持つ。
+  // fresh=新しく貼るシールなら、設定の文字の向き(タテ書き/ヨコ書き)を最初の向きにする(保存済みの配置はそのまま)
+  function decorate(st, { fresh = false } = {}) {
     const stamp = state?.stampByName?.get(st.text) ?? null;
     const out = { ...st, stamp };
+    if (fresh && stamp?.type === 'builtin') out.orient = stampOrient(stamp);
     delete out.w;
     delete out.h;
     if (stamp?.type === 'image') {
@@ -336,7 +339,8 @@ export function createCardDialog(ctx) {
     return { imageId: id, photoId: photo?.id ?? null };
   }
 
-  els.create.onclick = async () => {
+  // 日記内へ保存(作成/作り直し)。広告のあと(slotAd)からも呼ぶ
+  async function saveCard() {
     if (!state || state.mode !== 'card') return;
     const { dateKey, cardId } = state;
     const stickers = state.stickers.map(({ stamp, ...st }) => st); // スタンプの見た目はタグ設定を正とする(保存しない)
@@ -369,25 +373,39 @@ export function createCardDialog(ctx) {
     ctx.notifySaved?.();
     ctx.refreshToday?.();
     ctx.refreshDetail?.();
-  };
+  }
+  els.create.onclick = saveCard;
 
-  // リワード(Web はダミー視聴)→その日のカード枠+1
+  // リワード(Web はダミー視聴)→その日のカード枠+1 → そのまま保存(2026-10-12 PD FB: 広告のあとに保存される形に)。
+  // 広告はネイティブの全画面なので、表示中は document が hidden になり app.js の離席処理が走る。
+  // そのときにこの画面を閉じると編集が消えるので、広告中は閉じないよう adInProgress で知らせる
+  let adInProgress = false;
   els.slotAd.onclick = async () => {
     if (!state) return;
     const { dateKey } = state;
     const isNative = window.Capacitor?.isNativePlatform?.();
     ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
     let failReason = null;
+    adInProgress = true;
     try {
       const r = await requestRewarded();
       if (r.ok) await ctx.stores.entries.earnCardSlot(dateKey);
       else failReason = r.reason;
     } finally {
+      adInProgress = false;
       ctx.hideLoading();
     }
     if (!state) return;
-    await refreshSlot();
-    note(failReason);
+    if (document.hidden) {
+      close(); // 広告の途中で別アプリへ移った(離席)。ロックの趣旨どおり閉じる
+      return;
+    }
+    if (failReason) {
+      await refreshSlot();
+      note(failReason);
+      return;
+    }
+    await saveCard();
   };
 
   // サムネイルモードで開く(写真追加直後・写真のタップ)。imageIds が複数なら保存のたびに次の写真へ
@@ -660,6 +678,7 @@ export function createCardDialog(ctx) {
     open,
     openThumb,
     close,
+    adInProgress: () => adInProgress, // リワード広告の表示中(app.js の離席処理で閉じない)
     // スモーク用(Web のみ appState 経由で参照)。シールの位置(カード座標px)を返す
     debugStickers: () => (state ? state.stickers.map((s) => ({ ...s, px: s.x * els.preview.width, py: s.y * els.preview.width })) : []),
     debugCrop: () => (state ? { ...state.crop } : null),

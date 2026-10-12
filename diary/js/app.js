@@ -290,7 +290,9 @@ async function main() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       lock.relock();
-      ctx.cardDialog.close(); // 過去日の写真を出したまま離席させない(ロックの趣旨)
+      // 過去日の写真を出したまま離席させない(ロックの趣旨)。ただしリワード広告の表示中は離席ではない
+      // (ネイティブの全画面広告で document が hidden になる。閉じると編集が消える=2026-10-12 PD FB)
+      if (!ctx.cardDialog.adInProgress?.()) ctx.cardDialog.close();
       settingsUI.collapseSections(); // 入力途中のパスコードを残したまま離席させない
       // 別アプリへ移るときは「きょう」に戻す(2026-08-10 PD FB)。
       // 戻るたびにロック解除を求められる煩わしさが消え、アプリスイッチャーの

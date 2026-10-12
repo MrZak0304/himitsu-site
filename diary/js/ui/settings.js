@@ -12,7 +12,7 @@ import { syncReminder } from '../notifications.js';
 import { todayKey } from '../core/dates.js';
 import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
-import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate } from '../core/stamp.js';
+import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate, STAMP_ORIENTS, stampOrient } from '../core/stamp.js';
 import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
 
 export function initSettings(ctx) {
@@ -219,6 +219,10 @@ export function initSettings(ctx) {
     shapes: $('stamp-shapes'),
     rotate: $('stamp-rotate'),
     rotateValue: $('stamp-rotate-value'),
+    mode: $('stamp-mode'),
+    detail: $('stamp-detail'),
+    orients: $('stamp-orients'),
+    orientWrap: $('stamp-orient-wrap'),
     imagePick: $('stamp-image-pick'),
     imageClear: $('stamp-image-clear'),
     imageInput: $('stamp-image-input'),
@@ -230,10 +234,16 @@ export function initSettings(ctx) {
   // 編集中の下書き: { tag, draft(stamp|null=既定), pendingFile(選び直した画像), bitmap(プレビュー用) }
   let stampEdit = null;
 
-  // 内蔵スタンプの下書き(色・形・透過度を触ったとき)。画像から切り替えても回転は引き継ぐ
+  // 内蔵スタンプの下書き(色・形・向き・透過度を触ったとき)。画像から切り替えても回転は引き継ぐ
   function stampBuiltinDraft() {
     const d = stampEdit.draft;
     return d?.type === 'builtin' ? d : { ...DEFAULT_BUILTIN_STAMP, rotate: stampRotate(d) };
+  }
+
+  // 「オリジナル」を選んだときの下書き: 保存ずみのオリジナルがあればそれ、無ければ内蔵の初期値
+  function stampOriginalDraft() {
+    const saved = stampEdit.tag.stamp;
+    return saved ? structuredClone(saved) : { ...DEFAULT_BUILTIN_STAMP };
   }
 
   function previewPanel() {
@@ -244,6 +254,9 @@ export function initSettings(ctx) {
     const { tag, draft } = stampEdit;
     sd.title.textContent = `タグのスタンプ: ${tag.name}`;
     const builtin = draft?.type === 'builtin' ? draft : null;
+    // デフォルト(null)/オリジナル(内蔵か画像)の切り替え。デフォルトのときは細かい設定を出さない(2026-10-12 PD FB)
+    for (const b of sd.mode.querySelectorAll('[data-mode]')) b.classList.toggle('on', (b.dataset.mode === 'original') === !!draft);
+    sd.detail.hidden = !draft;
     sd.colors.replaceChildren(
       ...STAMP_COLORS.map((c) => {
         const b = document.createElement('button');
@@ -283,7 +296,24 @@ export function initSettings(ctx) {
         return b;
       }),
     );
+    sd.orients.replaceChildren(
+      ...STAMP_ORIENTS.map((o) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `mini-btn${stampOrient(builtin) === o.id && builtin ? ' on' : ''}`;
+        b.dataset.orient = o.id;
+        b.textContent = o.name;
+        b.onclick = () => {
+          stampEdit.draft = { ...stampBuiltinDraft(), orient: o.id };
+          stampEdit.pendingFile = null;
+          stampEdit.bitmap = null;
+          renderStampDialog();
+        };
+        return b;
+      }),
+    );
     const isImage = draft?.type === 'image';
+    sd.orientWrap.hidden = isImage; // 画像スタンプに文字の向きは無い
     sd.imageClear.hidden = !isImage;
     sd.imagePick.textContent = isImage ? '別の画像にする' : '画像をえらぶ';
     // プレビュー(画像は選んだファイル or 保存済みの画像)
@@ -311,6 +341,14 @@ export function initSettings(ctx) {
     sd.imageInput.value = '';
   }
 
+  sd.mode.onclick = (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || !stampEdit) return;
+    stampEdit.draft = b.dataset.mode === 'original' ? stampOriginalDraft() : null;
+    stampEdit.pendingFile = null;
+    stampEdit.bitmap = null;
+    renderStampDialog();
+  };
   sd.alpha.oninput = () => {
     if (!stampEdit) return;
     stampEdit.draft = { ...stampBuiltinDraft(), alpha: clampAlpha(Number(sd.alpha.value) / 100) };
@@ -375,11 +413,11 @@ export function initSettings(ctx) {
       refreshTags();
     }
   };
-  // 編集をリセット(2026-10-12 PD FB): 下書きを既定(テーマ色・真っ直ぐ)に戻すだけ。保存も閉じもしない。
-  // 保存するのは「保存」、取り消すのは「やめる」(以前は既定を保存して閉じていたので、画面ごと消えて見えた)
+  // 編集をリセット(2026-10-12 PD FB 2 回目): 下書きを「最後に保存した状態」に戻すだけ。保存も閉じもしない。
+  // デフォルトに戻したいときは「デフォルト」を選んで保存する。取り消すのは「やめる」
   sd.reset.onclick = () => {
     if (!stampEdit) return;
-    stampEdit.draft = null;
+    stampEdit.draft = stampEdit.tag.stamp ? structuredClone(stampEdit.tag.stamp) : null;
     stampEdit.pendingFile = null;
     stampEdit.bitmap = null;
     note(sd.note, null);

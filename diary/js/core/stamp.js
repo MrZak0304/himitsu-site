@@ -1,6 +1,6 @@
 // タグ用スタンプの設定(v1.05・SPEC §10「タグ用スタンプの自作」)。ピュア関数。
 // tag.stamp: null(既定=テーマ色のハンコ風)
-//          | { type:'builtin', color, alpha, shape, rotate }  … 内蔵スタンプ(色・透過度・形・回転)
+//          | { type:'builtin', color, alpha, shape, rotate, orient }  … 内蔵スタンプ(色・透過度・形・回転・文字の向き)
 //          | { type:'image', imageId, rotate }                 … 自作画像(画像ストアに kind:'stamp' で保存)
 // rotate(度・-180〜180)はスタンプ自体の傾き(2026-10-12 PD FB)。カードのシールの回転(配置)に足して描く。
 // 反映先はカードだけ(2026-10-10 PD 決定。きょう画面・カレンダーのチップは変えない)。
@@ -26,13 +26,19 @@ export const STAMP_SHAPES = Object.freeze([
   { id: 'zigzag', name: 'ギザギザ' },
 ]);
 
+// 文字の向き(内蔵スタンプだけ。カードに貼るときの最初の向きになる。2026-10-12 PD FB)
+export const STAMP_ORIENTS = Object.freeze([
+  { id: 'h', name: 'ヨコ書き' },
+  { id: 'v', name: 'タテ書き' },
+]);
+
 export const STAMP_ALPHA_MIN = 0.2;
 export const STAMP_ALPHA_MAX = 1;
 export const STAMP_ROTATE_MIN = -180;
 export const STAMP_ROTATE_MAX = 180;
 export const STAMP_ROTATE_STEP = 5; // スライダー1目盛り(度)
 // 既定は真っ直ぐ(rotate 0)。斜めにしたければ設定で回す(2026-10-12 PD FB「デフォルトで斜めにしない」)
-export const DEFAULT_BUILTIN_STAMP = Object.freeze({ type: 'builtin', color: 'theme', alpha: 1, shape: 'round', rotate: 0 });
+export const DEFAULT_BUILTIN_STAMP = Object.freeze({ type: 'builtin', color: 'theme', alpha: 1, shape: 'round', rotate: 0, orient: 'h' });
 
 const COLOR_IDS = new Set(STAMP_COLORS.map((c) => c.id));
 const SHAPE_IDS = new Set(STAMP_SHAPES.map((s) => s.id));
@@ -56,6 +62,11 @@ export function stampRotate(stamp) {
   return clampRotate(stamp?.rotate);
 }
 
+// 文字の向き。内蔵スタンプの 'v' だけ縦書き。既定・画像・欠落は 'h'
+export function stampOrient(stamp) {
+  return stamp?.type === 'builtin' && stamp.orient === 'v' ? 'v' : 'h';
+}
+
 // 保存前・読み出し時の正規化。不正な値は既定(null=既定スタンプ)に落とし、落ちない。
 export function normalizeStamp(raw) {
   if (typeof raw !== 'object' || raw === null) return null;
@@ -69,6 +80,7 @@ export function normalizeStamp(raw) {
       alpha: clampAlpha(raw.alpha),
       shape: SHAPE_IDS.has(raw.shape) ? raw.shape : DEFAULT_BUILTIN_STAMP.shape,
       rotate: clampRotate(raw.rotate),
+      orient: raw.orient === 'v' ? 'v' : 'h',
     };
   }
   return null;
