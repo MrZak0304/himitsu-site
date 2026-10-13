@@ -221,9 +221,9 @@ export function createCardDialog(ctx) {
     if (state.mode === 'thumb') {
       els.hint.textContent = 'この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。';
     } else {
-      els.hint.textContent = hasPhoto
-        ? '写真はサムネイルで決めた範囲のまま固定です。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小)。'
-        : 'タグだけのカードです。タグはシールのように動かせます(タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小)。';
+      // 余計な前置きは削る(PD FB 2026-10-13「余計な文言が多いのですっきり」)。写真の範囲が固定なことだけは残す
+      const howTo = 'タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小。';
+      els.hint.textContent = hasPhoto ? `写真の範囲はサムネイルのままです。${howTo}` : howTo;
     }
     if (hasPhoto) {
       const rec = state.photos[idx].rec;
