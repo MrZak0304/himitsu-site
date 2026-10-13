@@ -7,6 +7,8 @@ import { UI_ICONS } from '../icons.js';
 import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
 import { canMakeCard, CARD_EMPTY_MESSAGE } from './card-dialog.js';
 import { streak } from '../core/streaks.js';
+import { upcomingPlans, shortDateLabel } from '../core/plans.js';
+import { renderPlanList } from './plan-dialog.js';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
@@ -33,6 +35,10 @@ export function initToday(ctx) {
     cardNote: $('today-card-note'),
     cards: $('today-cards'),
     streak: $('today-streak'),
+    plans: $('today-plans'),
+    plansNext: $('today-plans-next'),
+    plansEmpty: $('today-plans-empty'),
+    planAdd: $('today-plan-add'),
   };
   let urls = [];
   let renderSeq = 0; // 連続操作時に古い描画が新しい描画を上書きしないための世代トークン
@@ -115,6 +121,22 @@ export function initToday(ctx) {
     const days = streak(diaryDates, today);
     els.streak.hidden = days === 0 || !settings.display.streakBadge; // 設定で非表示にできる(PD FB)
     els.streak.textContent = days > 0 ? `連続${days}日` : '';
+
+    // 予定(v1.06): きょうの予定と、このあと 30 日以内の予定(3 件まで)。過去の予定は出さない(ロックの趣旨)
+    const plansByDate = await ctx.stores.plans.all();
+    if (seq !== renderSeq) return;
+    const todayPlans = plansByDate[today] ?? [];
+    const nextPlans = upcomingPlans(plansByDate, today, { days: 30, limit: 3, from: `${today}\u0000` }); // 今日より後
+    const editPlan = async (date, plan) => {
+      const r = await ctx.planDialog.open({ date, plan });
+      if (r.saved || r.removed) {
+        refresh();
+        ctx.refreshCalendar?.();
+      }
+    };
+    renderPlanList(els.plans, todayPlans, { onTap: (p) => editPlan(today, p) });
+    renderPlanList(els.plansNext, nextPlans, { onTap: (p) => editPlan(p.date, p), dateLabel: (p) => shortDateLabel(p.date, today) });
+    els.plansEmpty.hidden = todayPlans.length > 0 || nextPlans.length > 0;
 
     // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる。保存済みカード(v1.05)はボタンの下に並べる
     els.cardBtn.disabled = !canMakeCard(entry);
@@ -308,6 +330,16 @@ export function initToday(ctx) {
   };
 
   // きょうの1枚カード(v1.1)
+  // 予定の追加(v1.06): 今日以降の日付を選んで入れる(未来の予定はロックの外=きょう画面から入れられる。PD 決定 2026-10-12)
+  els.planAdd.onclick = async () => {
+    const today = ctx.todayKey();
+    const r = await ctx.planDialog.open({ date: today, pickDate: true, minDate: today });
+    if (r.saved) {
+      refresh();
+      ctx.refreshCalendar?.();
+    }
+  };
+
   els.cardBtn.onclick = async () => {
     note(els.cardNote, null);
     const r = await ctx.cardDialog.open(ctx.todayKey());

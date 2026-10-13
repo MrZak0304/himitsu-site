@@ -7,6 +7,8 @@ import { monthlyTagRanking } from '../core/tag-stats.js';
 import { monthlyHabitCounts } from '../core/habit-stats.js';
 import { createDayEditor } from './day-editor.js';
 import { canMakeCard } from './card-dialog.js';
+import { cellEmojis } from '../core/plans.js';
+import { renderPlanList } from './plan-dialog.js';
 
 export function initCalendar(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -24,6 +26,8 @@ export function initCalendar(ctx) {
     detailCard: $('detail-card-btn'),
     detailCardNote: $('detail-card-note'),
     detailCards: $('detail-cards'),
+    detailPlans: $('detail-plans'),
+    detailPlanAdd: $('detail-plan-add'),
     detailTags: $('detail-tags'),
     detailText: $('detail-text'),
     detailImages: $('detail-images'),
@@ -58,11 +62,12 @@ export function initCalendar(ctx) {
     const today = ctx.todayKey();
     if (!editing) els.detail.hidden = true;
     els.title.textContent = `${cur.year}年${cur.month}月`;
-    const [entries, tags, habits, habitLogs] = await Promise.all([
+    const [entries, tags, habits, habitLogs, plans] = await Promise.all([
       ctx.stores.entries.all(),
       ctx.stores.tags.list(),
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.all(),
+      ctx.stores.plans.all(),
     ]);
     const tagName = new Map(tags.map((t) => [t.id, t.name]));
     const weeks = buildMonth(cur.year, cur.month, entries, today);
@@ -83,6 +88,14 @@ export function initCalendar(ctx) {
         day.className = 'cal-day';
         day.textContent = cell.day;
         div.append(day);
+        // 予定(v1.06): マスの右上に絵文字(最大 2 個)。記録の有無とは独立
+        const emojis = cellEmojis(plans[cell.key]);
+        if (emojis.length > 0) {
+          const pl = document.createElement('span');
+          pl.className = 'cal-plans';
+          pl.textContent = emojis.join('');
+          div.append(pl);
+        }
         if (cell.imageId) {
           const rec = await ctx.pipeline.store.get(cell.imageId);
           if (rec?.thumbBlob) {
@@ -195,15 +208,34 @@ export function initCalendar(ctx) {
     els.detailView.hidden = false;
     els.detailEditView.hidden = true;
     editor.close();
-    const [entry, tags, habits, checks] = await Promise.all([
+    const [entry, tags, habits, checks, plans] = await Promise.all([
       ctx.stores.entries.get(date),
       ctx.stores.tags.list(),
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.forDate(date),
+      ctx.stores.plans.forDate(date),
     ]);
     const tagName = new Map(tags.map((t) => [t.id, t.name]));
     const [y, m, d] = date.split('-').map(Number);
     els.detailTitle.textContent = `${y}年${m}月${d}日`;
+
+    // 予定(v1.06): この日の予定の一覧。タップで編集、「＋予定」で追加。未来の日はこれだけが出る
+    renderPlanList(els.detailPlans, plans, {
+      onTap: async (plan) => {
+        const r = await ctx.planDialog.open({ date, plan });
+        if (r.saved || r.removed) {
+          await renderGrid();
+          await openDetail(date);
+        }
+      },
+    });
+    els.detailPlanAdd.onclick = async () => {
+      const r = await ctx.planDialog.open({ date });
+      if (r.saved) {
+        await renderGrid();
+        await openDetail(date);
+      }
+    };
 
     els.detailTags.replaceChildren(
       ...(entry?.tags ?? []).map((id) => {
@@ -258,6 +290,7 @@ export function initCalendar(ctx) {
 
     const hasAny = entry || Object.keys(checks).length > 0;
     els.detailEmpty.hidden = !!hasAny;
+    els.detailEmpty.textContent = date > ctx.todayKey() ? 'まだ先の日です。予定を入れておけます。' : 'この日の記録はありません。';
     els.detail.hidden = false;
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }

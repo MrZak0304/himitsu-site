@@ -7,6 +7,7 @@ import { todayKey } from './core/dates.js';
 import { createEntriesStore } from './store/entries.js';
 import { createTagsStore } from './store/tags.js';
 import { createTagFoldersStore } from './store/tag-folders.js';
+import { createPlansStore } from './store/plans.js';
 import { createHabitsStore } from './store/habits.js';
 import { createHabitLogsStore } from './store/habit-logs.js';
 import { createSettingsStore } from './store/settings.js';
@@ -18,6 +19,7 @@ import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
 import { monthOfKey } from './core/dates.js';
 import { initOnboarding } from './ui/onboarding.js';
 import { createCardDialog } from './ui/card-dialog.js';
+import { createPlanDialog } from './ui/plan-dialog.js';
 import { createCardList } from './ui/card-list.js';
 import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
@@ -107,6 +109,7 @@ async function main() {
     habits: createHabitsStore(nativeStorage),
     habitLogs: createHabitLogsStore(nativeStorage),
     settings: createSettingsStore(nativeStorage),
+    plans: createPlansStore(nativeStorage), // 予定(v1.06)。記録とは別
   };
   const backupIO = createBackupIO();
 
@@ -179,6 +182,7 @@ async function main() {
   ctx.lock = lock;
   ctx.cardList = createCardList(ctx); // 日記内に保存したカードの一覧(v1.05)。きょう/日別詳細で共用
   ctx.cardDialog = createCardDialog(ctx); // きょうの1枚カード(v1.1)。きょう/ふりかえり詳細から開く
+  ctx.planDialog = createPlanDialog(ctx); // 予定の追加・編集(v1.06)。きょう/ふりかえり詳細から開く
 
   const habitsUI = initHabits(ctx);
   ctx.renderCharacter = habitsUI.renderCharacter;
@@ -201,6 +205,7 @@ async function main() {
   ctx.refreshToday = todayUI.refresh;
   const calendarUI = initCalendar(ctx);
   ctx.refreshDetail = calendarUI.refreshDetail; // カード保存後に開いている日別詳細を描き直す(v1.05)
+  ctx.refreshCalendar = calendarUI.refresh; // 予定の追加後にカレンダーのマスを描き直す(v1.06)
   const settingsUI = initSettings(ctx);
 
   const initialSettings = await stores.settings.get();

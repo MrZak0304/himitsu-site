@@ -4,10 +4,11 @@
 // v2(2026-08-11): タグ整理フォルダ `folders` を追加。v1 は folders 無し=[] として取り込む。
 // v3(2026-10-10・v1.05): 記録に日記内保存カード `cards`・`cardSlotsEarned`、タグにカード用スタンプ `stamp` を追加。
 //   いずれも各ストアの normalize が欠落を既定値で補うため、v1/v2 はそのまま取り込める(形は v2 と同じ)。
+// v4(2026-10-13・v1.06): 予定 `plans`({ [date]: [{id, emoji, title, createdAt}] })を追加。v1〜v3 は plans 無し={} として取り込む。
 // images[] には記録の添付画像に加え、日課アイコン用・ユーザー保存キャラ用・カスタム背景用、
 // 保存カード(kind:'card')・画像スタンプ(kind:'stamp')の画像も含める。
 
-export const BACKUP_VERSION = 3;
+export const BACKUP_VERSION = 4;
 // v1 の想定上限(画像総量の目安)。超過時は書き出しを日本語エラーで中断する。
 // 大容量対応はフェーズ3で v2 形式(分割・zip等)を検討。
 export const MAX_IMAGE_BYTES = 200 * 1024 * 1024;
@@ -42,6 +43,7 @@ export function buildBackup(data, { exportedAt = Date.now() } = {}) {
     habits: data.habits ?? [],
     habitLogs: data.habitLogs ?? {},
     settings: data.settings ?? {},
+    plans: data.plans ?? {}, // v4: 予定
     images: data.images ?? [],
   };
 }
@@ -73,6 +75,8 @@ export function parseBackup(json) {
   }
   // v2 の folders は任意。v1(欠落)は [] として取り込む。存在するなら配列であること。
   if ('folders' in raw && !Array.isArray(raw.folders)) throw err(MESSAGES.invalid, 'invalid');
+  // v4 の plans は任意。v1〜v3(欠落)は {} として取り込む。存在するならオブジェクトであること
+  if ('plans' in raw && (typeof raw.plans !== 'object' || raw.plans === null || Array.isArray(raw.plans))) throw err(MESSAGES.invalid, 'invalid');
   return {
     v: raw.v,
     exportedAt: raw.exportedAt ?? null,
@@ -82,6 +86,7 @@ export function parseBackup(json) {
     habits: raw.habits,
     habitLogs: raw.habitLogs,
     settings: raw.settings,
+    plans: typeof raw.plans === 'object' && raw.plans !== null && !Array.isArray(raw.plans) ? raw.plans : {},
     images: raw.images,
   };
 }

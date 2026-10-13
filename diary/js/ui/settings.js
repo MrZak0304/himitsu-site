@@ -1111,16 +1111,17 @@ export function initSettings(ctx) {
     if (!(await ctx.lock.requestUnlock())) return;
     ctx.showLoading('バックアップを作成中…');
     try {
-      const [entries, tags, folders, habits, habitLogs, settings, imageRecords] = await Promise.all([
+      const [entries, tags, folders, habits, habitLogs, settings, plans, imageRecords] = await Promise.all([
         ctx.stores.entries.all(),
         ctx.stores.tags.list(),
         ctx.stores.tagFolders.list(),
         ctx.stores.habits.list(),
         ctx.stores.habitLogs.all(),
         ctx.stores.settings.get(),
+        ctx.stores.plans.all(),
         ctx.pipeline.store.list(),
       ]);
-      const json = await ctx.backupIO.exportBackup({ entries, tags, folders, habits, habitLogs, settings }, imageRecords);
+      const json = await ctx.backupIO.exportBackup({ entries, tags, folders, habits, habitLogs, settings, plans }, imageRecords);
       const r = await deliverBackup(json, `${BACKUP_PREFIX}${todayKey().replaceAll('-', '')}${BACKUP_EXT}`);
       // 保存せずに共有シートを閉じたときに「書き出しました」と言わない(2026-08-11 PD FB)
       if (r?.saved) note(els.backupNote, '書き出しました。ファイルは大切に保管してください。', true);
@@ -1141,7 +1142,7 @@ export function initSettings(ctx) {
     const file = els.importInput.files[0];
     els.importInput.value = '';
     if (!file) return;
-    if (!(await ctx.confirm('取り込むと、今の記録・タグ・日課・設定はすべて置き換えられます。よろしいですか?'))) return;
+    if (!(await ctx.confirm('取り込むと、今の記録・タグ・日課・予定・設定はすべて置き換えられます。よろしいですか?'))) return;
     ctx.showLoading('バックアップを取り込み中…');
     try {
       const text = await file.text();
@@ -1155,6 +1156,7 @@ export function initSettings(ctx) {
       await ctx.stores.habits.replaceAll(parsed.habits);
       await ctx.stores.habitLogs.replaceAll(parsed.habitLogs);
       await ctx.stores.settings.replaceAll(parsed.settings);
+      await ctx.stores.plans.replaceAll(parsed.plans ?? {}); // v4。旧形式は空
       const s = await ctx.stores.settings.get();
       applyTheme(s, ctx.variant);
       await applyBackgroundImage(s, ctx.variant, ctx.pipeline.store);
