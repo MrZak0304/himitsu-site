@@ -723,7 +723,14 @@ input[type="time"], input[type="color"] { width: auto; }
 #plan-dialog .plan-row { margin: 8px 0; }
 #plan-dialog .plan-row > span:first-child, #plan-date-row { white-space: nowrap; }
 #plan-dialog .plan-row input { flex: 1; min-width: 0; }
-#plan-emoji-row #plan-emoji-input { flex: 0 0 72px; text-align: center; font-size: 20px; }
+#plan-emoji-row #plan-emoji-input { flex: 0 0 80px; text-align: center; font-size: 20px; padding: 8px 4px; }
+/* 「1文字」の案内が見切れないよう、案内だけ小さく(入力の文字は 16px 以上のまま=iOS の拡大を防ぐ)。PD FB 2026-10-13 */
+#plan-emoji-row #plan-emoji-input::placeholder { font-size: 13px; }
+/* 日にちの欄は太く・文字を大きく(iOS の既定の灰色の細い欄は見づらい)。PD FB 2026-10-13 */
+#plan-dialog #plan-date { -webkit-appearance: none; appearance: none; min-height: 50px; padding: 8px 12px; margin: 4px 0; background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 20px; font-weight: 700; line-height: 1.2; }
+#plan-dialog #plan-date::-webkit-date-and-time-value { text-align: left; }
+#plan-dialog #plan-date:focus { border-color: var(--accent); outline: none; }
+#plan-date-row { font-size: 13px; }
 #plan-emoji-row .mini-btn { flex: none; font-size: 13px; padding: 6px 10px; }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .stamp-preview { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); display: block; }
