@@ -13,6 +13,8 @@ function normalizeSticker(raw) {
   if (typeof raw !== 'object' || raw === null || typeof raw.text !== 'string' || raw.text === '') return null;
   const st = clampSticker({ text: raw.text, x: raw.x, y: raw.y, rotate: raw.rotate, orient: raw.orient, scale: raw.scale });
   const out = { text: st.text, x: st.x, y: st.y, rotate: st.rotate, orient: st.orient, scale: st.scale };
+  // カード編集で「デフォルト」を選んだシール(v1.06)。無ければタグの設定どおり(オリジナルがあればそれ)
+  if (raw.stampMode === 'default') out.stampMode = 'default';
   // 画像スタンプ(v1.05)の等倍サイズ。無ければ文字から計算する
   if (Number.isFinite(raw.w) && raw.w > 0 && Number.isFinite(raw.h) && raw.h > 0) {
     out.w = raw.w;

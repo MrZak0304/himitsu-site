@@ -732,12 +732,16 @@ input[type="time"], input[type="color"] { width: auto; }
 #plan-dialog #plan-date:focus { border-color: var(--accent); outline: none; }
 #plan-date-row { font-size: 13px; }
 #plan-emoji-row .mini-btn { flex: none; font-size: 13px; padding: 6px 10px; }
-.btn.danger { color: var(--danger); border-color: var(--danger); }
+/* 控えめな削除ボタン(予定を消す など)。.btn.danger(赤地に白字)と組み合わせると赤地に赤字で読めなくなった(PD FB 2026-10-13) */
+.btn.sub.danger { background: var(--panel); color: var(--danger); border-color: var(--danger); }
 .stamp-preview { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); display: block; }
 .swatch.theme { background: var(--accent); }
 .swatch.transparent { background: repeating-conic-gradient(#d9d6cf 0 25%, #ffffff 0 50%) 0 0 / 14px 14px; }
 .stamp-alpha-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .stamp-alpha-row input[type="range"] { flex: 1; }
 .choice-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.card-stamp-mode { align-items: center; margin-top: 6px; }
+.card-stamp-mode .choice-label { font-size: 13px; color: var(--text-dim); }
+.choice-row .mini-btn:disabled { opacity: .45; cursor: default; }
 .choice-row .mini-btn.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 .manage-list .badge.stamp { color: var(--accent); border-color: var(--accent); }

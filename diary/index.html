@@ -347,6 +347,13 @@
       <button id="card-scale-down" class="btn sub mini" type="button" title="小さくする">縮小</button>
       <button id="card-peel" class="btn ghost mini" type="button">はがす</button>
     </div>
+    <!-- 選択中シールのスタンプ: タグの管理で作ったスタンプ(オリジナル)を使うか、デフォルトにするか(シールごと。PD FB 2026-10-13) -->
+    <div id="card-stamp-mode" class="choice-row card-stamp-mode" hidden>
+      <span class="choice-label">スタンプ</span>
+      <button class="mini-btn" data-mode="default" type="button">デフォルト</button>
+      <button class="mini-btn" data-mode="original" type="button">オリジナル</button>
+    </div>
+    <p class="note-inline" id="card-stamp-none" hidden>このタグのオリジナルのスタンプはまだありません。設定の「タグの管理」で作れます。</p>
     <p class="section-hint" id="card-photos-hint">写真を選ぶ</p>
     <div id="card-photos" class="card-photos"></div>
     <p class="note" id="card-dialog-note" hidden></p>

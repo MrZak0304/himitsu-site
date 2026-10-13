@@ -49,6 +49,8 @@ export function createCardDialog(ctx) {
     scaleUp: $('card-scale-up'),
     scaleDown: $('card-scale-down'),
     peel: $('card-peel'),
+    stampMode: $('card-stamp-mode'),
+    stampNone: $('card-stamp-none'),
     note: $('card-dialog-note'),
     slotNote: $('card-slot-note'),
     create: $('card-create'),
@@ -136,7 +138,19 @@ export function createCardDialog(ctx) {
   function renderTools() {
     const s = state.mode === 'card' && state.selected >= 0 ? state.stickers[state.selected] : null;
     els.tools.hidden = !s;
-    if (s) els.orient.textContent = s.orient === 'v' ? 'ヨコ書き' : 'タテ書き';
+    els.stampMode.hidden = !s;
+    els.stampNone.hidden = true;
+    if (!s) return;
+    els.orient.textContent = s.orient === 'v' ? 'ヨコ書き' : 'タテ書き';
+    // スタンプの選択: オリジナル(タグの管理で作ったもの)が無いタグは「オリジナル」を押せず、案内を出す
+    const hasOriginal = !!state.stampByName?.get(s.text);
+    const mode = hasOriginal && s.stampMode !== 'default' ? 'original' : 'default';
+    for (const b of els.stampMode.querySelectorAll('[data-mode]')) {
+      b.classList.toggle('on', b.dataset.mode === mode);
+      b.setAttribute('aria-pressed', b.dataset.mode === mode ? 'true' : 'false');
+      if (b.dataset.mode === 'original') b.disabled = !hasOriginal;
+    }
+    els.stampNone.hidden = hasOriginal;
   }
 
   function select(i) {
@@ -158,8 +172,10 @@ export function createCardDialog(ctx) {
 
   // タグのスタンプ設定(v1.05)をシールに付ける。画像スタンプは等倍サイズ(w/h)も持つ。
   // fresh=新しく貼るシールなら、設定の文字の向き(タテ書き/ヨコ書き)を最初の向きにする(保存済みの配置はそのまま)
+  // stampMode:'default' のシールは、タグにオリジナルのスタンプがあっても既定のハンコで描く(カード編集で選ぶ。PD FB 2026-10-13)
   function decorate(st, { fresh = false } = {}) {
-    const stamp = state?.stampByName?.get(st.text) ?? null;
+    const original = state?.stampByName?.get(st.text) ?? null;
+    const stamp = st.stampMode === 'default' ? null : original;
     const out = { ...st, stamp };
     if (fresh && stamp?.type === 'builtin') out.orient = stampOrient(stamp);
     delete out.w;
@@ -594,6 +610,17 @@ export function createCardDialog(ctx) {
   els.orient.onclick = () => updateSelected((s) => ({ ...s, orient: s.orient === 'v' ? 'h' : 'v' }));
   els.scaleUp.onclick = () => updateSelected((s) => scaleStickerBy(s, STICKER_SCALE_STEP));
   els.scaleDown.onclick = () => updateSelected((s) => scaleStickerBy(s, 1 / STICKER_SCALE_STEP));
+  // スタンプの切り替え(デフォルト/オリジナル)。シールの位置・回転・大きさ・向きはそのまま
+  els.stampMode.onclick = (e) => {
+    const b = e.target.closest('[data-mode]');
+    if (!b || b.disabled) return;
+    updateSelected((s) => {
+      const next = { ...s };
+      if (b.dataset.mode === 'default') next.stampMode = 'default';
+      else delete next.stampMode;
+      return decorate(next);
+    });
+  };
   els.peel.onclick = () => {
     if (!state || state.selected < 0) return;
     state.stickers.splice(state.selected, 1);
