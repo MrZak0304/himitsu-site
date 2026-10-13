@@ -691,14 +691,27 @@ input[type="time"], input[type="color"] { width: auto; }
 .plans-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .plans-title { font-size: 13px; color: var(--text-dim); }
 .plan-list { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
-.plan-list.next { border-top: 1px dashed var(--panel-edge); padding-top: 6px; margin-top: 6px; }
+/* 今週の予定(v1.06): 1 行で 7 日。タップした日の予定を下に出す */
+.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 6px; }
+.week-day { appearance: none; border: 1px solid var(--panel-edge); background: var(--panel); color: var(--text-dim); border-radius: 8px; padding: 3px 0 2px; display: flex; flex-direction: column; align-items: center; gap: 1px; font-family: inherit; font-size: 10px; line-height: 1.2; cursor: pointer; min-width: 0; }
+.week-day .wd-day { font-size: 13px; font-weight: 700; color: var(--text); }
+.week-day .wd-emoji { font-size: 15px; line-height: 1.2; min-height: 18px; letter-spacing: -3px; white-space: nowrap; }
+.week-day.today .wd-dow { color: var(--accent); font-weight: 700; }
+.week-day.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+.week-detail { border-top: 1px dashed var(--panel-edge); margin-top: 6px; padding-top: 4px; }
+.week-detail-label { font-size: 12px; color: var(--text-dim); margin: 2px 0 0; }
+.week-detail .plan-list { margin-top: 2px; }
+.week-detail .note-inline { margin: 4px 0 2px; }
 .plan-btn { appearance: none; border: 0; background: transparent; color: var(--text); font-family: inherit; font-size: 14px; display: flex; align-items: center; gap: 8px; width: 100%; padding: 4px 2px; text-align: left; cursor: pointer; border-radius: 8px; }
 .plan-btn:active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .plan-emoji { font-size: 20px; line-height: 1; width: 26px; text-align: center; flex: none; }
 .plan-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-date { flex: none; font-size: 12px; color: var(--text-dim); }
 .cal-cell .cal-plans { position: absolute; top: 1px; right: 2px; font-size: 12px; line-height: 1; letter-spacing: -2px; text-shadow: none; }
-.emoji-palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin: 6px 0; }
+/* 絵文字のドロップダウン(検索+一覧)。PD FB 2026-10-13 */
+.emoji-panel { border: 1px solid var(--panel-edge); border-radius: 10px; padding: 8px; margin: 6px 0; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
+#plan-dialog .emoji-panel input[type="search"] { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px 10px; border: 1px solid var(--panel-edge); border-radius: 8px; background: var(--panel); color: var(--text); font-family: inherit; }
+.emoji-palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin: 6px 0 0; max-height: 176px; overflow-y: auto; }
 .emoji-btn { appearance: none; border: 1px solid var(--panel-edge); background: var(--panel); border-radius: 8px; font-size: 20px; line-height: 1; padding: 6px 0; cursor: pointer; font-family: inherit; }
 .emoji-btn.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
 #plan-dialog { z-index: 230; align-items: flex-start; overflow-y: auto; }
@@ -707,7 +720,11 @@ input[type="time"], input[type="color"] { width: auto; }
 #loading-overlay { z-index: 310; }
 #plan-dialog .popup-card { margin: 8px auto; }
 #plan-dialog input[type="text"], #plan-dialog input[type="date"] { width: 100%; box-sizing: border-box; }
-#plan-date-row input { flex: 1; }
+#plan-dialog .plan-row { margin: 8px 0; }
+#plan-dialog .plan-row > span:first-child, #plan-date-row { white-space: nowrap; }
+#plan-dialog .plan-row input { flex: 1; min-width: 0; }
+#plan-emoji-row #plan-emoji-input { flex: 0 0 72px; text-align: center; font-size: 20px; }
+#plan-emoji-row .mini-btn { flex: none; font-size: 13px; padding: 6px 10px; }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
 .stamp-preview { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); display: block; }
 .swatch.theme { background: var(--accent); }

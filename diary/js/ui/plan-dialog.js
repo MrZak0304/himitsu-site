@@ -1,7 +1,7 @@
 // 予定の追加・編集ダイアログ(v1.06)。きょう画面(日付を選べる)とふりかえりの日別詳細(日付固定)から開く。
-// 絵文字はパレットから選ぶか、入力欄に 1 つ入れる。ひとことは任意。
+// 3 行: 日にち / タイトル(任意) / 絵文字(入力欄に 1 文字、または「えらぶ」のドロップダウンで検索して選ぶ)。PD FB 2026-10-13
 
-import { PLAN_EMOJI_PRESETS, PLAN_TITLE_MAX, normalizeEmoji, MESSAGES } from '../core/plans.js';
+import { PLAN_TITLE_MAX, normalizeEmoji, searchEmojis, MESSAGES } from '../core/plans.js';
 
 export function createPlanDialog(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -12,6 +12,10 @@ export function createPlanDialog(ctx) {
     date: $('plan-date'),
     emojis: $('plan-emojis'),
     emojiInput: $('plan-emoji-input'),
+    emojiPick: $('plan-emoji-pick'),
+    emojiPanel: $('plan-emoji-panel'),
+    emojiSearch: $('plan-emoji-search'),
+    emojiNone: $('plan-emoji-none'),
     text: $('plan-title'),
     note: $('plan-note'),
     save: $('plan-save'),
@@ -26,9 +30,21 @@ export function createPlanDialog(ctx) {
     els.note.textContent = message ?? '';
   }
 
+  function setPanel(open) {
+    els.emojiPanel.hidden = !open;
+    els.emojiPick.setAttribute('aria-expanded', open ? 'true' : 'false');
+    els.emojiPick.textContent = open ? 'とじる ▴' : 'えらぶ ▾';
+    if (open) {
+      els.emojiSearch.value = '';
+      renderPalette();
+    }
+  }
+
   function renderPalette() {
+    const list = state ? searchEmojis(els.emojiSearch.value) : [];
+    els.emojiNone.hidden = list.length > 0;
     els.emojis.replaceChildren(
-      ...PLAN_EMOJI_PRESETS.map((e) => {
+      ...list.map((e) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = `emoji-btn${state.emoji === e ? ' on' : ''}`;
@@ -38,7 +54,8 @@ export function createPlanDialog(ctx) {
         b.onclick = () => {
           state.emoji = e;
           els.emojiInput.value = e;
-          renderPalette();
+          note(null);
+          setPanel(false); // 選んだら閉じる(ドロップダウン)
         };
         return b;
       }),
@@ -65,7 +82,7 @@ export function createPlanDialog(ctx) {
       els.text.maxLength = PLAN_TITLE_MAX;
       els.remove.hidden = !plan;
       note(null);
-      renderPalette();
+      setPanel(false);
       els.root.hidden = false;
     });
   }
@@ -73,7 +90,17 @@ export function createPlanDialog(ctx) {
   els.emojiInput.oninput = () => {
     if (!state) return;
     state.emoji = normalizeEmoji(els.emojiInput.value);
-    renderPalette();
+    if (!els.emojiPanel.hidden) renderPalette();
+  };
+
+  els.emojiPick.onclick = () => {
+    if (!state) return;
+    setPanel(els.emojiPanel.hidden);
+    if (!els.emojiPanel.hidden) els.emojiSearch.focus();
+  };
+
+  els.emojiSearch.oninput = () => {
+    if (state) renderPalette();
   };
 
   els.save.onclick = async () => {

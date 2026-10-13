@@ -21,12 +21,15 @@
   <!-- きょう -->
   <section class="panel" id="panel-today">
     <div class="today-head"><h2 class="panel-title" id="today-date"></h2><span class="streak-badge" id="today-streak" hidden></span></div>
-    <!-- 予定(v1.06): 手帳のように絵文字+ひとことで。きょうと、このあと 30 日以内の予定 -->
+    <!-- 予定(v1.06): 手帳のように絵文字+タイトルで。今週(きょうから 7 日)を 1 行に並べ、タップした日の予定を下に出す(PD FB 2026-10-13) -->
     <div id="today-plans-wrap" class="plans-box">
-      <div class="plans-head"><span class="plans-title">📅 きょうの予定</span><button id="today-plan-add" class="mini-btn" type="button">＋予定</button></div>
-      <ul id="today-plans" class="plan-list" hidden></ul>
-      <ul id="today-plans-next" class="plan-list next" hidden></ul>
-      <p class="note-inline" id="today-plans-empty">予定はありません。「＋予定」で先の日の予定も入れられます。</p>
+      <div class="plans-head"><span class="plans-title">📅 今週の予定</span><button id="today-plan-add" class="mini-btn" type="button">＋予定</button></div>
+      <div id="today-week" class="week-strip" role="tablist" aria-label="今週の予定"></div>
+      <div id="today-week-detail" class="week-detail">
+        <p class="week-detail-label" id="today-week-label"></p>
+        <ul id="today-plans" class="plan-list" hidden></ul>
+        <p class="note-inline" id="today-plans-empty">この日の予定はありません。「＋予定」で入れられます。</p>
+      </div>
     </div>
     <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
     <div id="today-frequent-wrap" class="frequent-box" hidden>
@@ -475,12 +478,18 @@
 <div id="plan-dialog" hidden>
   <div class="popup-card">
     <h2 id="plan-dialog-title">予定を追加</h2>
-    <label class="row stamp-alpha-row" id="plan-date-row">日にち <input id="plan-date" type="date"></label>
-    <p class="section-hint">絵文字(1つ)</p>
-    <div id="plan-emojis" class="emoji-palette"></div>
-    <input id="plan-emoji-input" type="text" placeholder="ほかの絵文字を入力(例: 🎂)" maxlength="8">
-    <p class="section-hint">ひとこと(任意・20文字まで)</p>
-    <input id="plan-title" type="text" placeholder="例: 母の誕生日" maxlength="20">
+    <label class="row stamp-alpha-row plan-row" id="plan-date-row">日にち <input id="plan-date" type="date"></label>
+    <label class="row stamp-alpha-row plan-row">タイトル <input id="plan-title" type="text" placeholder="例: 母の誕生日(20文字まで)" maxlength="20"></label>
+    <div class="row stamp-alpha-row plan-row" id="plan-emoji-row">
+      <span id="plan-emoji-label">絵文字</span>
+      <input id="plan-emoji-input" type="text" placeholder="1文字" maxlength="8" aria-labelledby="plan-emoji-label">
+      <button id="plan-emoji-pick" class="mini-btn" type="button" aria-expanded="false" aria-controls="plan-emoji-panel">えらぶ ▾</button>
+    </div>
+    <div id="plan-emoji-panel" class="emoji-panel" hidden>
+      <input id="plan-emoji-search" type="search" placeholder="さがす(例: 誕生日・病院)" autocomplete="off">
+      <div id="plan-emojis" class="emoji-palette"></div>
+      <p class="note-inline" id="plan-emoji-none" hidden>見つかりません。上の入力欄に好きな絵文字を1つ入れられます。</p>
+    </div>
     <p class="note" id="plan-note" hidden></p>
     <div class="popup-actions vertical">
       <button id="plan-save" class="btn" type="button">保存</button>

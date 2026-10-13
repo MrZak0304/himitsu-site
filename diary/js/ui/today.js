@@ -7,7 +7,7 @@ import { UI_ICONS } from '../icons.js';
 import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
 import { canMakeCard, CARD_EMPTY_MESSAGE } from './card-dialog.js';
 import { streak } from '../core/streaks.js';
-import { upcomingPlans, shortDateLabel } from '../core/plans.js';
+import { weekDays, shortDateLabel } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -36,12 +36,14 @@ export function initToday(ctx) {
     cards: $('today-cards'),
     streak: $('today-streak'),
     plans: $('today-plans'),
-    plansNext: $('today-plans-next'),
+    week: $('today-week'),
+    weekLabel: $('today-week-label'),
     plansEmpty: $('today-plans-empty'),
     planAdd: $('today-plan-add'),
   };
   let urls = [];
   let renderSeq = 0; // 連続操作時に古い描画が新しい描画を上書きしないための世代トークン
+  let selectedDate = null; // 「今週の予定」で選んでいる日(既定はきょう)
 
   function note(el, message) {
     el.hidden = !message;
@@ -122,11 +124,11 @@ export function initToday(ctx) {
     els.streak.hidden = days === 0 || !settings.display.streakBadge; // 設定で非表示にできる(PD FB)
     els.streak.textContent = days > 0 ? `連続${days}日` : '';
 
-    // 予定(v1.06): きょうの予定と、このあと 30 日以内の予定(3 件まで)。過去の予定は出さない(ロックの趣旨)
+    // 予定(v1.06): 今週(きょうから 7 日)を 1 行に並べ、タップした日の予定を下に出す(PD FB 2026-10-13)。過去の予定は出さない(ロックの趣旨)
     const plansByDate = await ctx.stores.plans.all();
     if (seq !== renderSeq) return;
-    const todayPlans = plansByDate[today] ?? [];
-    const nextPlans = upcomingPlans(plansByDate, today, { days: 30, limit: 3, from: `${today}\u0000` }); // 今日より後
+    const week = weekDays(plansByDate, today);
+    if (!week.some((d) => d.date === selectedDate)) selectedDate = today;
     const editPlan = async (date, plan) => {
       const r = await ctx.planDialog.open({ date, plan });
       if (r.saved || r.removed) {
@@ -134,9 +136,36 @@ export function initToday(ctx) {
         ctx.refreshCalendar?.();
       }
     };
-    renderPlanList(els.plans, todayPlans, { onTap: (p) => editPlan(today, p) });
-    renderPlanList(els.plansNext, nextPlans, { onTap: (p) => editPlan(p.date, p), dateLabel: (p) => shortDateLabel(p.date, today) });
-    els.plansEmpty.hidden = todayPlans.length > 0 || nextPlans.length > 0;
+    els.week.replaceChildren(
+      ...week.map((d) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = `week-day${d.date === selectedDate ? ' on' : ''}${d.today ? ' today' : ''}`;
+        b.dataset.date = d.date;
+        b.setAttribute('role', 'tab');
+        b.setAttribute('aria-selected', d.date === selectedDate ? 'true' : 'false');
+        b.setAttribute('aria-label', `${shortDateLabel(d.date, today)} 予定${d.count}件`);
+        const dow = document.createElement('span');
+        dow.className = 'wd-dow';
+        dow.textContent = d.today ? 'きょう' : d.dow;
+        const day = document.createElement('span');
+        day.className = 'wd-day';
+        day.textContent = String(d.day);
+        const em = document.createElement('span');
+        em.className = 'wd-emoji';
+        em.textContent = d.emojis.join('');
+        b.append(dow, day, em);
+        b.onclick = () => {
+          selectedDate = d.date;
+          refresh();
+        };
+        return b;
+      }),
+    );
+    const dayPlans = plansByDate[selectedDate] ?? [];
+    els.weekLabel.textContent = `${shortDateLabel(selectedDate, today)}の予定`;
+    renderPlanList(els.plans, dayPlans, { onTap: (p) => editPlan(selectedDate, p) });
+    els.plansEmpty.hidden = dayPlans.length > 0;
 
     // きょうの1枚カード(v1.1): タグか写真があるときだけ押せる。保存済みカード(v1.05)はボタンの下に並べる
     els.cardBtn.disabled = !canMakeCard(entry);
@@ -333,8 +362,10 @@ export function initToday(ctx) {
   // 予定の追加(v1.06): 今日以降の日付を選んで入れる(未来の予定はロックの外=きょう画面から入れられる。PD 決定 2026-10-12)
   els.planAdd.onclick = async () => {
     const today = ctx.todayKey();
-    const r = await ctx.planDialog.open({ date: today, pickDate: true, minDate: today });
+    const date = selectedDate >= today ? selectedDate : today; // 週の帯で選んでいる日を既定に
+    const r = await ctx.planDialog.open({ date, pickDate: true, minDate: today });
     if (r.saved) {
+      selectedDate = r.date; // 入れた日を開く(週の外なら refresh がきょうに戻す)
       refresh();
       ctx.refreshCalendar?.();
     }
