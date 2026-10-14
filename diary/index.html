@@ -208,8 +208,13 @@
     <details class="settings-group">
       <summary>表示</summary>
       <label class="row"><input type="checkbox" id="streak-badge-enabled"> きょう画面に「連続◯日」を表示する</label>
-      <!-- 言語(v1.06)。どの言語のときも見つけられるよう、見出しは「言語 / Language」 -->
-      <label class="row lang-row">言語 / Language <select id="lang-select"></select></label>
+    </details>
+
+    <!-- 言語(v1.06)。独立した項目にする(2026-10-14 PD FB)。日本語のときも見つけられるよう、見出しは「言語 / Language」 -->
+    <details class="settings-group">
+      <summary>言語 / Language</summary>
+      <div id="lang-choices" class="lang-choices" role="radiogroup" aria-label="言語 / Language"></div>
+      <p class="note-inline">切り替えると、アプリを読み込み直します。</p>
     </details>
 
     <details class="settings-group">
@@ -379,6 +384,7 @@
     <p id="onboarding-body" class="onboarding-body"></p>
     <p class="section-hint" id="onboarding-tags-hint" hidden>きょうはどんな日?タグを1つ押してみましょう</p>
     <div id="onboarding-tags" class="tag-stamps" hidden></div>
+    <div id="onboarding-langs" class="lang-choices" role="radiogroup" aria-label="言語 / Language" hidden></div>
     <div id="onboarding-dots" class="onboarding-dots"></div>
     <div class="popup-actions vertical">
       <button id="onboarding-next" class="btn">つぎへ</button>

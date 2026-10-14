@@ -416,5 +416,7 @@ export default {
   "1文字": "1 emoji",
   "さがす(例: 誕生日・病院)": "Search (e.g. birthday, doctor)",
   "端末の言語に合わせる": "Same as device",
-  "言語 / Language": "Language"
+  "言語 / Language": "Language",
+  "使う言語を選んでください。あとから設定でも変えられます。": "Choose your language. You can change it later in Settings.",
+  "切り替えると、アプリを読み込み直します。": "The app reloads when you switch.",
 };

@@ -3,23 +3,25 @@
 
 import { createKvStore, makeId } from './kv.js';
 import { normalizeStamp } from '../core/stamp.js';
-import { tr } from '../i18n/index.js';
+import { tr, N_ } from '../i18n/index.js';
 
 const KEY = 'diary-tags-v1';
 
-// 定番タグ初期セット案(SPEC §9-2 の初稿。PD確認で差し替え可能)
-export const DEFAULT_TAGS = [
-  tr('#最高の一日'),
-  tr('#がんばった'),
-  tr('#おつかれ'),
-  tr('#まったり'),
-  tr('#たのしかった'),
-  tr('#しんどかった'),
-  tr('#おでかけ'),
-  tr('#おうち時間'),
-  tr('#いいことあった'),
-  tr('#ふつうの日'),
-];
+// 定番タグ初期セット案(SPEC §9-2 の初稿。PD確認で差し替え可能)。
+// 原文(日本語)で持ち、作るときに今の言語へ訳す。言語を切り替えたときの付け替えにも使う(v1.06)
+export const DEFAULT_TAG_SOURCES = Object.freeze([
+  N_('#最高の一日'),
+  N_('#がんばった'),
+  N_('#おつかれ'),
+  N_('#まったり'),
+  N_('#たのしかった'),
+  N_('#しんどかった'),
+  N_('#おでかけ'),
+  N_('#おうち時間'),
+  N_('#いいことあった'),
+  N_('#ふつうの日'),
+]);
+export const DEFAULT_TAGS = DEFAULT_TAG_SOURCES.map((src) => tr(src));
 
 export const DUPLICATE_MESSAGE = tr('同じ名前のタグがすでにあります。');
 export const IN_USE_MESSAGE = tr('このタグは過去の記録で使われているため削除できません。');
@@ -148,6 +150,25 @@ export function createTagsStore(storage) {
       return tag ?? null;
     },
     // タグをフォルダへ割り当てる(null で未分類に戻す)。
+    // 言語を切り替えたとき、定番タグの名前も切り替え先の言語にする(v1.06)。
+    // 名前を変えていない定番タグ(fromNames[i] のまま)だけが対象。利用者が付けた名前・追加したタグは訳さない(不変条件 6)。
+    // 切り替え先の名前のタグがすでにあれば、そのタグは変えない(同じ名前を作らない)。記録は id で持つので変わらない
+    async localizeBuiltins(fromNames, toNames) {
+      const list = kv.load();
+      let changed = 0;
+      for (const tag of list) {
+        const m = tag.builtin ? /^b(\d+)$/.exec(tag.id) : null;
+        if (!m) continue;
+        const i = Number(m[1]) - 1;
+        const to = toNames[i];
+        if (!to || tag.name !== fromNames[i] || to === tag.name) continue;
+        if (list.some((t) => t.name === to && t.id !== tag.id)) continue;
+        tag.name = to;
+        changed += 1;
+      }
+      if (changed > 0) persist(list);
+      return changed;
+    },
     async setFolder(id, folderId) {
       const list = kv.load();
       const tag = list.find((t) => t.id === id);

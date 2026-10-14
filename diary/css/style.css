@@ -749,5 +749,9 @@ html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: v
 .manage-list .badge.stamp { color: var(--accent); border-color: var(--accent); }
 
 /* 言語の選択(v1.06) */
-.lang-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.lang-row select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--panel-edge); background: var(--panel); color: var(--text); }
+/* 言語の選択(v1.06)。設定と初回案内で同じ見た目。選択中は枠と文字をアクセント色に */
+.lang-choices { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.lang-choice { font: inherit; font-size: 16px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); color: var(--text); cursor: pointer; }
+.lang-choice.on { border: 2px solid var(--accent); color: var(--accent); font-weight: 700; }
+.lang-choice.on::after { content: ' ✓'; }
+#onboarding-langs { width: 100%; }

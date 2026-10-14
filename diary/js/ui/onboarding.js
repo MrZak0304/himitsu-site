@@ -1,8 +1,14 @@
 // 初回起動の3画面案内(v1.1 U5)。保存された設定が無い初回だけ出す(settings.onboarding.done)。
 // 1「タグを押すだけ」 2「月カレンダーで振り返る」 3「ふりかえりはロックで守れる」→ 最後に定番タグを
 // 1つ押すと当日の記録ができて「きょう」へ。スキップは常時可。図はすべてインラインSVG(不変条件7)。
+// v1.06: 言語をまだ選んでいない(端末の言語に合わせている)ときは、最初に言語の確認画面を出す(2026-10-14 PD FB)。
+// 別の言語を選ぶと読み込み直し、設定に残るので次は 1 枚目から始まる。
 
-import { tr, applyDom } from '../i18n/index.js';
+import { tr, applyDom, locale, getLanguagePreference } from '../i18n/index.js';
+import { renderLanguageChoices, changeLanguage } from './language.js';
+
+// 言語の画面の絵(地球儀)
+const GLOBE_SVG = '<svg viewBox="0 0 200 120" aria-hidden="true"><g fill="none" stroke="var(--accent)" stroke-width="4"><circle cx="100" cy="60" r="44"/><ellipse cx="100" cy="60" rx="18" ry="44"/><path d="M56 60h88M62 38h76M62 82h76"/></g></svg>';
 
 const SLIDES = [
   {
@@ -34,7 +40,8 @@ export async function initOnboarding(ctx, { onDone } = {}) {
   const tagsHint = document.getElementById('onboarding-tags-hint');
   const next = document.getElementById('onboarding-next');
   const skip = document.getElementById('onboarding-skip');
-  let idx = 0;
+  const langs = document.getElementById('onboarding-langs');
+  let idx = getLanguagePreference() === 'auto' ? -1 : 0; // -1 = 言語の確認画面
 
   async function finish() {
     await ctx.stores.settings.merge({ onboarding: { done: true } });
@@ -58,7 +65,32 @@ export async function initOnboarding(ctx, { onDone } = {}) {
     }
   }
 
+  function renderLanguageStep() {
+    fig.innerHTML = GLOBE_SVG;
+    title.textContent = tr('言語 / Language');
+    body.textContent = tr('使う言語を選んでください。あとから設定でも変えられます。');
+    dots.hidden = true;
+    tagsEl.hidden = true;
+    tagsHint.hidden = true;
+    langs.hidden = false;
+    next.textContent = tr('つぎへ');
+    renderLanguageChoices(langs, {
+      ids: ['ja', 'en'],
+      current: locale(),
+      // 今と同じ言語なら設定は「端末の言語に合わせる」のまま。違う言語なら設定に残して読み込み直す
+      onPick: async (id) => {
+        if (id !== locale()) await changeLanguage(ctx, id);
+      },
+    });
+  }
+
   async function render() {
+    if (idx < 0) {
+      renderLanguageStep();
+      return;
+    }
+    langs.hidden = true;
+    dots.hidden = false;
     const slide = SLIDES[idx];
     fig.innerHTML = slide.svg;
     applyDom(fig); // 絵の中のタグ(#まったり など)も訳す

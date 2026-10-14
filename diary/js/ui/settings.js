@@ -14,7 +14,8 @@ import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
 import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate, STAMP_ORIENTS, stampOrient } from '../core/stamp.js';
 import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
-import { tr, LANGUAGE_CHOICES, getLanguagePreference, setLanguagePreference } from '../i18n/index.js';
+import { tr, getLanguagePreference } from '../i18n/index.js';
+import { renderLanguageChoices, changeLanguage } from './language.js';
 
 export function initSettings(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -32,7 +33,7 @@ export function initSettings(ctx) {
     reminderNote: $('reminder-note'),
     monthlyEnabled: $('monthly-enabled'),
     streakBadge: $('streak-badge-enabled'),
-    langSelect: $('lang-select'),
+    langChoices: $('lang-choices'),
     monthlyNote: $('monthly-note'),
     lockEnabled: $('lock-enabled'),
     lockSetupBtn: $('lock-setup-btn'),
@@ -588,20 +589,17 @@ export function initSettings(ctx) {
     await ctx.stores.settings.merge({ display: { streakBadge: els.streakBadge.checked } });
     ctx.refreshToday?.();
   };
-  // 言語(v1.06)。端末の言語に合わせる(既定)/ 日本語 / English。切り替えたら読み込み直す(定数の文言も作り直すため)
-  els.langSelect.replaceChildren(
-    ...LANGUAGE_CHOICES.map((c) => {
-      const o = document.createElement('option');
-      o.value = c.id;
-      o.textContent = c.label ?? tr('端末の言語に合わせる');
-      return o;
-    }),
-  );
-  els.langSelect.value = getLanguagePreference();
-  els.langSelect.onchange = () => {
-    setLanguagePreference(els.langSelect.value);
-    window.location.reload();
-  };
+  // 言語(v1.06)。端末の言語に合わせる(既定)/ 日本語 / English。表示の言語が変わるときは読み込み直す(定数の文言も作り直すため)
+  const renderLang = () =>
+    renderLanguageChoices(els.langChoices, {
+      ids: ['auto', 'ja', 'en'],
+      current: getLanguagePreference(),
+      onPick: async (id) => {
+        if (id === getLanguagePreference()) return;
+        if (!(await changeLanguage(ctx, id))) renderLang(); // 表示の言語が同じなら選択だけ変える
+      },
+    });
+  renderLang();
   // 月のまとめ通知(v1.1)。文面の生成と実スケジュールは app.js 側(ctx.syncMonthly)
   els.monthlyEnabled.onchange = async () => {
     await ctx.stores.settings.merge({ monthlySummary: { enabled: els.monthlyEnabled.checked } });

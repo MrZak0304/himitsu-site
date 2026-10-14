@@ -46,6 +46,14 @@ export function setLanguagePreference(pref) {
   else s.removeItem(PREF_KEY);
 }
 
+// 設定の値(auto / ja / en)から実際に使う言語を決める。auto は端末の言語(Node では日本語)
+export function resolveLocale(pref) {
+  if (pref === 'ja' || pref === 'en') return pref;
+  if (typeof document === 'undefined') return 'ja';
+  const nav = globalThis.navigator;
+  return detectLocale(nav?.languages?.length ? nav.languages : [nav?.language ?? 'ja']);
+}
+
 function initialLocale() {
   if (typeof document === 'undefined') return 'ja'; // Node(テスト)
   try {
@@ -54,10 +62,7 @@ function initialLocale() {
   } catch {
     /* noop */
   }
-  const pref = getLanguagePreference();
-  if (pref !== 'auto') return pref;
-  const nav = globalThis.navigator;
-  return detectLocale(nav?.languages?.length ? nav.languages : [nav?.language ?? 'ja']);
+  return resolveLocale(getLanguagePreference());
 }
 
 let current = initialLocale();
@@ -86,9 +91,19 @@ export function format(template, args) {
 
 // 翻訳。src は日本語の原文(辞書のキー)。args は {0} {1} … に入る
 export function tr(src, ...args) {
-  const d = DICTS[current];
-  const s = (d && Object.prototype.hasOwnProperty.call(d, src) ? d[src] : null) ?? src;
+  const s = trIn(current, src);
   return args.length > 0 ? format(s, args) : s;
+}
+
+// 指定した言語での訳(言語を切り替える前に、切り替え先の文言を作るため。定番タグの名前など)
+export function trIn(l, src) {
+  const d = DICTS[l];
+  return (d && Object.prototype.hasOwnProperty.call(d, src) ? d[src] : null) ?? src;
+}
+
+// 翻訳キーの目印(その場では訳さず、原文のまま持つ)。tools/i18n-keys.mjs は tr() と同じくキーとして集める
+export function N_(src) {
+  return src;
 }
 
 // --- 日付(日本語は従来どおりの書き方。ほかの言語は Intl) ---
