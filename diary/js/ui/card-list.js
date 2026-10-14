@@ -1,6 +1,7 @@
 // 日記内に保存したカードの一覧(v1.05)。きょう画面と日別詳細で共用する画面部品。
 // タップで再編集(カード編集画面を開く)、×の2段階タップで削除(写真の削除と同じ作法)。
 import { UI_ICONS } from '../icons.js';
+import { tr } from '../i18n/index.js';
 
 export function createCardList(ctx) {
   const urlsByEl = new WeakMap();
@@ -27,18 +28,18 @@ export function createCardList(ctx) {
           urls.push(url);
           const img = document.createElement('img');
           img.src = url;
-          img.alt = 'この日の1枚カード';
-          img.title = 'タップで作り直す';
+          img.alt = tr('この日の1枚カード');
+          img.title = tr('タップで作り直す');
           img.onclick = () => ctx.cardDialog?.open(dateKey, { cardId: card.id });
           cell.append(img);
         }
         const badge = document.createElement('span');
         badge.className = 'card-badge';
-        badge.textContent = 'カード';
+        badge.textContent = tr('カード');
         cell.append(badge);
         const del = document.createElement('button');
         del.className = 'del-btn';
-        del.title = '削除';
+        del.title = tr('削除');
         del.innerHTML = UI_ICONS.close;
         let confirming = false;
         let timer = null;
@@ -46,7 +47,7 @@ export function createCardList(ctx) {
           confirming = false;
           clearTimeout(timer);
           del.classList.remove('confirm');
-          del.title = '削除';
+          del.title = tr('削除');
           del.innerHTML = UI_ICONS.close;
         };
         del.onclick = async (e) => {
@@ -54,8 +55,8 @@ export function createCardList(ctx) {
           if (!confirming) {
             confirming = true;
             del.classList.add('confirm');
-            del.title = 'もう一度タップで削除';
-            del.textContent = '削除';
+            del.title = tr('もう一度タップで削除');
+            del.textContent = tr('削除');
             timer = setTimeout(resetDel, 3000);
             return;
           }

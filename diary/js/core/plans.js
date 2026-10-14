@@ -2,6 +2,8 @@
 // 予定は記録(entries)とは別物: 連続記録・月のまとめ・カード・カレンダーの「記録あり」判定には一切影響しない。
 // 形: { [date]: [{ id, emoji, title, createdAt }] }(1 日 PLANS_PER_DAY_MAX 件まで。時刻は持たない=PD 決定 2026-10-12)
 
+import { tr, weekdayShort, formatMonthDay } from '../i18n/index.js';
+
 export const PLAN_TITLE_MAX = 20; // ひとことの上限(書記素)
 export const PLANS_PER_DAY_MAX = 5;
 
@@ -90,6 +92,82 @@ export const PLAN_EMOJI_CATALOG = Object.freeze([
   { emoji: '☔', keywords: ['雨', 'あめ', '傘', 'かさ', '梅雨', 'つゆ'] },
 ]);
 
+// 英語の検索語(v1.06)。どの言語の画面でも、日本語・英語のどちらで探しても見つかるようにする
+export const PLAN_EMOJI_KEYWORDS_EN = Object.freeze({
+  '🎂': 'birthday cake',
+  '🎁': 'present gift',
+  '🎉': 'party celebration event anniversary',
+  '💍': 'wedding ring anniversary engagement',
+  '🎓': 'graduation school ceremony',
+  '🎄': 'christmas winter tree',
+  '🎃': 'halloween autumn fall pumpkin',
+  '🎍': 'new year holiday',
+  '🎆': 'fireworks summer festival',
+  '🌸': 'cherry blossom spring flower hanami',
+  '🍁': 'autumn fall leaves maple',
+  '🎎': 'doll festival',
+  '🍻': 'drinks beer party cheers bar',
+  '🍽️': 'dinner lunch meal restaurant eat',
+  '☕': 'cafe coffee tea',
+  '👫': 'date friends meet',
+  '👨‍👩‍👧': 'family parents home visit',
+  '👶': 'baby kids child checkup',
+  '🐶': 'dog pet walk',
+  '🐱': 'cat pet',
+  '💼': 'work office business trip job',
+  '📝': 'meeting deadline memo note',
+  '💻': 'computer remote online work',
+  '📚': 'study reading book class',
+  '✏️': 'exam test homework',
+  '🏫': 'school kindergarten class',
+  '💴': 'money pay salary rent bill',
+  '📞': 'call phone contact',
+  '📦': 'package delivery parcel',
+  '🏥': 'doctor hospital clinic checkup',
+  '🦷': 'dentist teeth',
+  '💊': 'medicine pharmacy prescription',
+  '💉': 'vaccine shot injection blood',
+  '💇': 'haircut hair salon barber',
+  '💅': 'nails beauty salon spa',
+  '🏃': 'run running jog marathon exercise',
+  '🏋️': 'gym workout training',
+  '🧘': 'yoga stretch meditation rest',
+  '♨️': 'hot spring bath sauna onsen',
+  '🎬': 'movie cinema film',
+  '🎤': 'karaoke concert live sing',
+  '🎵': 'music concert festival lesson',
+  '🎮': 'game gaming release',
+  '⚽': 'soccer football sports game match',
+  '⚾': 'baseball sports game match',
+  '🏊': 'swim pool beach sea',
+  '⛰️': 'hiking mountain camping climb',
+  '🎣': 'fishing fish',
+  '🎨': 'art museum exhibition painting class',
+  '📷': 'photo camera photography',
+  '🎡': 'amusement park outing theme park',
+  '🛍️': 'shopping sale mall',
+  '🛒': 'groceries supermarket shopping',
+  '✈️': 'travel flight trip airport abroad',
+  '🚗': 'car drive driving',
+  '🚃': 'train station trip',
+  '🚲': 'bike cycling bicycle',
+  '🏨': 'hotel stay trip',
+  '⛩️': 'shrine temple visit',
+  '🏠': 'home house moving',
+  '🧹': 'cleaning tidy chores',
+  '🗑️': 'trash garbage recycling',
+  '🧺': 'laundry dry cleaning',
+  '🍳': 'cooking cook meal prep',
+  '🌱': 'plants garden gardening watering',
+  '🔧': 'repair maintenance fix',
+  '📅': 'plan schedule appointment reservation',
+  '❤️': 'love heart important partner',
+  '⭐': 'important star goal',
+  '😴': 'day off rest sleep relax holiday',
+  '☀️': 'sunny weather outside',
+  '☔': 'rain umbrella rainy',
+});
+
 // パレットの絵文字(カタログの順)。後方互換のために残す
 export const PLAN_EMOJI_PRESETS = Object.freeze(PLAN_EMOJI_CATALOG.map((x) => x.emoji));
 
@@ -103,15 +181,15 @@ export function searchEmojis(query) {
   const q = toHiragana((typeof query === 'string' ? query : '').trim().toLowerCase());
   if (q === '') return [...PLAN_EMOJI_PRESETS];
   return PLAN_EMOJI_CATALOG
-    .filter((x) => x.emoji === q || x.keywords.some((k) => toHiragana(k).includes(q)))
+    .filter((x) => x.emoji === q || x.keywords.some((k) => toHiragana(k).includes(q)) || (PLAN_EMOJI_KEYWORDS_EN[x.emoji] ?? '').includes(q))
     .map((x) => x.emoji);
 }
 
 export const MESSAGES = {
-  noEmoji: '絵文字を1つえらんでください。',
-  tooMany: `予定は1日に${PLANS_PER_DAY_MAX}件までです。`,
-  pastDate: '予定は今日以降の日にちに入れられます。',
-  badDate: '日にちを選んでください。',
+  noEmoji: tr('絵文字を1つえらんでください。'),
+  tooMany: tr('予定は1日に{0}件までです。', PLANS_PER_DAY_MAX),
+  pastDate: tr('予定は今日以降の日にちに入れられます。'),
+  badDate: tr('日にちを選んでください。'),
 };
 
 // 文字列を書記素(見た目の 1 文字)に分ける。絵文字の結合(👨‍👩‍👧・🇯🇵・❤️ など)を 1 つとして数える
@@ -185,13 +263,11 @@ export function daysBetween(a, b) {
 }
 
 // 日付の表示(きょう画面の「このあと」用): 「10/15(水)」
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 export function shortDateLabel(dateKey, todayKey = null) {
-  if (todayKey && dateKey === todayKey) return 'きょう';
-  if (todayKey && daysBetween(todayKey, dateKey) === 1) return 'あした';
+  if (todayKey && dateKey === todayKey) return tr('きょう');
+  if (todayKey && daysBetween(todayKey, dateKey) === 1) return tr('あした');
   const [y, m, d] = dateKey.split('-').map(Number);
-  const dow = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-  return `${m}/${d}(${dow})`;
+  return formatMonthDay(m, d, new Date(y, m - 1, d).getDay());
 }
 
 // きょう画面の「今週の予定」(1 行で 1 週間分。PD FB 2026-10-13): today から n 日分の { date, dow, day, emojis, count }
@@ -201,7 +277,7 @@ export function weekDays(plansByDate, todayKey, n = 7) {
     const date = addDaysKey(todayKey, i);
     const [, , d] = date.split('-').map(Number);
     const list = plansByDate?.[date] ?? [];
-    out.push({ date, dow: WEEKDAYS[dayOfWeek(date)], day: d, emojis: cellEmojis(list), count: list.length, today: i === 0 });
+    out.push({ date, dow: weekdayShort(dayOfWeek(date)), day: d, emojis: cellEmojis(list), count: list.length, today: i === 0 });
   }
   return out;
 }

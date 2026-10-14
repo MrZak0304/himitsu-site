@@ -5,31 +5,33 @@
 // rotate(度・-180〜180)はスタンプ自体の傾き(2026-10-12 PD FB)。カードのシールの回転(配置)に足して描く。
 // 反映先はカードだけ(2026-10-10 PD 決定。きょう画面・カレンダーのチップは変えない)。
 
+import { tr } from '../i18n/index.js';
+
 // 定番色 8 色+テーマ色('theme')+透明('transparent'=背景なし・文字だけ)
 export const STAMP_COLORS = Object.freeze([
-  { id: 'theme', name: 'テーマ色', hex: null },
-  { id: 'red', name: 'あか', hex: '#d9534f' },
-  { id: 'orange', name: 'だいだい', hex: '#e2873a' },
-  { id: 'yellow', name: 'きいろ', hex: '#d4b429' },
-  { id: 'green', name: 'みどり', hex: '#4e9a5a' },
-  { id: 'blue', name: 'あお', hex: '#4a7dbd' },
-  { id: 'purple', name: 'むらさき', hex: '#8a6fc8' },
-  { id: 'pink', name: 'ピンク', hex: '#e37b95' },
-  { id: 'gray', name: 'グレー', hex: '#7d7d85' },
-  { id: 'transparent', name: '透明', hex: null },
+  { id: 'theme', name: tr('テーマ色'), hex: null },
+  { id: 'red', name: tr('あか'), hex: '#d9534f' },
+  { id: 'orange', name: tr('だいだい'), hex: '#e2873a' },
+  { id: 'yellow', name: tr('きいろ'), hex: '#d4b429' },
+  { id: 'green', name: tr('みどり'), hex: '#4e9a5a' },
+  { id: 'blue', name: tr('あお'), hex: '#4a7dbd' },
+  { id: 'purple', name: tr('むらさき'), hex: '#8a6fc8' },
+  { id: 'pink', name: tr('ピンク'), hex: '#e37b95' },
+  { id: 'gray', name: tr('グレー'), hex: '#7d7d85' },
+  { id: 'transparent', name: tr('透明'), hex: null },
 ]);
 
 export const STAMP_SHAPES = Object.freeze([
-  { id: 'round', name: '角丸' },
-  { id: 'circle', name: 'まる' },
-  { id: 'ribbon', name: 'リボン' },
-  { id: 'zigzag', name: 'ギザギザ' },
+  { id: 'round', name: tr('角丸') },
+  { id: 'circle', name: tr('まる') },
+  { id: 'ribbon', name: tr('リボン') },
+  { id: 'zigzag', name: tr('ギザギザ') },
 ]);
 
 // 文字の向き(内蔵スタンプだけ。カードに貼るときの最初の向きになる。2026-10-12 PD FB)
 export const STAMP_ORIENTS = Object.freeze([
-  { id: 'h', name: 'ヨコ書き' },
-  { id: 'v', name: 'タテ書き' },
+  { id: 'h', name: tr('ヨコ書き') },
+  { id: 'v', name: tr('タテ書き') },
 ]);
 
 export const STAMP_ALPHA_MIN = 0.2;

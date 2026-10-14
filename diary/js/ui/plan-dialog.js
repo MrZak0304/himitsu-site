@@ -2,6 +2,7 @@
 // 3 行: 日にち / タイトル(任意) / 絵文字(入力欄に 1 文字、または「えらぶ」のドロップダウンで検索して選ぶ)。PD FB 2026-10-13
 
 import { PLAN_TITLE_MAX, normalizeEmoji, searchEmojis, MESSAGES } from '../core/plans.js';
+import { tr } from '../i18n/index.js';
 
 export function createPlanDialog(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -33,7 +34,7 @@ export function createPlanDialog(ctx) {
   function setPanel(open) {
     els.emojiPanel.hidden = !open;
     els.emojiPick.setAttribute('aria-expanded', open ? 'true' : 'false');
-    els.emojiPick.textContent = open ? 'とじる ▴' : 'えらぶ ▾';
+    els.emojiPick.textContent = open ? tr('とじる ▴') : tr('えらぶ ▾');
     if (open) {
       els.emojiSearch.value = '';
       renderPalette();
@@ -50,7 +51,7 @@ export function createPlanDialog(ctx) {
         b.className = `emoji-btn${state.emoji === e ? ' on' : ''}`;
         b.dataset.emoji = e;
         b.textContent = e;
-        b.setAttribute('aria-label', `絵文字 ${e}`);
+        b.setAttribute('aria-label', tr('絵文字 {0}', e));
         b.onclick = () => {
           state.emoji = e;
           els.emojiInput.value = e;
@@ -73,7 +74,7 @@ export function createPlanDialog(ctx) {
   function open({ date, plan = null, pickDate = false, minDate = null }) {
     return new Promise((resolve) => {
       state = { date, plan, pickDate, minDate, emoji: plan?.emoji ?? '', resolve };
-      els.title.textContent = plan ? '予定を編集' : '予定を追加';
+      els.title.textContent = plan ? tr('予定を編集') : tr('予定を追加');
       els.dateRow.hidden = !pickDate;
       els.date.value = date;
       els.date.min = minDate ?? '';
@@ -122,7 +123,7 @@ export function createPlanDialog(ctx) {
         await ctx.stores.plans.add(date, { emoji, title: els.text.value });
       }
     } catch (err) {
-      note(err?.message ?? '予定を保存できませんでした。');
+      note(err?.message ?? tr('予定を保存できませんでした。'));
       return;
     }
     ctx.notifySaved?.();
@@ -131,7 +132,7 @@ export function createPlanDialog(ctx) {
 
   els.remove.onclick = async () => {
     if (!state?.plan) return;
-    if (!(await ctx.confirm('この予定を消しますか?'))) return;
+    if (!(await ctx.confirm(tr('この予定を消しますか?')))) return;
     await ctx.stores.plans.remove(state.date, state.plan.id);
     finish({ saved: false, removed: true, date: state.date });
   };

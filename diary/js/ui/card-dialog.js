@@ -19,10 +19,11 @@ import { cardSlotInfo, cardSlotStatusText } from '../core/card-slots.js';
 import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
 import { stampOrient } from '../core/stamp.js';
 import { makeId } from '../store/kv.js';
+import { tr } from '../i18n/index.js';
 
-export const CARD_EMPTY_MESSAGE = 'タグか写真を記録すると、カードにできます。';
-export const THUMB_TITLE = 'サムネイル';
-export const CARD_TITLE = 'きょうの1枚カード';
+export const CARD_EMPTY_MESSAGE = tr('タグか写真を記録すると、カードにできます。');
+export const THUMB_TITLE = tr('サムネイル');
+export const CARD_TITLE = tr('きょうの1枚カード');
 const WHEEL_ZOOM_RATIO = 1.1; // ホイール1ノッチぶん(PC 向け。スマホはピンチ)
 
 // その日のカードを作れるか(タグか写真があるとき)
@@ -141,7 +142,7 @@ export function createCardDialog(ctx) {
     els.stampMode.hidden = !s;
     els.stampNone.hidden = true;
     if (!s) return;
-    els.orient.textContent = s.orient === 'v' ? 'ヨコ書き' : 'タテ書き';
+    els.orient.textContent = s.orient === 'v' ? tr('ヨコ書き') : tr('タテ書き');
     // スタンプの選択: オリジナル(タグの管理で作ったもの)が無いタグは「オリジナル」を押せず、案内を出す
     const hasOriginal = !!state.stampByName?.get(s.text);
     const mode = hasOriginal && s.stampMode !== 'default' ? 'original' : 'default';
@@ -219,11 +220,11 @@ export function createCardDialog(ctx) {
     for (const b of els.photos.querySelectorAll('.card-photo')) b.classList.toggle('on', Number(b.dataset.idx) === idx);
     const hasPhoto = idx >= 0;
     if (state.mode === 'thumb') {
-      els.hint.textContent = 'この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。';
+      els.hint.textContent = tr('この範囲が写真のサムネイルになります。ドラッグで移動・2本指で拡大(PC はホイール)。');
     } else {
       // 余計な前置きは削る(PD FB 2026-10-13「余計な文言が多いのですっきり」)。写真の範囲が固定なことだけは残す
-      const howTo = 'タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小。';
-      els.hint.textContent = hasPhoto ? `写真の範囲はサムネイルのままです。${howTo}` : howTo;
+      const howTo = tr('タップで選ぶ→ドラッグで移動・丸いつまみで回転と大きさ・2本指で拡大縮小。');
+      els.hint.textContent = hasPhoto ? tr('写真の範囲はサムネイルのままです。{0}', howTo) : howTo;
     }
     if (hasPhoto) {
       const rec = state.photos[idx].rec;
@@ -257,7 +258,7 @@ export function createCardDialog(ctx) {
     const noneBtn = document.createElement('button');
     noneBtn.className = 'card-photo none';
     noneBtn.dataset.idx = '-1';
-    noneBtn.textContent = '写真なし';
+    noneBtn.textContent = tr('写真なし');
     noneBtn.onclick = () => selectPhoto(-1);
     const thumbs = state.photos.map((p, i) => {
       const b = document.createElement('button');
@@ -313,7 +314,7 @@ export function createCardDialog(ctx) {
     renderTools();
     applyMode();
     note(null);
-    els.create.textContent = card ? '作り直して保存' : '作成して日記に保存';
+    els.create.textContent = card ? tr('作り直して保存') : tr('作成して日記に保存');
     els.root.hidden = false;
     let idx = photos.findIndex((p) => p.id === (card ? card.photoId : photoId));
     if (idx < 0 && !(card && card.photoId === null)) {
@@ -369,7 +370,7 @@ export function createCardDialog(ctx) {
         return;
       }
     }
-    ctx.showLoading('カードを保存しています…');
+    ctx.showLoading(tr('カードを保存しています…'));
     try {
       const { imageId, photoId } = await renderAndStore();
       if (cardId) {
@@ -380,7 +381,7 @@ export function createCardDialog(ctx) {
         await ctx.stores.entries.addCard(dateKey, { imageId, photoId, stickers });
       }
     } catch (err) {
-      note(err?.message ?? 'カードを保存できませんでした。');
+      note(err?.message ?? tr('カードを保存できませんでした。'));
       return;
     } finally {
       ctx.hideLoading();
@@ -400,7 +401,7 @@ export function createCardDialog(ctx) {
     if (!state) return;
     const { dateKey } = state;
     const isNative = window.Capacitor?.isNativePlatform?.();
-    ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
+    ctx.showLoading(isNative ? tr('広告を読み込んでいます…') : tr('広告(ダミー)を視聴中…'));
     let failReason = null;
     adInProgress = true;
     try {
@@ -646,11 +647,11 @@ export function createCardDialog(ctx) {
     if (!state || state.sel < 0) return;
     const { dateKey, queue, crop } = state;
     const photo = state.photos[state.sel];
-    ctx.showLoading('サムネイルを保存中…');
+    ctx.showLoading(tr('サムネイルを保存中…'));
     try {
       await saveCrop(photo, crop);
     } catch (err) {
-      note(err?.message ?? 'サムネイルを保存できませんでした。');
+      note(err?.message ?? tr('サムネイルを保存できませんでした。'));
       return;
     } finally {
       ctx.hideLoading();
@@ -665,11 +666,11 @@ export function createCardDialog(ctx) {
     if (!state || state.sel < 0) return;
     const { dateKey, crop } = state;
     const photo = state.photos[state.sel];
-    ctx.showLoading('サムネイルを保存中…');
+    ctx.showLoading(tr('サムネイルを保存中…'));
     try {
       await saveCrop(photo, crop);
     } catch (err) {
-      note(err?.message ?? 'サムネイルを保存できませんでした。');
+      note(err?.message ?? tr('サムネイルを保存できませんでした。'));
       return;
     } finally {
       ctx.hideLoading();
@@ -682,14 +683,14 @@ export function createCardDialog(ctx) {
     if (!state) return;
     const { dateKey, tagNames, crop, theme, stickers } = state;
     const photo = state.sel >= 0 ? state.photos[state.sel] : null;
-    ctx.showLoading('カードを作っています…');
+    ctx.showLoading(tr('カードを作っています…'));
     let result;
     try {
       // 写真の範囲はサムネイル画面で決めたものを使う(カード画面では変えない=PD FB 4)
       const png = await renderCard({ dateKey, tagNames, photoBlob: photo?.rec.blob ?? null, crop, theme, stickers, stampBitmaps: state.stampBitmaps });
       result = await deliverFile(png, cardFileName(dateKey));
     } catch (err) {
-      result = { saved: false, reason: err?.message ?? 'カードを作れませんでした。' };
+      result = { saved: false, reason: err?.message ?? tr('カードを作れませんでした。') };
     } finally {
       ctx.hideLoading();
     }

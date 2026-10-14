@@ -2,6 +2,8 @@
 // 各キャラは表情差分つき: svg(expr) — expr: 'neutral' | 'joy' | 'anger' | 'sorrow' | 'fun'
 // (2026-08-10 PD FB「わかりやすい表情の変化」対応。§9-3/§9-6 の初稿)
 
+import { tr } from './i18n/index.js';
+
 function wrap(body) {
   return `<svg viewBox="0 0 96 96" aria-hidden="true">${body}</svg>`;
 }
@@ -49,7 +51,7 @@ function charSvg(def, expr) {
 
 const DEFS = {
   boy: {
-    name: '男の子',
+    name: tr('男の子'),
     face: { x1: 38, x2: 58, ey: 52, mx: 48, my: 63, c: '#3a2f26' },
     body: `
       <circle cx="48" cy="52" r="30" fill="#ffe0c2"/>
@@ -59,7 +61,7 @@ const DEFS = {
     `,
   },
   girl: {
-    name: '女の子',
+    name: tr('女の子'),
     face: { x1: 39, x2: 57, ey: 54, mx: 48, my: 64, c: '#3a2f26' },
     body: `
       <path d="M16 62c0-26 12-40 32-40s32 14 32 40c0 6-6 10-10 8 2-14-2-24-22-24s-24 10-22 24c-4 2-10-2-10-8z" fill="#7a4a3a"/>
@@ -70,7 +72,7 @@ const DEFS = {
     `,
   },
   cat: {
-    name: 'ねこ',
+    name: tr('ねこ'),
     face: { x1: 37, x2: 59, ey: 52, mx: 48, my: 64, c: '#2f2b33' },
     body: `
       <path d="M22 34L18 14l16 8zM74 34l4-20-16 8z" fill="#8f8f96"/>
@@ -81,7 +83,7 @@ const DEFS = {
     `,
   },
   dog: {
-    name: 'いぬ',
+    name: tr('いぬ'),
     face: { x1: 37, x2: 59, ey: 50, mx: 48, my: 66, c: '#3a2c1c' },
     body: `
       <path d="M20 30c-8 2-8 20 2 22zM76 30c8 2 8 20-2 22z" fill="#a5713f"/>
@@ -92,7 +94,7 @@ const DEFS = {
     `,
   },
   bird: {
-    name: '文鳥',
+    name: tr('文鳥'),
     noMouth: true,
     face: { x1: 38, x2: 58, ey: 50, mx: 48, my: 60, c: '#2f2b33' },
     body: `
@@ -116,5 +118,5 @@ export const CHARACTERS = Object.fromEntries(
 export const CHARACTER_IDS = Object.keys(CHARACTERS);
 
 // 表情差分ラベル(内蔵キャラはSVGで内蔵、ユーザー保存キャラは画像で任意登録)
-export const EXPRESSION_LABELS = { joy: '喜', anger: '怒', sorrow: '哀', fun: '楽' };
+export const EXPRESSION_LABELS = { joy: tr('喜'), anger: tr('怒'), sorrow: tr('哀'), fun: tr('楽') };
 export const EXPRESSION_KEYS = Object.keys(EXPRESSION_LABELS);

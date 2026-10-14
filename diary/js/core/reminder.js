@@ -1,5 +1,7 @@
 // リマインダー時刻のピュア変換。'HH:MM' → LocalNotifications の schedule.on 引数。
 
+import { tr } from '../i18n/index.js';
+
 export function parseReminderTime(time) {
   const m = /^(\d{2}):(\d{2})$/.exec(time ?? '');
   if (!m) return { hour: 21, minute: 0 }; // 既定21:00(SPEC §1)
@@ -10,5 +12,5 @@ export function parseReminderTime(time) {
 }
 
 export const REMINDER_ID = 1;
-export const REMINDER_TITLE = 'ポンとにっき';
-export const REMINDER_BODY = 'きょうの記録をつけましょう!';
+export const REMINDER_TITLE = tr('ポンとにっき');
+export const REMINDER_BODY = tr('きょうの記録をつけましょう!');

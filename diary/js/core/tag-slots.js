@@ -1,7 +1,9 @@
 // 無料版タグ枠の計算(SPEC §6)。基本枠10件+リワードで earned が増える(恒久・上限なし)。
 // 枠の対象は「ユーザーが新規登録したタグ」のみ(定番タグは数えない)。web/paid は無制限。
 
-export const NO_SLOT_MESSAGE = 'タグの登録枠がいっぱいです。広告を見ると枠を1つ増やせます(有料版は無制限)。';
+import { tr } from '../i18n/index.js';
+
+export const NO_SLOT_MESSAGE = tr('タグの登録枠がいっぱいです。広告を見ると枠を1つ増やせます(有料版は無制限)。');
 
 export function tagSlotInfo(tagSlots, variant, userTagCount) {
   const base = Number.isInteger(tagSlots?.base) ? tagSlots.base : 10;
@@ -23,6 +25,6 @@ export function tagSlotInfo(tagSlots, variant, userTagCount) {
 // paid/web(無制限)は null。いっぱいなら案内、残ありなら残数を返す。
 export function slotStatusText(info) {
   if (!Number.isFinite(info?.remaining)) return null; // 無制限
-  if (info.remaining <= 0) return 'タグの登録枠がいっぱいです。広告を見ると1つ増やせます。';
-  return `自分のタグはあと${info.remaining}個ふやせます。`;
+  if (info.remaining <= 0) return tr('タグの登録枠がいっぱいです。広告を見ると1つ増やせます。');
+  return tr('自分のタグはあと{0}個ふやせます。', info.remaining);
 }

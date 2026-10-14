@@ -3,11 +3,13 @@
 // そのまま使える描画命令(背景・テキスト行・位置・サイズ)を組み立てる。
 // 本文は載せない(既定で非公開=不変条件1の趣旨)。文言に「無料」「暗号化」を使わない。
 
+import { formatLongDate } from '../i18n/index.js';
+import { tr } from '../i18n/index.js';
+
 export const CARD_SIZE = 1080; // 正方形(SNS向け)
 export const CARD_MAX_TAGS = 8; // これを超えたぶんは「+N」で畳む
-export const CARD_APP_NAME = 'ポンとにっき';
+export const CARD_APP_NAME = tr('ポンとにっき');
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const PAD = 72; // 外周の余白
 const TAG_FONT = 52;
 const TAG_PAD_X = 34; // チップの左右パディング
@@ -21,8 +23,7 @@ export function formatCardDate(dateKey) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey ?? '');
   if (!m) return '';
   const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const wd = WEEKDAYS[new Date(y, mo - 1, d).getDay()];
-  return `${y}年${mo}月${d}日(${wd})`;
+  return formatLongDate(y, mo, d);
 }
 
 // 文字列の描画幅の見積もり(canvas の measureText を使わずピュアに計算する)。

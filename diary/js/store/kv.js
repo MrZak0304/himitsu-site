@@ -2,6 +2,8 @@
 // Node からテスト可能。読み出しは必ず normalize を通し、壊れたデータでも落ちない。
 // 日記データは端末内にのみ保存し、外部送信しない(CLAUDE.md 不変条件1)。
 
+import { tr } from '../i18n/index.js';
+
 const PROBE_KEY = '__diary_probe__';
 
 export function memoryStorage() {
@@ -29,7 +31,7 @@ export function defaultStorage() {
   }
 }
 
-export const QUOTA_MESSAGE = '保存に失敗しました。端末の空き容量が不足している可能性があります。';
+export const QUOTA_MESSAGE = tr('保存に失敗しました。端末の空き容量が不足している可能性があります。');
 
 export function createKvStore({ key, fallback, normalize = (v) => v, storage = defaultStorage() }) {
   function load() {

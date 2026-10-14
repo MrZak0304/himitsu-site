@@ -3,10 +3,11 @@
 // フォルダを消してもタグは消えない(呼び出し側が tags.clearFolder で未分類へ戻す)。
 
 import { createKvStore, makeId } from './kv.js';
+import { tr } from '../i18n/index.js';
 
 const KEY = 'diary-tag-folders-v1';
 
-export const DUPLICATE_MESSAGE = '同じ名前のフォルダがすでにあります。';
+export const DUPLICATE_MESSAGE = tr('同じ名前のフォルダがすでにあります。');
 
 function normalizeFolder(raw, i) {
   if (typeof raw !== 'object' || raw === null) return null;

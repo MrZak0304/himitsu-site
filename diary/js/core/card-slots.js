@@ -3,8 +3,10 @@
 // その日の枠が1枚増える(entry.cardSlotsEarned)。買い切り版・web は無制限。
 // タグ枠(tag-slots.js)と同じ形の情報オブジェクトを返す。
 
+import { tr } from '../i18n/index.js';
+
 export const CARD_BASE_SLOTS = 1;
-export const NO_CARD_SLOT_MESSAGE = 'この日のカードは1枚まで保存できます。広告を見るともう1枚作れます(買い切り版は無制限)。';
+export const NO_CARD_SLOT_MESSAGE = tr('この日のカードは1枚まで保存できます。広告を見るともう1枚作れます(買い切り版は無制限)。');
 
 export function cardSlotInfo(entry, variant) {
   const saved = Array.isArray(entry?.cards) ? entry.cards.length : 0;
@@ -20,6 +22,6 @@ export function cardSlotInfo(entry, variant) {
 // 広告つき版向けの枠状況の表示文。無制限(買い切り版・web)は null
 export function cardSlotStatusText(info) {
   if (!Number.isFinite(info?.remaining)) return null;
-  if (info.remaining <= 0) return 'この日のカードは保存ずみです。広告を見るともう1枚作れます。';
-  return `この日はあと${info.remaining}枚保存できます。`;
+  if (info.remaining <= 0) return tr('この日のカードは保存ずみです。広告を見るともう1枚作れます。');
+  return tr('この日はあと{0}枚保存できます。', info.remaining);
 }

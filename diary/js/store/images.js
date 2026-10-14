@@ -3,7 +3,9 @@
 // レコード形: {id, blob, thumbBlob, width, height, kind}
 //   kind: 'entry'(記録の添付) | 'icon'(日課アイコン) | 'character'(ユーザー保存キャラ)
 
-export const IMAGE_SAVE_MESSAGE = '画像の保存に失敗しました。端末の空き容量をご確認ください。';
+import { tr } from '../i18n/index.js';
+
+export const IMAGE_SAVE_MESSAGE = tr('画像の保存に失敗しました。端末の空き容量をご確認ください。');
 
 const DB_NAME = 'diary-images-v1';
 const STORE = 'images';

@@ -8,6 +8,7 @@
 // (移行元データは復旧原本として保持し、削除は次期リリースで再検討)。
 
 import { collectReferencedImageIds, findMissingImageIds } from '../core/migration.js';
+import { tr } from '../i18n/index.js';
 
 export const DATA_DIR = 'data';
 export const IMAGE_DIR = 'images';
@@ -18,12 +19,12 @@ export const COLLECTION_KEYS = ['diary-entries-v1', 'diary-tags-v1', 'diary-tag-
 export const PREFERENCES_MAX = 100_000; // Preferencesは小さな設定のみ(プランKTD2)
 
 export const MESSAGES = {
-  notReady: 'ストレージの初期化が終わる前にデータへアクセスしました。アプリを再起動してください。',
-  writeFailed: 'データの保存に失敗しました。端末の空き容量をご確認ください。',
-  corrupt: (key) => `保存データの一部(${key})を読み込めませんでした。壊れたファイルは退避し、以降の記録は新しく保存します。`,
-  tooLarge: '設定データが大きすぎるため保存できませんでした。',
-  migrateFailed: 'データの引っ越しに失敗しました。空き容量を確認してください(次回起動時に自動で再試行します)。',
-  missingImages: (n) => `引っ越し後の確認で、${n}件の画像が見つかりませんでした。バックアップをお持ちの場合は取り込みで復元できます。`,
+  notReady: tr('ストレージの初期化が終わる前にデータへアクセスしました。アプリを再起動してください。'),
+  writeFailed: tr('データの保存に失敗しました。端末の空き容量をご確認ください。'),
+  corrupt: (key) => tr('保存データの一部({0})を読み込めませんでした。壊れたファイルは退避し、以降の記録は新しく保存します。', key),
+  tooLarge: tr('設定データが大きすぎるため保存できませんでした。'),
+  migrateFailed: tr('データの引っ越しに失敗しました。空き容量を確認してください(次回起動時に自動で再試行します)。'),
+  missingImages: (n) => tr('引っ越し後の確認で、{0}件の画像が見つかりませんでした。バックアップをお持ちの場合は取り込みで復元できます。', n),
 };
 
 // --- base64 ヘルパ(1画像単位の小サイズ変換。バックアップの一括変換はWorker側が担当) ---

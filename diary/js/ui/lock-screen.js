@@ -3,11 +3,12 @@
 // 解除状態は visibilitychange/pagehide で即時に破棄する(再ロック)。
 
 import { verifyValue, verifyAnswer, hashValue, makeSalt } from '../core/lock.js';
+import { tr } from '../i18n/index.js';
 
 export const MESSAGES = {
-  wrongPasscode: 'パスコードが違います。',
-  wrongAnswer: '合言葉の答えが違います。',
-  badNewPasscode: '新しいパスコードは4文字以上で、2回同じものを入力してください。',
+  wrongPasscode: tr('パスコードが違います。'),
+  wrongAnswer: tr('合言葉の答えが違います。'),
+  badNewPasscode: tr('新しいパスコードは4文字以上で、2回同じものを入力してください。'),
 };
 
 // 生体認証(@aparajita/capacitor-biometric-auth)。ネイティブのみ有効、Webは常に未対応→パスコードへ。
@@ -15,11 +16,11 @@ export const MESSAGES = {
 //   プラグインのJSラッパー側にしか無いので、バンドラなしで Plugins 直参照する本構成では呼べない
 //   (呼ぶと「未実装」で拒否され、Face IDが起動しないまま黙ってパスコードに落ちる。2026-08-10 PD実機報告の真因)。
 const BIOMETRY_MESSAGES = {
-  biometryNotEnrolled: 'この端末にFace ID・指紋が登録されていません。パスコードで解除してください。',
-  biometryNotAvailable: '生体認証が使えません(端末の設定でこのアプリの許可をご確認ください)。パスコードで解除できます。',
-  biometryLockout: '生体認証が一時的にロックされています。パスコードで解除してください。',
-  passcodeNotSet: '端末にパスコードが設定されていないため生体認証が使えません。',
-  authenticationFailed: '生体認証に失敗しました。もう一度試すか、パスコードで解除してください。',
+  biometryNotEnrolled: tr('この端末にFace ID・指紋が登録されていません。パスコードで解除してください。'),
+  biometryNotAvailable: tr('生体認証が使えません(端末の設定でこのアプリの許可をご確認ください)。パスコードで解除できます。'),
+  biometryLockout: tr('生体認証が一時的にロックされています。パスコードで解除してください。'),
+  passcodeNotSet: tr('端末にパスコードが設定されていないため生体認証が使えません。'),
+  authenticationFailed: tr('生体認証に失敗しました。もう一度試すか、パスコードで解除してください。'),
 };
 
 async function biometricAuth() {
@@ -32,8 +33,8 @@ async function biometricAuth() {
       return { supported: false, reason: BIOMETRY_MESSAGES[check?.code] ?? null };
     }
     const options = {
-      reason: 'ふりかえりのロックを解除します',
-      cancelTitle: 'パスコードを使う',
+      reason: tr('ふりかえりのロックを解除します'),
+      cancelTitle: tr('パスコードを使う'),
       allowDeviceCredential: false,
     };
     // 実装名は internalAuthenticate。将来ネイティブ側に authenticate が生えても動くよう両対応にする
@@ -129,7 +130,7 @@ export function createLockGuard(ctx) {
 
   els.forgotBtn.onclick = async () => {
     const settings = await ctx.stores.settings.get();
-    els.question.textContent = settings.lock.secretQuestion || '秘密の合言葉';
+    els.question.textContent = settings.lock.secretQuestion || tr('秘密の合言葉');
     els.answer.value = '';
     els.pass1.value = '';
     els.pass2.value = '';

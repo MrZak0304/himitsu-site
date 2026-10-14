@@ -27,11 +27,15 @@ import { initCalendar } from './ui/calendar.js';
 import { initHabits } from './ui/habits.js';
 import { initSettings } from './ui/settings.js';
 import { createLockGuard } from './ui/lock-screen.js';
+import { tr, applyDom } from './i18n/index.js';
+
+// 画面の固定文言を端末の言語(または設定)に合わせる(日本語のときは何もしない。v1.06)
+applyDom(document.body);
 
 // --- グローバルエラー赤帯(最初に仕込む。実機報告のスクショにエラー文が写るように) ---
 const errEl = document.getElementById('global-error');
 function showGlobalError(message) {
-  errEl.textContent = `エラーが発生しました: ${message}`;
+  errEl.textContent = tr('エラーが発生しました: {0}', message);
   errEl.hidden = false;
 }
 window.addEventListener('error', (e) => showGlobalError(e.message));
@@ -45,7 +49,7 @@ async function initNativeStorage() {
   if (!window.Capacitor?.isNativePlatform?.()) return null;
   const overlay = document.getElementById('loading-overlay');
   const overlayText = document.getElementById('loading-text');
-  overlayText.textContent = 'データを準備しています…';
+  overlayText.textContent = tr('データを準備しています…');
   overlay.hidden = false;
   try {
     const native = await import('./store/native-adapter.js');
@@ -72,7 +76,7 @@ async function initNativeStorage() {
     });
     return { storage, imageStore };
   } catch (err) {
-    showGlobalError('データの引っ越しに失敗しました。空き容量を確認してください(次回起動時に自動で再試行します)。');
+    showGlobalError(tr('データの引っ越しに失敗しました。空き容量を確認してください(次回起動時に自動で再試行します)。'));
     return null; // 今回はWebViewストレージで続行
   } finally {
     overlay.hidden = true;
@@ -118,7 +122,7 @@ async function main() {
   const popupMsg = document.getElementById('confirm-message');
   const popupOk = document.getElementById('confirm-ok');
   const popupCancel = document.getElementById('confirm-cancel');
-  function confirmPopup(message, { okLabel = '実行する', cancelLabel = 'やめる' } = {}) {
+  function confirmPopup(message, { okLabel = tr('実行する'), cancelLabel = tr('やめる') } = {}) {
     return new Promise((resolve) => {
       popupMsg.textContent = message;
       popupOk.textContent = okLabel;
@@ -139,7 +143,7 @@ async function main() {
   const overlay = document.getElementById('loading-overlay');
   const overlayText = document.getElementById('loading-text');
   function showLoading(text) {
-    overlayText.textContent = text ?? '処理中…';
+    overlayText.textContent = text ?? tr('処理中…');
     overlay.hidden = false;
   }
   function hideLoading() {
@@ -247,8 +251,8 @@ async function main() {
       if (!s.lock.enabled && !s.lock.prompted) {
         await stores.settings.merge({ lock: { ...s.lock, prompted: true } });
         const wants = await confirmPopup(
-          'ふりかえり(過去の記録)を開くときにロックをかけますか?あとから設定タブでいつでも変更できます。',
-          { okLabel: 'ロックを設定する', cancelLabel: '今はしない' },
+          tr('ふりかえり(過去の記録)を開くときにロックをかけますか?あとから設定タブでいつでも変更できます。'),
+          { okLabel: tr('ロックを設定する'), cancelLabel: tr('今はしない') },
         );
         if (wants) {
           await selectTab('settings');

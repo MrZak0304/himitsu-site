@@ -5,6 +5,7 @@
 // isTesting に頼らず、テストモードでもプラットフォーム別の公式テストIDを adId として渡す(iOSでAndroid用IDが使われる罠)。
 
 import { BUILD } from './build-flags.js';
+import { tr } from './i18n/index.js';
 
 const BANNER_PLACEHOLDER_HEIGHT = 52; // Webプレビュー用プレースホルダのみ。ネイティブは実高さを使う
 
@@ -41,11 +42,11 @@ const EVENTS = {
 };
 
 export const MESSAGES = {
-  loadFailed: '広告を読み込めませんでした。通信状況をご確認ください。',
-  notCompleted: '最後まで視聴すると枠が増えます。',
-  showFailed: '広告を表示できませんでした。しばらくしてからお試しください。',
-  timeout: '広告の読み込みに時間がかかっています。しばらくしてからお試しください。',
-  prodUnitsMissing: '本番広告ユニットIDが未設定です。AdMob登録後に AD_UNITS を記入してください。',
+  loadFailed: tr('広告を読み込めませんでした。通信状況をご確認ください。'),
+  notCompleted: tr('最後まで視聴すると枠が増えます。'),
+  showFailed: tr('広告を表示できませんでした。しばらくしてからお試しください。'),
+  timeout: tr('広告の読み込みに時間がかかっています。しばらくしてからお試しください。'),
+  prodUnitsMissing: tr('本番広告ユニットIDが未設定です。AdMob登録後に AD_UNITS を記入してください。'),
 };
 
 // ユニット選択(ピュア・テスト対象)。prod でIDが未記入なら fail-fast(不変条件9)
@@ -131,7 +132,7 @@ async function doInitAds() {
   if (!platform) {
     // Webプレビュー: プレースホルダ枠で --ad-inset の挙動を検証する
     banner.hidden = false;
-    banner.textContent = BUILD.adMode === 'prod' ? '広告' : '広告(テスト)';
+    banner.textContent = BUILD.adMode === 'prod' ? tr('広告') : tr('広告(テスト)');
     setInset(BANNER_PLACEHOLDER_HEIGHT);
     return;
   }
@@ -146,7 +147,7 @@ async function doInitAds() {
     await AdMob.showBanner({ adId: units.banner, adSize: 'ADAPTIVE_BANNER', position: 'TOP_CENTER', margin: 0 });
   } catch (err) {
     // 失敗しても本体機能は止めない。ただし静かに死ぬため、実機での初回目視確認が必須(curly-train教訓)
-    console.warn('広告の初期化に失敗:', err);
+    console.warn(tr('広告の初期化に失敗:'), err);
     AdMob = null;
   }
 }
@@ -198,5 +199,5 @@ export async function requestRewarded() {
 
 export function buildLabel() {
   // 版名はストア名称と統一(「無料版」の語は使わない: App Store 2.3.7 対応の運用ルール)
-  return { web: 'Web版(プロトタイプ)', free: '広告つき', paid: '広告なし' }[BUILD.variant] ?? BUILD.variant;
+  return { web: tr('Web版(プロトタイプ)'), free: tr('広告つき'), paid: tr('広告なし') }[BUILD.variant] ?? BUILD.variant;
 }

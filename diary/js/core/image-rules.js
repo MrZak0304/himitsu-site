@@ -1,7 +1,9 @@
 // 画像添付の枚数制限と一押し画像のピュア判定(SPEC §2.1)。
 
+import { tr } from '../i18n/index.js';
+
 export const MAX_IMAGES_PER_DAY = 10;
-export const LIMIT_MESSAGE = '画像は1日10枚までです。';
+export const LIMIT_MESSAGE = tr('画像は1日10枚までです。');
 
 // 現在の枚数と追加希望枚数から、受け入れ枚数を判定する
 export function acceptImages(currentCount, addCount) {

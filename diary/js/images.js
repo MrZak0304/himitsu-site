@@ -4,8 +4,9 @@
 
 import { createImageStore } from './store/images.js';
 import { makeId } from './store/kv.js';
+import { tr } from './i18n/index.js';
 
-export const UNSUPPORTED_MESSAGE = 'この環境は画像の取り込みに対応していません(最新のブラウザでお試しください)。';
+export const UNSUPPORTED_MESSAGE = tr('この環境は画像の取り込みに対応していません(最新のブラウザでお試しください)。');
 
 let worker = null;
 let seq = 0;
@@ -39,7 +40,7 @@ export function createImagePipeline(imageStore = createImageStore()) {
       pending.set(id, resolve);
       getWorker().postMessage({ id, file, ...opts });
     });
-    if (!result.ok) throw new Error(result.message);
+    if (!result.ok) throw new Error(tr(result.message)); // ワーカーは翻訳モジュールを読めないので日本語の原文で返し、ここで訳す
     return result;
   }
 

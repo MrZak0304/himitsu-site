@@ -5,6 +5,7 @@
 
 import { layoutCard, photoSourceRect, stickerRect, stampSize, imageStampSize, CARD_SIZE, HANDLE_OFFSET, HANDLE_R } from './core/card.js';
 import { resolveStampColors, stampRotate, stampOrient } from './core/stamp.js';
+import { tr } from './i18n/index.js';
 
 const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
 
@@ -38,7 +39,7 @@ export async function loadBitmap(blob) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('写真を読み込めませんでした。'));
+      reject(new Error(tr('写真を読み込めませんでした。')));
     };
     img.src = url;
   });
@@ -286,7 +287,7 @@ export async function cropThumb(photoBlob, crop) {
     canvas.height = THUMB_SIZE;
     canvas.getContext('2d').drawImage(bitmap, sx, sy, sw, sh, 0, 0, THUMB_SIZE, THUMB_SIZE);
     return await new Promise((resolve, reject) => {
-      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('サムネイルを作れませんでした。'))), 'image/jpeg', 0.85);
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(tr('サムネイルを作れませんでした。')))), 'image/jpeg', 0.85);
     });
   } finally {
     bitmap?.close?.();
@@ -321,6 +322,6 @@ export async function renderCard({ dateKey, tagNames, photoBlob = null, crop, th
     bitmap?.close?.();
   }
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('カードの画像を作れませんでした。'))), 'image/png');
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(tr('カードの画像を作れませんでした。')))), 'image/png');
   });
 }

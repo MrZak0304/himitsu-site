@@ -3,9 +3,10 @@
 
 import { parseReminderTime, REMINDER_ID, REMINDER_TITLE, REMINDER_BODY } from './core/reminder.js';
 import { MONTHLY_ID, MONTHLY_HOUR, MONTHLY_TITLE } from './core/monthly-summary.js';
+import { tr } from './i18n/index.js';
 
 export const PERMISSION_DENIED_MESSAGE =
-  '通知が許可されていません。端末の設定からこのアプリの通知を許可すると、リマインダーが届きます(設定した時刻は保存されています)。';
+  tr('通知が許可されていません。端末の設定からこのアプリの通知を許可すると、リマインダーが届きます(設定した時刻は保存されています)。');
 
 function plugin() {
   if (!window.Capacitor?.isNativePlatform?.()) return null;
@@ -35,7 +36,7 @@ export async function syncReminder(reminder) {
     });
     return { ok: true };
   } catch {
-    return { ok: false, reason: '通知の設定に失敗しました。時刻は保存されています。' };
+    return { ok: false, reason: tr('通知の設定に失敗しました。時刻は保存されています。') };
   }
 }
 
@@ -63,7 +64,7 @@ export async function syncMonthlySummary(enabled, body, { requestPermission = fa
     });
     return { ok: true };
   } catch {
-    return { ok: false, reason: '通知の設定に失敗しました。' };
+    return { ok: false, reason: tr('通知の設定に失敗しました。') };
   }
 }
 

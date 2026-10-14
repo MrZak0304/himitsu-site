@@ -4,8 +4,8 @@
 
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
 import { UI_ICONS } from '../icons.js';
+import { tr, formatLongDate } from '../i18n/index.js';
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
 export function createDayEditor(ctx, { onChange } = {}) {
   const $ = (id) => document.getElementById(id);
@@ -47,8 +47,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
     if (seq !== renderSeq) return;
 
     const [y, m, d] = date.split('-').map(Number);
-    const wd = WEEKDAYS[new Date(y, m - 1, d).getDay()];
-    els.dateNote.textContent = `${y}年${m}月${d}日(${wd})を編集中`;
+    els.dateNote.textContent = tr('{0}を編集中', formatLongDate(y, m, d));
 
     // タグスタンプ
     const on = new Set(entry?.tags ?? []);
@@ -91,7 +90,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
         }
         const push = document.createElement('button');
         push.className = `push-btn${idx === pushIdx ? ' on' : ''}`;
-        push.title = '一押しにする';
+        push.title = tr('一押しにする');
         push.innerHTML = idx === pushIdx ? UI_ICONS.starFill : UI_ICONS.star;
         push.onclick = async () => {
           await ctx.stores.entries.upsert(date, { pushImageIndex: idx });
@@ -102,7 +101,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
         // 削除は「きょう」と同じセル内2段階タップ(全画面ポップアップを出さない)
         const del = document.createElement('button');
         del.className = 'del-btn';
-        del.title = '削除';
+        del.title = tr('削除');
         del.innerHTML = UI_ICONS.close;
         let confirming = false;
         let confirmTimer = null;
@@ -110,15 +109,15 @@ export function createDayEditor(ctx, { onChange } = {}) {
           confirming = false;
           clearTimeout(confirmTimer);
           del.classList.remove('confirm');
-          del.title = '削除';
+          del.title = tr('削除');
           del.innerHTML = UI_ICONS.close;
         };
         del.onclick = async () => {
           if (!confirming) {
             confirming = true;
             del.classList.add('confirm');
-            del.title = 'もう一度タップで削除';
-            del.textContent = '削除';
+            del.title = tr('もう一度タップで削除');
+            del.textContent = tr('削除');
             confirmTimer = setTimeout(resetDel, 3000);
             return;
           }
@@ -142,12 +141,12 @@ export function createDayEditor(ctx, { onChange } = {}) {
     urls = newUrls;
     els.images.replaceChildren(...cells);
     els.imageAdd.disabled = imageIds.length >= MAX_IMAGES_PER_DAY;
-    note(els.imageNote, imageIds.length >= MAX_IMAGES_PER_DAY ? '画像は1日10枚までです。' : null);
+    note(els.imageNote, imageIds.length >= MAX_IMAGES_PER_DAY ? tr('画像は1日10枚までです。') : null);
 
     // 日課チェック(過去日も編集可。2026-08-14 PD FB)。当日の連続達成キャラ演出はしない。
     if (habits.length === 0) {
       els.habits.replaceChildren();
-      note(els.habitNote, '日課はまだありません。「日課」タブから登録できます。');
+      note(els.habitNote, tr('日課はまだありません。「日課」タブから登録できます。'));
     } else {
       note(els.habitNote, null);
       els.habits.replaceChildren(
@@ -190,7 +189,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
     const verdict = acceptImages(current.length, files.length);
     if (verdict.reason) note(els.imageNote, verdict.reason);
     if (verdict.accepted === 0) return;
-    ctx.showLoading('写真を保存中…');
+    ctx.showLoading(tr('写真を保存中…'));
     try {
       for (const file of files.slice(0, verdict.accepted)) {
         const { id } = await ctx.pipeline.saveImage(file, 'entry');

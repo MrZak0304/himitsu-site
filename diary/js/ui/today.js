@@ -9,8 +9,8 @@ import { canMakeCard, CARD_EMPTY_MESSAGE } from './card-dialog.js';
 import { streak } from '../core/streaks.js';
 import { weekDays, shortDateLabel } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
+import { tr, formatLongDate } from '../i18n/index.js';
 
-const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 
 export function initToday(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -61,7 +61,7 @@ export function initToday(ctx) {
     const seq = renderSeq;
     const today = ctx.todayKey();
     const now = new Date();
-    els.date.textContent = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日(${WEEKDAYS[now.getDay()]})`;
+    els.date.textContent = formatLongDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
     const [entry, tags, habits, checks, slots, settings] = await Promise.all([
       ctx.stores.entries.get(today),
@@ -122,7 +122,7 @@ export function initToday(ctx) {
     const diaryDates = new Set(Object.entries(allEntries).filter(([, e]) => (e?.tags?.length ?? 0) > 0 || (e?.text ?? '') !== '' || (e?.images?.length ?? 0) > 0).map(([d]) => d));
     const days = streak(diaryDates, today);
     els.streak.hidden = days === 0 || !settings.display.streakBadge; // 設定で非表示にできる(PD FB)
-    els.streak.textContent = days > 0 ? `連続${days}日` : '';
+    els.streak.textContent = days > 0 ? tr('連続{0}日', days) : '';
 
     // 予定(v1.06): 今週(きょうから 7 日)を 1 行に並べ、タップした日の予定を下に出す(PD FB 2026-10-13)。過去の予定は出さない(ロックの趣旨)
     const plansByDate = await ctx.stores.plans.all();
@@ -144,10 +144,10 @@ export function initToday(ctx) {
         b.dataset.date = d.date;
         b.setAttribute('role', 'tab');
         b.setAttribute('aria-selected', d.date === selectedDate ? 'true' : 'false');
-        b.setAttribute('aria-label', `${shortDateLabel(d.date, today)} 予定${d.count}件`);
+        b.setAttribute('aria-label', tr('{0} 予定{1}件', shortDateLabel(d.date, today), d.count));
         const dow = document.createElement('span');
         dow.className = 'wd-dow';
-        dow.textContent = d.today ? 'きょう' : d.dow;
+        dow.textContent = d.today ? tr('きょう') : d.dow;
         const day = document.createElement('span');
         day.className = 'wd-day';
         day.textContent = String(d.day);
@@ -163,7 +163,7 @@ export function initToday(ctx) {
       }),
     );
     const dayPlans = plansByDate[selectedDate] ?? [];
-    els.weekLabel.textContent = `${shortDateLabel(selectedDate, today)}の予定`;
+    els.weekLabel.textContent = tr('{0}の予定', shortDateLabel(selectedDate, today));
     renderPlanList(els.plans, dayPlans, { onTap: (p) => editPlan(selectedDate, p) });
     els.plansEmpty.hidden = dayPlans.length > 0;
 
@@ -189,7 +189,7 @@ export function initToday(ctx) {
           const img = document.createElement('img');
           img.src = url;
           img.alt = '';
-          img.title = 'サムネイルの範囲を変える';
+          img.title = tr('サムネイルの範囲を変える');
           img.className = 'thumb-edit';
           // 写真をタップするとサムネイル(切り抜き範囲)を決め直せる(PD FB 3)
           img.onclick = () => ctx.cardDialog?.openThumb(today, [id]);
@@ -197,7 +197,7 @@ export function initToday(ctx) {
         }
         const push = document.createElement('button');
         push.className = `push-btn${idx === pushIdx ? ' on' : ''}`;
-        push.title = '一押しにする';
+        push.title = tr('一押しにする');
         push.innerHTML = idx === pushIdx ? UI_ICONS.starFill : UI_ICONS.star;
         push.onclick = async () => {
           await ctx.stores.entries.upsert(today, { pushImageIndex: idx });
@@ -208,7 +208,7 @@ export function initToday(ctx) {
         // (×→「削除」に変わる。塗りつぶしの確認は重いというPD FB 2026-08-10)
         const del = document.createElement('button');
         del.className = 'del-btn';
-        del.title = '削除';
+        del.title = tr('削除');
         del.innerHTML = UI_ICONS.close;
         let confirming = false;
         let confirmTimer = null;
@@ -216,15 +216,15 @@ export function initToday(ctx) {
           confirming = false;
           clearTimeout(confirmTimer);
           del.classList.remove('confirm');
-          del.title = '削除';
+          del.title = tr('削除');
           del.innerHTML = UI_ICONS.close;
         };
         del.onclick = async () => {
           if (!confirming) {
             confirming = true;
             del.classList.add('confirm');
-            del.title = 'もう一度タップで削除';
-            del.textContent = '削除';
+            del.title = tr('もう一度タップで削除');
+            del.textContent = tr('削除');
             confirmTimer = setTimeout(resetDel, 3000); // 触らなければ元に戻る
             return;
           }
@@ -247,7 +247,7 @@ export function initToday(ctx) {
     urls = newUrls;
     els.images.replaceChildren(...cells);
     els.imageAdd.disabled = imageIds.length >= MAX_IMAGES_PER_DAY;
-    if (imageIds.length >= MAX_IMAGES_PER_DAY) note(els.imageNote, '画像は1日10枚までです。');
+    if (imageIds.length >= MAX_IMAGES_PER_DAY) note(els.imageNote, tr('画像は1日10枚までです。'));
     else note(els.imageNote, null);
 
     // 日課チェック
@@ -255,7 +255,7 @@ export function initToday(ctx) {
       els.habits.replaceChildren();
       els.habitNote.hidden = false;
       els.habitNote.style.color = 'var(--text-dim)';
-      els.habitNote.textContent = '日課はまだありません。「日課」タブから登録しましょう。';
+      els.habitNote.textContent = tr('日課はまだありません。「日課」タブから登録しましょう。');
     } else {
       els.habitNote.hidden = true;
       els.habits.replaceChildren(
@@ -333,7 +333,7 @@ export function initToday(ctx) {
   // リワード(Webはダミー視聴)→枠+1(恒久)
   els.watchAd.onclick = async () => {
     const isNative = window.Capacitor?.isNativePlatform?.();
-    ctx.showLoading(isNative ? '広告を読み込んでいます…' : '広告(ダミー)を視聴中…');
+    ctx.showLoading(isNative ? tr('広告を読み込んでいます…') : tr('広告(ダミー)を視聴中…'));
     let failReason = null;
     try {
       const r = await requestRewarded();
@@ -388,7 +388,7 @@ export function initToday(ctx) {
     const verdict = acceptImages(current.length, files.length);
     if (verdict.reason) note(els.imageNote, verdict.reason);
     if (verdict.accepted === 0) return;
-    ctx.showLoading('写真を保存中…');
+    ctx.showLoading(tr('写真を保存中…'));
     const added = [];
     try {
       for (const file of files.slice(0, verdict.accepted)) {

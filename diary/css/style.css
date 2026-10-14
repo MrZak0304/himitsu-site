@@ -677,6 +677,8 @@ input[type="time"], input[type="color"] { width: auto; }
 .card-tools.sticker-tools { flex-wrap: nowrap; gap: 4px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .card-tools.sticker-tools .btn.mini { padding: 6px 7px; font-size: 12px; white-space: nowrap; flex: 0 0 auto; }
 .card-tools.sticker-tools #card-rot-l, .card-tools.sticker-tools #card-rot-r { font-size: 15px; padding: 4px 8px; }
+/* 日本語以外は語が長く 1 行に収まらないので折り返す(日本語は 1 行=PD FB 6。v1.06) */
+html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: visible; }
 
 /* 日記内に保存したカード(v1.05)。写真のグリッドと同じ見た目。タップで再編集 */
 .card-grid .image-cell { cursor: pointer; }
@@ -745,3 +747,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .choice-row .mini-btn:disabled { opacity: .45; cursor: default; }
 .choice-row .mini-btn.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 .manage-list .badge.stamp { color: var(--accent); border-color: var(--accent); }
+
+/* 言語の選択(v1.06) */
+.lang-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lang-row select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--panel-edge); background: var(--panel); color: var(--text); }

@@ -2,6 +2,8 @@
 // ネイティブでは Filesystem(CACHE)+Share の共有シート経路(Android WebView は <a download> 不可)。
 // 全量一括のbase64/文字列連結をブリッジに渡さないよう、書き出しはチャンク分割で行う(プランU6)。
 
+import { tr } from './i18n/index.js';
+
 export function createBackupIO() {
   function run(message) {
     return new Promise((resolve, reject) => {
@@ -14,7 +16,7 @@ export function createBackupIO() {
       };
       w.onerror = () => {
         w.terminate();
-        reject(new Error('バックアップ処理を開始できませんでした。'));
+        reject(new Error(tr('バックアップ処理を開始できませんでした。')));
       };
       w.postMessage(message);
     });
@@ -67,7 +69,7 @@ function nativeFs() {
   return window.Capacitor.Plugins ?? null;
 }
 
-export const SHARE_TITLE = 'ポンとにっきのバックアップ';
+export const SHARE_TITLE = tr('ポンとにっきのバックアップ');
 
 // 書き出しの保存部。Web=<a download> / ネイティブ=CACHEへチャンク書き込み→共有シート→後始末。
 // 戻り値 {saved}: 共有シートをキャンセルしたら false(「書き出しました」と誤って伝えないため)
@@ -113,7 +115,7 @@ async function blobToBase64(blob) {
   return btoa(bin);
 }
 
-export const CARD_APP_SHARE_TITLE = 'きょうの1枚カード';
+export const CARD_APP_SHARE_TITLE = tr('きょうの1枚カード');
 
 // バイナリ(画像など)の保存部。Web=<a download> / ネイティブ=CACHEへ書き込み→共有シート→後始末。
 // 「きょうの1枚カード」(v1.1)で使う。バックアップと同じく、共有先はユーザーの操作でのみ決まる(不変条件1)。

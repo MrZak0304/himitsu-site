@@ -5,6 +5,7 @@ import { streak } from '../core/streaks.js';
 import { hasEntryContent } from '../core/calendar.js';
 import { HABIT_ICONS, HABIT_ICON_LABELS, UI_ICONS } from '../icons.js';
 import { CHARACTERS } from '../characters.js';
+import { tr } from '../i18n/index.js';
 
 export function initHabits(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -77,7 +78,7 @@ export function initHabits(ctx) {
   els.addBtn.onclick = async () => {
     const name = els.nameInput.value.trim();
     if (!name) {
-      note('日課の名前を入力してください。');
+      note(tr('日課の名前を入力してください。'));
       return;
     }
     let icon;
@@ -87,16 +88,16 @@ export function initHabits(ctx) {
       } else if (iconTab === 'emoji') {
         const emoji = els.emojiInput.value.trim();
         if (!emoji) {
-          note('絵文字を1つ入力してください。');
+          note(tr('絵文字を1つ入力してください。'));
           return;
         }
         icon = { type: 'emoji', value: emoji };
       } else {
         if (!imageFile) {
-          note('アイコンにする画像を選んでください。');
+          note(tr('アイコンにする画像を選んでください。'));
           return;
         }
-        ctx.showLoading('画像を保存中…');
+        ctx.showLoading(tr('画像を保存中…'));
         const { id } = await ctx.pipeline.saveImage(imageFile, 'icon');
         ctx.hideLoading();
         icon = { type: 'image', value: id };
@@ -138,11 +139,11 @@ export function initHabits(ctx) {
         const days = streak(await ctx.stores.habitLogs.checkedDates(habit.id), today);
         const st = document.createElement('span');
         st.className = 'habit-streak';
-        st.textContent = `連続${days}日`;
+        st.textContent = tr('連続{0}日', days);
 
         const rename = document.createElement('button');
         rename.className = 'mini-btn';
-        rename.textContent = '改名';
+        rename.textContent = tr('改名');
         rename.onclick = () => {
           const input = document.createElement('input');
           input.type = 'text';
@@ -165,12 +166,12 @@ export function initHabits(ctx) {
         const up = document.createElement('button');
         up.className = 'mini-btn';
         up.innerHTML = UI_ICONS.up;
-        up.title = '上へ';
+        up.title = tr('上へ');
         up.disabled = i === 0;
         const down = document.createElement('button');
         down.className = 'mini-btn';
         down.innerHTML = UI_ICONS.down;
-        down.title = '下へ';
+        down.title = tr('下へ');
         down.disabled = i === habits.length - 1;
         up.onclick = async () => {
           const ids = habits.map((h) => h.id);
@@ -186,16 +187,16 @@ export function initHabits(ctx) {
         // 削除は2段階クリック(誤タップ対策)
         const del = document.createElement('button');
         del.className = 'mini-btn';
-        del.textContent = '削除';
+        del.textContent = tr('削除');
         let armed = false;
         del.onclick = async () => {
           if (!armed) {
             armed = true;
-            del.textContent = 'もう一度押すと削除';
+            del.textContent = tr('もう一度押すと削除');
             del.classList.add('danger');
             setTimeout(() => {
               armed = false;
-              del.textContent = '削除';
+              del.textContent = tr('削除');
               del.classList.remove('danger');
             }, 3000);
             return;

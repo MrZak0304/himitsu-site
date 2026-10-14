@@ -3,25 +3,26 @@
 
 import { createKvStore, makeId } from './kv.js';
 import { normalizeStamp } from '../core/stamp.js';
+import { tr } from '../i18n/index.js';
 
 const KEY = 'diary-tags-v1';
 
 // 定番タグ初期セット案(SPEC §9-2 の初稿。PD確認で差し替え可能)
 export const DEFAULT_TAGS = [
-  '#最高の一日',
-  '#がんばった',
-  '#おつかれ',
-  '#まったり',
-  '#たのしかった',
-  '#しんどかった',
-  '#おでかけ',
-  '#おうち時間',
-  '#いいことあった',
-  '#ふつうの日',
+  tr('#最高の一日'),
+  tr('#がんばった'),
+  tr('#おつかれ'),
+  tr('#まったり'),
+  tr('#たのしかった'),
+  tr('#しんどかった'),
+  tr('#おでかけ'),
+  tr('#おうち時間'),
+  tr('#いいことあった'),
+  tr('#ふつうの日'),
 ];
 
-export const DUPLICATE_MESSAGE = '同じ名前のタグがすでにあります。';
-export const IN_USE_MESSAGE = 'このタグは過去の記録で使われているため削除できません。';
+export const DUPLICATE_MESSAGE = tr('同じ名前のタグがすでにあります。');
+export const IN_USE_MESSAGE = tr('このタグは過去の記録で使われているため削除できません。');
 
 function normalizeTag(raw, i) {
   if (typeof raw !== 'object' || raw === null) return null;

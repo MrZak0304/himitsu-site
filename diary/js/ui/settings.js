@@ -14,6 +14,7 @@ import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
 import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate, STAMP_ORIENTS, stampOrient } from '../core/stamp.js';
 import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
+import { tr, LANGUAGE_CHOICES, getLanguagePreference, setLanguagePreference } from '../i18n/index.js';
 
 export function initSettings(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -31,6 +32,7 @@ export function initSettings(ctx) {
     reminderNote: $('reminder-note'),
     monthlyEnabled: $('monthly-enabled'),
     streakBadge: $('streak-badge-enabled'),
+    langSelect: $('lang-select'),
     monthlyNote: $('monthly-note'),
     lockEnabled: $('lock-enabled'),
     lockSetupBtn: $('lock-setup-btn'),
@@ -100,7 +102,7 @@ export function initSettings(ctx) {
     const entries = await ctx.stores.entries.all();
     const { dates, count } = tagUsage(entries, tag.id);
     if (count === 0) {
-      if (!(await ctx.confirm(`「${tag.name}」を削除しますか?`))) return;
+      if (!(await ctx.confirm(tr('「{0}」を削除しますか?', tag.name)))) return;
       await ctx.stores.tags.remove(tag.id, new Set());
       note(els.tagNote, null);
       refreshTags();
@@ -108,11 +110,11 @@ export function initSettings(ctx) {
       return;
     }
     const choice = await askTagAction(
-      `「${tag.name}」は過去の記録の ${count}日 で使われています。どうしますか?`,
+      tr('「{0}」は過去の記録の {1}日 で使われています。どうしますか?', tag.name, count),
     );
     if (choice === 'hide') {
       await ctx.stores.tags.setHidden(tag.id, true);
-      note(els.tagNote, `「${tag.name}」を一覧から隠しました(過去の記録は残っています)。`, true);
+      note(els.tagNote, tr('「{0}」を一覧から隠しました(過去の記録は残っています)。', tag.name), true);
       refreshTags();
       ctx.refreshToday?.();
     } else if (choice === 'jump') {
@@ -120,15 +122,15 @@ export function initSettings(ctx) {
     } else if (choice === 'delete') {
       if (
         !(await ctx.confirm(
-          `本当に「${tag.name}」を完全に削除しますか?過去の記録 ${count}日 からもこのタグが外れます(元に戻せません)。`,
-          { okLabel: '完全に削除', cancelLabel: 'やめる' },
+          tr('本当に「{0}」を完全に削除しますか?過去の記録 {1}日 からもこのタグが外れます(元に戻せません)。', tag.name, count),
+          { okLabel: tr('完全に削除'), cancelLabel: tr('やめる') },
         ))
       ) {
         return;
       }
       await ctx.stores.entries.removeTagEverywhere(tag.id);
       await ctx.stores.tags.forceRemove(tag.id);
-      note(els.tagNote, `「${tag.name}」を完全に削除しました。`, true);
+      note(els.tagNote, tr('「{0}」を完全に削除しました。', tag.name), true);
       refreshTags();
       ctx.refreshToday?.();
     }
@@ -145,7 +147,7 @@ export function initSettings(ctx) {
         name.textContent = folder.name;
         const del = document.createElement('button');
         del.className = 'mini-btn danger';
-        del.textContent = '削除';
+        del.textContent = tr('削除');
         del.onclick = async () => {
           // フォルダを消してもタグは消えない(未分類へ戻す)
           await ctx.stores.tagFolders.remove(folder.id);
@@ -164,7 +166,7 @@ export function initSettings(ctx) {
   els.folderAdd.onclick = async () => {
     const name = els.folderInput.value.trim();
     if (!name) {
-      note(els.folderNote, 'フォルダの名前を入力してください。');
+      note(els.folderNote, tr('フォルダの名前を入力してください。'));
       els.folderInput.focus();
       return;
     }
@@ -252,7 +254,7 @@ export function initSettings(ctx) {
 
   async function renderStampDialog() {
     const { tag, draft } = stampEdit;
-    sd.title.textContent = `タグのスタンプ: ${tag.name}`;
+    sd.title.textContent = tr('タグのスタンプ: {0}', tag.name);
     const builtin = draft?.type === 'builtin' ? draft : null;
     // デフォルト(null)/オリジナル(内蔵か画像)の切り替え。デフォルトのときは細かい設定を出さない(2026-10-12 PD FB)
     for (const b of sd.mode.querySelectorAll('[data-mode]')) b.classList.toggle('on', (b.dataset.mode === 'original') === !!draft);
@@ -315,7 +317,7 @@ export function initSettings(ctx) {
     const isImage = draft?.type === 'image';
     sd.orientWrap.hidden = isImage; // 画像スタンプに文字の向きは無い
     sd.imageClear.hidden = !isImage;
-    sd.imagePick.textContent = isImage ? '別の画像にする' : '画像をえらぶ';
+    sd.imagePick.textContent = isImage ? tr('別の画像にする') : tr('画像をえらぶ');
     // プレビュー(画像は選んだファイル or 保存済みの画像)
     if (isImage && !stampEdit.bitmap) {
       if (stampEdit.pendingFile) stampEdit.bitmap = await loadBitmap(stampEdit.pendingFile).catch(() => null);
@@ -388,7 +390,7 @@ export function initSettings(ctx) {
     const { tag } = stampEdit;
     const prevImageId = tag.stamp?.type === 'image' ? tag.stamp.imageId : null;
     let stamp = nextDraft;
-    ctx.showLoading('スタンプを保存中…');
+    ctx.showLoading(tr('スタンプを保存中…'));
     try {
       if (stamp?.type === 'image' && stampEdit.pendingFile) {
         const { id } = await ctx.pipeline.saveImage(stampEdit.pendingFile, 'stamp');
@@ -398,7 +400,7 @@ export function initSettings(ctx) {
       await ctx.stores.tags.setStamp(tag.id, stamp);
       if (prevImageId && stamp?.imageId !== prevImageId) await ctx.pipeline.store.remove(prevImageId).catch(() => {});
     } catch (err) {
-      note(sd.note, err.message ?? 'スタンプを保存できませんでした。');
+      note(sd.note, err.message ?? tr('スタンプを保存できませんでした。'));
       return false;
     } finally {
       ctx.hideLoading();
@@ -446,13 +448,13 @@ export function initSettings(ctx) {
         if (tag.builtin) {
           const badge = document.createElement('span');
           badge.className = 'badge';
-          badge.textContent = '定番';
+          badge.textContent = tr('定番');
           head.append(badge);
         }
         if (tag.stamp) {
           const badge = document.createElement('span');
           badge.className = 'badge stamp';
-          badge.textContent = 'スタンプ';
+          badge.textContent = tr('スタンプ');
           head.append(badge);
         }
         const chev = document.createElement('span');
@@ -472,7 +474,7 @@ export function initSettings(ctx) {
         if (tag.hidden) {
           const show = document.createElement('button');
           show.className = 'mini-btn';
-          show.textContent = '表示に戻す';
+          show.textContent = tr('表示に戻す');
           show.onclick = async () => {
             await ctx.stores.tags.setHidden(tag.id, false);
             note(els.tagNote, null);
@@ -483,7 +485,7 @@ export function initSettings(ctx) {
         }
         const rename = document.createElement('button');
         rename.className = 'mini-btn';
-        rename.textContent = '改名';
+        rename.textContent = tr('改名');
         rename.onclick = () => {
           const input = document.createElement('input');
           input.type = 'text';
@@ -535,7 +537,7 @@ export function initSettings(ctx) {
         };
         const del = document.createElement('button');
         del.className = 'mini-btn danger';
-        del.textContent = '削除';
+        del.textContent = tr('削除');
         del.onclick = async () => {
           try {
             await handleTagDelete(tag); // C案: 未使用は即削除、使用中は 隠す/使用日/完全削除
@@ -548,7 +550,7 @@ export function initSettings(ctx) {
         folderSel.className = 'folder-select';
         const none = document.createElement('option');
         none.value = '';
-        none.textContent = '未分類';
+        none.textContent = tr('未分類');
         folderSel.append(none);
         for (const f of folders) {
           const opt = document.createElement('option');
@@ -563,7 +565,7 @@ export function initSettings(ctx) {
         // タグのスタンプ設定(v1.05・PD 要望 2026-10-09)。反映先はカードだけ
         const stampBtn = document.createElement('button');
         stampBtn.className = 'mini-btn stamp-btn';
-        stampBtn.textContent = 'スタンプ';
+        stampBtn.textContent = tr('スタンプ');
         stampBtn.onclick = () => openStampDialog(tag);
         actions.append(rename, folderSel, stampBtn, up, down, del);
         return li;
@@ -586,6 +588,20 @@ export function initSettings(ctx) {
     await ctx.stores.settings.merge({ display: { streakBadge: els.streakBadge.checked } });
     ctx.refreshToday?.();
   };
+  // 言語(v1.06)。端末の言語に合わせる(既定)/ 日本語 / English。切り替えたら読み込み直す(定数の文言も作り直すため)
+  els.langSelect.replaceChildren(
+    ...LANGUAGE_CHOICES.map((c) => {
+      const o = document.createElement('option');
+      o.value = c.id;
+      o.textContent = c.label ?? tr('端末の言語に合わせる');
+      return o;
+    }),
+  );
+  els.langSelect.value = getLanguagePreference();
+  els.langSelect.onchange = () => {
+    setLanguagePreference(els.langSelect.value);
+    window.location.reload();
+  };
   // 月のまとめ通知(v1.1)。文面の生成と実スケジュールは app.js 側(ctx.syncMonthly)
   els.monthlyEnabled.onchange = async () => {
     await ctx.stores.settings.merge({ monthlySummary: { enabled: els.monthlyEnabled.checked } });
@@ -602,7 +618,7 @@ export function initSettings(ctx) {
     const s = await ctx.stores.settings.get();
     els.lockEnabled.checked = s.lock.enabled;
     els.lockSetupBtn.hidden = !s.lock.enabled || !s.lock.passcodeHash;
-    els.lockSetupBtn.textContent = 'パスコードと合言葉を変更';
+    els.lockSetupBtn.textContent = tr('パスコードと合言葉を変更');
     if (!s.lock.enabled) els.lockSetup.hidden = true;
   }
 
@@ -639,11 +655,11 @@ export function initSettings(ctx) {
     const q = els.lockQuestion.value.trim();
     const a = els.lockAnswer.value.trim();
     if (p1.length < 4 || p1 !== p2) {
-      note(els.lockSetupNote, 'パスコードは4文字以上で、2回同じものを入力してください。');
+      note(els.lockSetupNote, tr('パスコードは4文字以上で、2回同じものを入力してください。'));
       return;
     }
     if (!q || !a) {
-      note(els.lockSetupNote, '秘密の合言葉の質問と答えを入力してください(パスコードを忘れたときの再設定に使います)。');
+      note(els.lockSetupNote, tr('秘密の合言葉の質問と答えを入力してください(パスコードを忘れたときの再設定に使います)。'));
       return;
     }
     const salt = makeSalt();
@@ -702,7 +718,7 @@ export function initSettings(ctx) {
         thumb.innerHTML = `<img src="${url}" alt="">`;
       }
       const label = document.createElement('span');
-      label.textContent = 'マイキャラ';
+      label.textContent = tr('マイキャラ');
       b.append(thumb, label);
       b.onclick = async () => {
         await ctx.stores.settings.merge({ character: { ...s.character, type: 'custom', value: char.id } });
@@ -718,7 +734,7 @@ export function initSettings(ctx) {
         slot.className = `expr-slot${char.expressions[key] ? ' set' : ''}`;
         slot.dataset.expr = key;
         slot.dataset.charId = char.id;
-        slot.title = `表情「${exprLabel}」の画像を登録`;
+        slot.title = tr('表情「{0}」の画像を登録', exprLabel);
         if (char.expressions[key]) {
           const exprRec = await ctx.pipeline.store.get(char.expressions[key]);
           if (exprRec?.thumbBlob) {
@@ -740,9 +756,9 @@ export function initSettings(ctx) {
 
       const delBtn = document.createElement('button');
       delBtn.className = 'mini-btn danger';
-      delBtn.textContent = '削除';
+      delBtn.textContent = tr('削除');
       delBtn.onclick = async () => {
-        if (!(await ctx.confirm('このキャラクターを削除しますか?(表情差分も削除されます)'))) return;
+        if (!(await ctx.confirm(tr('このキャラクターを削除しますか?(表情差分も削除されます)')))) return;
         const cur = await ctx.stores.settings.get();
         const target = cur.customCharacters.find((c) => c.id === char.id);
         const rest = cur.customCharacters.filter((c) => c.id !== char.id);
@@ -789,7 +805,7 @@ export function initSettings(ctx) {
     if (!file || !pendingExpr) return;
     const { charId, key } = pendingExpr;
     pendingExpr = null;
-    ctx.showLoading('画像を保存中…');
+    ctx.showLoading(tr('画像を保存中…'));
     try {
       const { id } = await ctx.pipeline.saveImage(file, 'character');
       const cur = await ctx.stores.settings.get();
@@ -833,7 +849,7 @@ export function initSettings(ctx) {
     const file = els.charImageInput.files[0];
     els.charImageInput.value = '';
     if (!file) return;
-    ctx.showLoading('画像を保存中…');
+    ctx.showLoading(tr('画像を保存中…'));
     try {
       const { id } = await ctx.pipeline.saveImage(file, 'character');
       const s = await ctx.stores.settings.get();
@@ -876,7 +892,7 @@ export function initSettings(ctx) {
     els.themeGrid.replaceChildren(...items);
     els.customEditor.hidden = !canUseCustomTheme(ctx.variant);
     if (ctx.variant === 'free') {
-      note(els.themeNote, '有料版ではさらに15種のテーマとカスタムテーマが使えます。', true);
+      note(els.themeNote, tr('有料版ではさらに15種のテーマとカスタムテーマが使えます。'), true);
     }
     if (s.customTheme) {
       els.customBg.value = s.customTheme.bg;
@@ -914,7 +930,7 @@ export function initSettings(ctx) {
       b.style.background = hex;
       b.dataset.color = hex.toLowerCase();
       b.title = hex;
-      b.setAttribute('aria-label', `${kind === 'bg' ? '背景色' : 'アクセント色'} ${hex}`);
+      b.setAttribute('aria-label', tr('{0} {1}', kind === 'bg' ? tr('背景色') : tr('アクセント色'), hex));
       b.onclick = async () => {
         try {
           if (kind === 'bg') { els.customBg.value = hex; await saveCustomTheme({ bg: hex }); }
@@ -959,7 +975,7 @@ export function initSettings(ctx) {
     const hue = document.createElement('input');
     hue.type = 'range'; hue.min = '0'; hue.max = '360'; hue.step = '1';
     hue.className = 'spectrum-hue';
-    hue.setAttribute('aria-label', '色あい');
+    hue.setAttribute('aria-label', tr('色あい'));
     container.replaceChildren(sv, hue);
 
     let h = 0, s = 1, v = 1;
@@ -1059,7 +1075,7 @@ export function initSettings(ctx) {
   els.customSave.onclick = async () => {
     try {
       await saveCustomTheme({ bg: els.customBg.value, accent: els.customAccent.value });
-      note(els.themeNote, 'このテーマに決定しました。', true);
+      note(els.themeNote, tr('このテーマに決定しました。'), true);
     } catch (err) {
       note(els.themeNote, err.message);
     }
@@ -1071,13 +1087,13 @@ export function initSettings(ctx) {
     const file = els.customBgImageInput.files[0];
     els.customBgImageInput.value = '';
     if (!file) return;
-    ctx.showLoading('背景画像を保存中…');
+    ctx.showLoading(tr('背景画像を保存中…'));
     try {
       const { id } = await ctx.pipeline.saveImage(file, 'background');
       const prev = (await ctx.stores.settings.get()).customTheme?.bgImage;
       await saveCustomTheme({ bgImage: id });
       if (prev && prev !== id) await ctx.pipeline.store.remove(prev).catch(() => {}); // 旧背景を掃除
-      note(els.customBgNote, '背景画像を設定しました。', true);
+      note(els.customBgNote, tr('背景画像を設定しました。'), true);
     } catch (err) {
       note(els.customBgNote, err.message);
     } finally {
@@ -1088,7 +1104,7 @@ export function initSettings(ctx) {
     const prev = (await ctx.stores.settings.get()).customTheme?.bgImage;
     await saveCustomTheme({ bgImage: null });
     if (prev) await ctx.pipeline.store.remove(prev).catch(() => {});
-    note(els.customBgNote, '背景画像を外しました。', true);
+    note(els.customBgNote, tr('背景画像を外しました。'), true);
   };
   // スライダーはドラッグ中(oninput)に CSS変数だけを更新して滑らかにプレビューし、
   // 離した時(onchange)に保存する。プレビューは画像を読み直さないので軽い。
@@ -1109,7 +1125,7 @@ export function initSettings(ctx) {
   // --- バックアップ(書き出し・取り込みともロック解除の内側: R13) ---
   els.exportBtn.onclick = async () => {
     if (!(await ctx.lock.requestUnlock())) return;
-    ctx.showLoading('バックアップを作成中…');
+    ctx.showLoading(tr('バックアップを作成中…'));
     try {
       const [entries, tags, folders, habits, habitLogs, settings, plans, imageRecords] = await Promise.all([
         ctx.stores.entries.all(),
@@ -1124,8 +1140,8 @@ export function initSettings(ctx) {
       const json = await ctx.backupIO.exportBackup({ entries, tags, folders, habits, habitLogs, settings, plans }, imageRecords);
       const r = await deliverBackup(json, `${BACKUP_PREFIX}${todayKey().replaceAll('-', '')}${BACKUP_EXT}`);
       // 保存せずに共有シートを閉じたときに「書き出しました」と言わない(2026-08-11 PD FB)
-      if (r?.saved) note(els.backupNote, '書き出しました。ファイルは大切に保管してください。', true);
-      else note(els.backupNote, '書き出しをやめました(保存されていません)。');
+      if (r?.saved) note(els.backupNote, tr('書き出しました。ファイルは大切に保管してください。'), true);
+      else note(els.backupNote, tr('書き出しをやめました(保存されていません)。'));
     } catch (err) {
       note(els.backupNote, err.message);
     } finally {
@@ -1142,8 +1158,8 @@ export function initSettings(ctx) {
     const file = els.importInput.files[0];
     els.importInput.value = '';
     if (!file) return;
-    if (!(await ctx.confirm('取り込むと、今の記録・タグ・日課・予定・設定はすべて置き換えられます。よろしいですか?'))) return;
-    ctx.showLoading('バックアップを取り込み中…');
+    if (!(await ctx.confirm(tr('取り込むと、今の記録・タグ・日課・予定・設定はすべて置き換えられます。よろしいですか?')))) return;
+    ctx.showLoading(tr('バックアップを取り込み中…'));
     try {
       const text = await file.text();
       // 検証(スキーマ含む)はWorker内の parseBackup で行い、失敗時は既存データに触れない
@@ -1160,7 +1176,7 @@ export function initSettings(ctx) {
       const s = await ctx.stores.settings.get();
       applyTheme(s, ctx.variant);
       await applyBackgroundImage(s, ctx.variant, ctx.pipeline.store);
-      note(els.backupNote, '取り込みが完了しました。', true);
+      note(els.backupNote, tr('取り込みが完了しました。'), true);
       ctx.refreshAll?.();
     } catch (err) {
       note(els.backupNote, err.message);
@@ -1171,7 +1187,7 @@ export function initSettings(ctx) {
 
   // --- 有料版案内・このアプリについて ---
   els.purchaseGroup.hidden = ctx.variant !== 'free';
-  els.aboutBuild.textContent = `ビルド: ${buildLabel()}`;
+  els.aboutBuild.textContent = tr('ビルド: {0}', buildLabel());
 
   async function refresh() {
     const s = await ctx.stores.settings.get();

@@ -2,35 +2,37 @@
 // テーマ追加 = ここに1行+CSSに変数セット1ブロック(不変条件7)。
 // 無料5種 / 有料15種 + カスタム(有料のみ)。web はPD確認用に全テーマ利用可。
 
+import { tr } from '../i18n/index.js';
+
 export const DEFAULT_THEME = 'shiro'; // 既定は白基調(2026-08-09 PD FB)
 export const CUSTOM_THEME_ID = 'custom';
 
 export const THEMES = [
   // 無料5種
-  { id: 'shiro', name: 'しろ', tier: 'free', dark: false },
-  { id: 'yoru', name: 'よる', tier: 'free', dark: true },
-  { id: 'sakura', name: 'さくら', tier: 'free', dark: false },
-  { id: 'mori', name: 'もり', tier: 'free', dark: false },
-  { id: 'umi', name: 'うみ', tier: 'free', dark: true },
+  { id: 'shiro', name: tr('しろ'), tier: 'free', dark: false },
+  { id: 'yoru', name: tr('よる'), tier: 'free', dark: true },
+  { id: 'sakura', name: tr('さくら'), tier: 'free', dark: false },
+  { id: 'mori', name: tr('もり'), tier: 'free', dark: false },
+  { id: 'umi', name: tr('うみ'), tier: 'free', dark: true },
   // 有料15種
-  { id: 'yuyake', name: 'ゆうやけ', tier: 'paid', dark: false },
-  { id: 'lavender', name: 'ラベンダー', tier: 'paid', dark: false },
-  { id: 'matcha', name: 'まっちゃ', tier: 'paid', dark: false },
-  { id: 'choco', name: 'チョコ', tier: 'paid', dark: true },
-  { id: 'lemon', name: 'レモン', tier: 'paid', dark: false },
-  { id: 'sumi', name: 'すみ', tier: 'paid', dark: true },
-  { id: 'aozora', name: 'あおぞら', tier: 'paid', dark: false },
-  { id: 'momiji', name: 'もみじ', tier: 'paid', dark: false },
-  { id: 'mint', name: 'ミント', tier: 'paid', dark: false },
-  { id: 'sango', name: 'さんご', tier: 'paid', dark: false },
-  { id: 'kohi', name: 'コーヒー', tier: 'paid', dark: true },
-  { id: 'hoshizora', name: 'ほしぞら', tier: 'paid', dark: true },
-  { id: 'ichigo', name: 'いちご', tier: 'paid', dark: false },
-  { id: 'wakaba', name: 'わかば', tier: 'paid', dark: false },
-  { id: 'tsuki', name: 'つき', tier: 'paid', dark: true },
+  { id: 'yuyake', name: tr('ゆうやけ'), tier: 'paid', dark: false },
+  { id: 'lavender', name: tr('ラベンダー'), tier: 'paid', dark: false },
+  { id: 'matcha', name: tr('まっちゃ'), tier: 'paid', dark: false },
+  { id: 'choco', name: tr('チョコ'), tier: 'paid', dark: true },
+  { id: 'lemon', name: tr('レモン'), tier: 'paid', dark: false },
+  { id: 'sumi', name: tr('すみ'), tier: 'paid', dark: true },
+  { id: 'aozora', name: tr('あおぞら'), tier: 'paid', dark: false },
+  { id: 'momiji', name: tr('もみじ'), tier: 'paid', dark: false },
+  { id: 'mint', name: tr('ミント'), tier: 'paid', dark: false },
+  { id: 'sango', name: tr('さんご'), tier: 'paid', dark: false },
+  { id: 'kohi', name: tr('コーヒー'), tier: 'paid', dark: true },
+  { id: 'hoshizora', name: tr('ほしぞら'), tier: 'paid', dark: true },
+  { id: 'ichigo', name: tr('いちご'), tier: 'paid', dark: false },
+  { id: 'wakaba', name: tr('わかば'), tier: 'paid', dark: false },
+  { id: 'tsuki', name: tr('つき'), tier: 'paid', dark: true },
 ];
 
-export const CUSTOM_COLOR_MESSAGE = '色は #RRGGBB 形式で指定してください。';
+export const CUSTOM_COLOR_MESSAGE = tr('色は #RRGGBB 形式で指定してください。');
 
 export function availableThemes(variant) {
   if (variant === 'free') return THEMES.filter((t) => t.tier === 'free');

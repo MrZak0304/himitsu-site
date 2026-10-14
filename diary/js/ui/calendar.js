@@ -9,6 +9,7 @@ import { createDayEditor } from './day-editor.js';
 import { canMakeCard } from './card-dialog.js';
 import { cellEmojis } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
+import { tr, formatDate, formatYearMonth } from '../i18n/index.js';
 
 export function initCalendar(ctx) {
   const $ = (id) => document.getElementById(id);
@@ -61,7 +62,7 @@ export function initCalendar(ctx) {
     const seq = renderSeq;
     const today = ctx.todayKey();
     if (!editing) els.detail.hidden = true;
-    els.title.textContent = `${cur.year}年${cur.month}月`;
+    els.title.textContent = formatYearMonth(cur.year, cur.month);
     const [entries, tags, habits, habitLogs, plans] = await Promise.all([
       ctx.stores.entries.all(),
       ctx.stores.tags.list(),
@@ -141,7 +142,7 @@ export function initCalendar(ctx) {
         name.textContent = tagName.get(r.id) ?? '';
         const c = document.createElement('span');
         c.className = 'ranking-count';
-        c.textContent = `${r.count}回`;
+        c.textContent = tr('{0}回', r.count);
         li.append(name, c);
         return li;
       }),
@@ -159,7 +160,7 @@ export function initCalendar(ctx) {
         name.textContent = h.name;
         const c = document.createElement('span');
         c.className = 'habit-count-days';
-        c.textContent = `${h.count}日`;
+        c.textContent = tr('{0}日', h.count);
         li.append(name, c);
         return li;
       }),
@@ -217,7 +218,7 @@ export function initCalendar(ctx) {
     ]);
     const tagName = new Map(tags.map((t) => [t.id, t.name]));
     const [y, m, d] = date.split('-').map(Number);
-    els.detailTitle.textContent = `${y}年${m}月${d}日`;
+    els.detailTitle.textContent = formatDate(y, m, d);
 
     // 予定(v1.06): この日の予定の一覧。タップで編集、「＋予定」で追加。未来の日はこれだけが出る
     renderPlanList(els.detailPlans, plans, {
@@ -290,7 +291,7 @@ export function initCalendar(ctx) {
 
     const hasAny = entry || Object.keys(checks).length > 0;
     els.detailEmpty.hidden = !!hasAny;
-    els.detailEmpty.textContent = date > ctx.todayKey() ? 'まだ先の日です。予定を入れておけます。' : 'この日の記録はありません。';
+    els.detailEmpty.textContent = date > ctx.todayKey() ? tr('まだ先の日です。予定を入れておけます。') : tr('この日の記録はありません。');
     els.detail.hidden = false;
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }

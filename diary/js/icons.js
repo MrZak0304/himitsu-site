@@ -1,6 +1,8 @@
 // 内蔵アイコン集。すべてインラインSVG(画像ファイル・外部フォント不使用: CLAUDE.md 不変条件7)。
 // HTML側は <span data-icon="run"></span> のプレースホルダを置き、app.js が起動時に差し込む。
 
+import { tr } from './i18n/index.js';
+
 const S = 'fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"';
 
 function svg(body) {
@@ -32,18 +34,18 @@ export const HABIT_ICONS = {
 };
 
 export const HABIT_ICON_LABELS = {
-  run: '運動',
-  study: '勉強',
-  book: '読書',
-  game: 'ゲーム',
-  water: '水分補給',
-  medicine: '薬',
-  stretch: 'ストレッチ',
-  sleep: '睡眠',
-  clean: '掃除',
-  cook: '料理',
-  walk: '散歩',
-  star: 'その他',
+  run: tr('運動'),
+  study: tr('勉強'),
+  book: tr('読書'),
+  game: tr('ゲーム'),
+  water: tr('水分補給'),
+  medicine: tr('薬'),
+  stretch: tr('ストレッチ'),
+  sleep: tr('睡眠'),
+  clean: tr('掃除'),
+  cook: tr('料理'),
+  walk: tr('散歩'),
+  star: tr('その他'),
 };
 
 // UI部品用

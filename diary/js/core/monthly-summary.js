@@ -4,11 +4,12 @@
 import { monthlyTagRanking } from './tag-stats.js';
 import { monthlyHabitCounts } from './habit-stats.js';
 import { isValidKey, monthOfKey } from './dates.js';
+import { tr, formatMonth } from '../i18n/index.js';
 
 export const MONTHLY_ID = 2; // リマインダー(REMINDER_ID=1)と別の通知ID
 export const MONTHLY_HOUR = 9;
-export const MONTHLY_TITLE = 'ポンとにっき';
-export const MONTHLY_FALLBACK = '先月のふりかえりを開いてみましょう。';
+export const MONTHLY_TITLE = tr('ポンとにっき');
+export const MONTHLY_FALLBACK = tr('先月のふりかえりを開いてみましょう。');
 
 // { year, month } の前月
 export function prevMonthOf(year, month) {
@@ -36,8 +37,8 @@ export function monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf
   const topName = top ? tagNameOf?.get?.(top.id) : null;
   if (days === 0 && habitTotal === 0) return MONTHLY_FALLBACK;
   const parts = [];
-  if (days > 0) parts.push(`${month}月は${days}日記録。`);
-  if (top && topName) parts.push(`いちばん多かったタグは ${topName}(${top.count}回)。`);
-  if (habitTotal > 0) parts.push(`日課は${habitTotal}日達成!`);
+  if (days > 0) parts.push(tr('{0}は{1}日記録。', formatMonth(month), days));
+  if (top && topName) parts.push(tr('いちばん多かったタグは {0}({1}回)。', topName, top.count));
+  if (habitTotal > 0) parts.push(tr('日課は{0}日達成!', habitTotal));
   return parts.join('');
 }
