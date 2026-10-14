@@ -10,6 +10,7 @@ import { streak } from '../core/streaks.js';
 import { weekDays, shortDateLabel } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
 import { tr, formatLongDate } from '../i18n/index.js';
+import { renderTagPalette } from './tag-palette.js';
 
 
 export function initToday(ctx) {
@@ -20,6 +21,7 @@ export function initToday(ctx) {
     frequent: $('today-frequent'),
     allTagsHint: $('today-alltags-hint'),
     tags: $('today-tags'),
+    tagFolders: $('today-tag-folders'),
     slotNote: $('tag-slot-note'),
     tagInput: $('new-tag-input'),
     tagAdd: $('new-tag-add'),
@@ -44,6 +46,7 @@ export function initToday(ctx) {
   let urls = [];
   let renderSeq = 0; // 連続操作時に古い描画が新しい描画を上書きしないための世代トークン
   let selectedDate = null; // 「今週の予定」で選んでいる日(既定はきょう)
+  const openFolders = new Set(); // 開いているタグのフォルダ(最初は閉じる。アプリを開いている間だけ覚える)
 
   function note(el, message) {
     el.hidden = !message;
@@ -63,9 +66,10 @@ export function initToday(ctx) {
     const now = new Date();
     els.date.textContent = formatLongDate(now.getFullYear(), now.getMonth() + 1, now.getDate());
 
-    const [entry, tags, habits, checks, slots, settings] = await Promise.all([
+    const [entry, tags, folders, habits, checks, slots, settings] = await Promise.all([
       ctx.stores.entries.get(today),
       ctx.stores.tags.list({ includeHidden: false }), // 隠したタグは入力候補に出さない
+      ctx.stores.tagFolders.list(),
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.forDate(today),
       slotState(),
@@ -91,7 +95,8 @@ export function initToday(ctx) {
       b.onclick = () => toggleTag(tag.id);
       return b;
     };
-    els.tags.replaceChildren(...tags.map(makeStamp));
+    // フォルダごとにまとめる(最初は閉じる)。未分類のタグは見出しなしで並べる(v1.06 PD FB)
+    renderTagPalette({ foldersEl: els.tagFolders, looseEl: els.tags, tags, folders, makeStamp, isOn: (t) => on.has(t.id), openFolders });
 
     // よく使うタグ(直近30日の頻出。hidden除外・すぐ押せる)。候補一覧に載っているものだけ。
     const allEntries = await ctx.stores.entries.all();

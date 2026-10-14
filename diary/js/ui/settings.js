@@ -22,7 +22,6 @@ export function initSettings(ctx) {
   const els = {
     tagList: $('tag-manage-list'),
     tagNote: $('tag-manage-note'),
-    folderList: $('folder-manage-list'),
     folderInput: $('new-folder-input'),
     folderAdd: $('new-folder-add'),
     folderNote: $('folder-manage-note'),
@@ -138,30 +137,9 @@ export function initSettings(ctx) {
   }
 
   // --- フォルダ管理 ---
+  // フォルダはタグの一覧の中で、まとまり(開閉できる見出し)として出す(v1.06 PD FB)。ここでは作るだけ
   async function refreshFolders() {
-    const folders = await ctx.stores.tagFolders.list();
-    els.folderList.replaceChildren(
-      ...folders.map((folder) => {
-        const li = document.createElement('li');
-        const name = document.createElement('span');
-        name.className = 'name';
-        name.textContent = folder.name;
-        const del = document.createElement('button');
-        del.className = 'mini-btn danger';
-        del.textContent = tr('削除');
-        del.onclick = async () => {
-          // フォルダを消してもタグは消えない(未分類へ戻す)
-          await ctx.stores.tagFolders.remove(folder.id);
-          await ctx.stores.tags.clearFolder(folder.id);
-          note(els.folderNote, null);
-          refreshFolders();
-          refreshTags();
-        };
-        li.append(name, del);
-        return li;
-      }),
-    );
-    els.folderList.hidden = folders.length === 0;
+    await refreshTags();
   }
 
   els.folderAdd.onclick = async () => {
@@ -172,11 +150,12 @@ export function initSettings(ctx) {
       return;
     }
     try {
-      await ctx.stores.tagFolders.add(name);
+      const folder = await ctx.stores.tagFolders.add(name);
+      openFolderIds.add(folder.id); // 作ったフォルダは開いて見せる(中からタグを足せる)
       els.folderInput.value = '';
       note(els.folderNote, null);
-      refreshFolders();
       refreshTags();
+      ctx.refreshToday?.();
     } catch (err) {
       note(els.folderNote, err.message);
     }
@@ -186,27 +165,32 @@ export function initSettings(ctx) {
   };
 
   // 設定からもタグを追加できる(2026-08-11 PD FB)。無料版は枠上限を尊重する。
-  els.tagAdd.onclick = async () => {
-    let name = els.tagInput.value.trim();
-    if (!name) return;
+  // folderId を渡すとそのフォルダに入れる(フォルダの中の入力欄。v1.06 PD FB)。追加できたら true
+  async function addTag(input, folderId = null) {
+    let name = input.value.trim();
+    if (!name) return false;
     if (!name.startsWith('#')) name = `#${name}`;
     const settings = await ctx.stores.settings.get();
     const count = await ctx.stores.tags.userTagCount();
     const slots = tagSlotInfo(settings.tagSlots, ctx.variant, count);
     if (!slots.canAdd) {
       note(els.tagNote, slots.reason);
-      return;
+      return false;
     }
     try {
-      await ctx.stores.tags.add(name);
-      els.tagInput.value = '';
+      const tag = await ctx.stores.tags.add(name);
+      if (folderId) await ctx.stores.tags.setFolder(tag.id, folderId);
+      input.value = '';
       note(els.tagNote, null);
       refreshTags();
       ctx.refreshToday?.();
+      return true;
     } catch (err) {
       note(els.tagNote, err.message);
+      return false;
     }
-  };
+  }
+  els.tagAdd.onclick = () => addTag(els.tagInput);
   els.tagInput.onkeydown = (e) => {
     if (e.key === 'Enter') els.tagAdd.click();
   };
@@ -429,149 +413,260 @@ export function initSettings(ctx) {
 
   // 展開中のタグ(1つだけ)。再描画(改名・並べ替え後)でも開いたままにする
   let openTagId = null;
+  // 開いているフォルダ(v1.06 PD FB)。フォルダは最初は閉じ、未分類は開いておく
+  const openFolderIds = new Set();
+  let unfiledOpen = true;
 
   async function refreshTags() {
     const [tags, folders] = await Promise.all([ctx.stores.tags.list(), ctx.stores.tagFolders.list()]);
-    els.tagList.replaceChildren(
-      ...tags.map((tag, i) => {
-        // 1行=タグ名の見出し(タップで開閉)+操作メニュー(開いたときだけ表示)。
-        // 2026-10-09 PD 報告「タグ名が潰れて読めない」→ ボタンを横に並べず、名前を全幅で出す
-        const li = document.createElement('li');
-        li.className = `tag-item${tag.hidden ? ' hidden-tag' : ''}${openTagId === tag.id ? ' open' : ''}`;
-        const head = document.createElement('div');
-        head.className = 'tag-head';
-        head.setAttribute('role', 'button');
-        head.setAttribute('aria-expanded', String(openTagId === tag.id));
-        const name = document.createElement('span');
-        name.className = 'name';
-        name.textContent = tag.name;
-        head.append(name);
-        if (tag.builtin) {
-          const badge = document.createElement('span');
-          badge.className = 'badge';
-          badge.textContent = tr('定番');
-          head.append(badge);
-        }
-        if (tag.stamp) {
-          const badge = document.createElement('span');
-          badge.className = 'badge stamp';
-          badge.textContent = tr('スタンプ');
-          head.append(badge);
-        }
-        const chev = document.createElement('span');
-        chev.className = 'chev';
-        chev.innerHTML = UI_ICONS.down;
-        head.append(chev);
-        head.onclick = (e) => {
-          if (e.target.closest('input')) return; // 改名の入力中は開閉しない
-          openTagId = openTagId === tag.id ? null : tag.id;
+    const known = new Set(folders.map((f) => f.id));
+    const groupOf = (t) => (t.folderId && known.has(t.folderId) ? t.folderId : null); // 消えたフォルダの参照は未分類
+    const allIds = tags.map((t) => t.id);
+    // siblings = 同じフォルダ(または未分類)のタグ。上下の並べ替えはこの中で行う
+    const makeTagItem = (tag, siblings) => {
+      const i = siblings.indexOf(tag);
+      // 1行=タグ名の見出し(タップで開閉)+操作メニュー(開いたときだけ表示)。
+      // 2026-10-09 PD 報告「タグ名が潰れて読めない」→ ボタンを横に並べず、名前を全幅で出す
+      const li = document.createElement('li');
+      li.className = `tag-item${tag.hidden ? ' hidden-tag' : ''}${openTagId === tag.id ? ' open' : ''}`;
+      const head = document.createElement('div');
+      head.className = 'tag-head';
+      head.setAttribute('role', 'button');
+      head.setAttribute('aria-expanded', String(openTagId === tag.id));
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = tag.name;
+      head.append(name);
+      if (tag.hidden) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = tr('非表示');
+        head.append(badge);
+      }
+      if (tag.builtin) {
+        const badge = document.createElement('span');
+        badge.className = 'badge';
+        badge.textContent = tr('定番');
+        head.append(badge);
+      }
+      if (tag.stamp) {
+        const badge = document.createElement('span');
+        badge.className = 'badge stamp';
+        badge.textContent = tr('スタンプ');
+        head.append(badge);
+      }
+      const chev = document.createElement('span');
+      chev.className = 'chev';
+      chev.innerHTML = UI_ICONS.down;
+      head.append(chev);
+      head.onclick = (e) => {
+        if (e.target.closest('input')) return; // 改名の入力中は開閉しない
+        openTagId = openTagId === tag.id ? null : tag.id;
+        refreshTags();
+      };
+      const actions = document.createElement('div');
+      actions.className = 'tag-actions';
+      actions.hidden = openTagId !== tag.id;
+      li.append(head, actions);
+      // 隠したタグは「表示に戻す」ボタンを出す
+      if (tag.hidden) {
+        const show = document.createElement('button');
+        show.className = 'mini-btn';
+        show.textContent = tr('表示に戻す');
+        show.onclick = async () => {
+          await ctx.stores.tags.setHidden(tag.id, false);
+          note(els.tagNote, null);
           refreshTags();
+          ctx.refreshToday?.();
         };
-        const actions = document.createElement('div');
-        actions.className = 'tag-actions';
-        actions.hidden = openTagId !== tag.id;
-        li.append(head, actions);
-        // 隠したタグは「表示に戻す」ボタンを出す
-        if (tag.hidden) {
-          const show = document.createElement('button');
-          show.className = 'mini-btn';
-          show.textContent = tr('表示に戻す');
-          show.onclick = async () => {
-            await ctx.stores.tags.setHidden(tag.id, false);
-            note(els.tagNote, null);
-            refreshTags();
-            ctx.refreshToday?.();
-          };
-          actions.append(show);
-        }
-        const rename = document.createElement('button');
-        rename.className = 'mini-btn';
-        rename.textContent = tr('改名');
-        rename.onclick = () => {
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.value = tag.name;
-          input.maxLength = 30;
-          const save = async () => {
-            let v = input.value.trim();
-            if (v) {
-              if (!v.startsWith('#')) v = `#${v}`;
-              try {
-                await ctx.stores.tags.rename(tag.id, v);
-                note(els.tagNote, null);
-              } catch (err) {
-                note(els.tagNote, err.message);
-              }
+        actions.append(show);
+      }
+      const rename = document.createElement('button');
+      rename.className = 'mini-btn';
+      rename.textContent = tr('改名');
+      rename.onclick = () => {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.value = tag.name;
+        input.maxLength = 30;
+        const save = async () => {
+          let v = input.value.trim();
+          if (v) {
+            if (!v.startsWith('#')) v = `#${v}`;
+            try {
+              await ctx.stores.tags.rename(tag.id, v);
+              note(els.tagNote, null);
+            } catch (err) {
+              note(els.tagNote, err.message);
             }
-            refreshTags();
-            ctx.refreshToday?.();
-          };
-          input.onkeydown = (e) => {
-            if (e.key === 'Enter') input.blur();
-          };
-          input.onblur = save;
-          name.replaceWith(input);
-          input.focus();
-        };
-        // 並べ替えは上下ボタン(ドラッグ化はPD確認後の磨き込み候補)
-        const up = document.createElement('button');
-        up.className = 'mini-btn';
-        up.innerHTML = UI_ICONS.up;
-        up.disabled = i === 0;
-        up.onclick = async () => {
-          const ids = tags.map((t) => t.id);
-          [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]];
-          await ctx.stores.tags.reorder(ids);
+          }
           refreshTags();
           ctx.refreshToday?.();
         };
-        const down = document.createElement('button');
-        down.className = 'mini-btn';
-        down.innerHTML = UI_ICONS.down;
-        down.disabled = i === tags.length - 1;
-        down.onclick = async () => {
-          const ids = tags.map((t) => t.id);
-          [ids[i + 1], ids[i]] = [ids[i], ids[i + 1]];
-          await ctx.stores.tags.reorder(ids);
-          refreshTags();
-          ctx.refreshToday?.();
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') input.blur();
         };
+        input.onblur = save;
+        name.replaceWith(input);
+        input.focus();
+      };
+      // 並べ替えは上下ボタン(ドラッグ化はPD確認後の磨き込み候補)
+      const up = document.createElement('button');
+      up.className = 'mini-btn';
+      up.innerHTML = UI_ICONS.up;
+      // 同じまとまりの隣のタグと入れ替える(全体の並びの中で位置を交換)
+      const swapWith = async (other) => {
+        const ids = [...allIds];
+        const a = ids.indexOf(tag.id);
+        const b = ids.indexOf(other.id);
+        [ids[a], ids[b]] = [ids[b], ids[a]];
+        await ctx.stores.tags.reorder(ids);
+      };
+      up.disabled = i === 0;
+      up.onclick = async () => {
+        await swapWith(siblings[i - 1]);
+        refreshTags();
+        ctx.refreshToday?.();
+      };
+      const down = document.createElement('button');
+      down.className = 'mini-btn';
+      down.innerHTML = UI_ICONS.down;
+      down.disabled = i === siblings.length - 1;
+      down.onclick = async () => {
+        await swapWith(siblings[i + 1]);
+        refreshTags();
+        ctx.refreshToday?.();
+      };
+      const del = document.createElement('button');
+      del.className = 'mini-btn danger';
+      del.textContent = tr('削除');
+      del.onclick = async () => {
+        try {
+          await handleTagDelete(tag); // C案: 未使用は即削除、使用中は 隠す/使用日/完全削除
+        } catch (err) {
+          note(els.tagNote, err.message);
+        }
+      };
+      // フォルダ割り当て(D&Dの代わりにプルダウン。Execution note のフォールバック)
+      const folderSel = document.createElement('select');
+      folderSel.className = 'folder-select';
+      const none = document.createElement('option');
+      none.value = '';
+      none.textContent = tr('未分類');
+      folderSel.append(none);
+      for (const f of folders) {
+        const opt = document.createElement('option');
+        opt.value = f.id;
+        opt.textContent = f.name;
+        if (tag.folderId === f.id) opt.selected = true;
+        folderSel.append(opt);
+      }
+      folderSel.onchange = async () => {
+        const to = folderSel.value || null;
+        await ctx.stores.tags.setFolder(tag.id, to);
+        // 移した先のまとまりを開いて、タグを見失わないようにする
+        if (to) openFolderIds.add(to);
+        else unfiledOpen = true;
+        refreshTags();
+        ctx.refreshToday?.();
+      };
+      // タグのスタンプ設定(v1.05・PD 要望 2026-10-09)。反映先はカードだけ
+      const stampBtn = document.createElement('button');
+      stampBtn.className = 'mini-btn stamp-btn';
+      stampBtn.textContent = tr('スタンプ');
+      stampBtn.onclick = () => openStampDialog(tag);
+      actions.append(rename, folderSel, stampBtn, up, down, del);
+      return li;
+    };
+
+    // フォルダが無いときは、今までどおりタグを並べるだけ
+    if (folders.length === 0) {
+      els.tagList.replaceChildren(...tags.map((tag) => makeTagItem(tag, tags)));
+      return;
+    }
+    // フォルダごとのまとまり(見出しをタップで開閉)+最後に「未分類」(v1.06 PD FB)
+    const makeGroup = (folder) => {
+      const members = tags.filter((t) => groupOf(t) === (folder?.id ?? null));
+      const open = folder ? openFolderIds.has(folder.id) : unfiledOpen;
+      const li = document.createElement('li');
+      li.className = `folder-group${open ? ' open' : ''}`;
+      if (folder) li.dataset.folderId = folder.id;
+      else li.dataset.unfiled = '1';
+      const head = document.createElement('div');
+      head.className = 'folder-head';
+      head.setAttribute('role', 'button');
+      head.setAttribute('aria-expanded', String(open));
+      const chev = document.createElement('span');
+      chev.className = 'chev';
+      chev.innerHTML = UI_ICONS.down;
+      const name = document.createElement('span');
+      name.className = 'folder-name';
+      name.textContent = folder ? folder.name : tr('未分類');
+      const count = document.createElement('span');
+      count.className = 'folder-count';
+      count.textContent = String(members.length);
+      head.append(chev, name, count);
+      head.onclick = (e) => {
+        if (e.target.closest('button')) return;
+        if (folder) {
+          if (open) openFolderIds.delete(folder.id);
+          else openFolderIds.add(folder.id);
+        } else {
+          unfiledOpen = !open;
+        }
+        refreshTags();
+      };
+      if (folder) {
+        // フォルダを消してもタグは消えない(未分類へ戻す)
         const del = document.createElement('button');
         del.className = 'mini-btn danger';
         del.textContent = tr('削除');
         del.onclick = async () => {
-          try {
-            await handleTagDelete(tag); // C案: 未使用は即削除、使用中は 隠す/使用日/完全削除
-          } catch (err) {
-            note(els.tagNote, err.message);
-          }
+          if (!(await ctx.confirm(tr('フォルダ「{0}」を削除しますか?中のタグは消えずに未分類に戻ります。', folder.name)))) return;
+          await ctx.stores.tagFolders.remove(folder.id);
+          await ctx.stores.tags.clearFolder(folder.id);
+          openFolderIds.delete(folder.id);
+          note(els.folderNote, null);
+          refreshTags();
+          ctx.refreshToday?.();
         };
-        // フォルダ割り当て(D&Dの代わりにプルダウン。Execution note のフォールバック)
-        const folderSel = document.createElement('select');
-        folderSel.className = 'folder-select';
-        const none = document.createElement('option');
-        none.value = '';
-        none.textContent = tr('未分類');
-        folderSel.append(none);
-        for (const f of folders) {
-          const opt = document.createElement('option');
-          opt.value = f.id;
-          opt.textContent = f.name;
-          if (tag.folderId === f.id) opt.selected = true;
-          folderSel.append(opt);
-        }
-        folderSel.onchange = async () => {
-          await ctx.stores.tags.setFolder(tag.id, folderSel.value || null);
+        head.append(del);
+      }
+      const body = document.createElement('div');
+      body.className = 'folder-body';
+      body.hidden = !open;
+      const list = document.createElement('ul');
+      list.className = 'manage-list';
+      list.append(...members.map((tag) => makeTagItem(tag, members)));
+      if (members.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'note-inline';
+        empty.textContent = folder ? tr('このフォルダにはまだタグがありません。') : tr('フォルダに入っていないタグはありません。');
+        body.append(empty);
+      }
+      body.append(list);
+      if (folder) {
+        // このフォルダにタグを追加(PD「試したい」2026-10-14)
+        const row = document.createElement('div');
+        row.className = 'tag-add-row';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.maxLength = 30;
+        input.placeholder = tr('このフォルダにタグを追加');
+        const add = document.createElement('button');
+        add.className = 'btn sub';
+        add.textContent = tr('追加');
+        add.onclick = () => addTag(input, folder.id);
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter') add.click();
         };
-        // タグのスタンプ設定(v1.05・PD 要望 2026-10-09)。反映先はカードだけ
-        const stampBtn = document.createElement('button');
-        stampBtn.className = 'mini-btn stamp-btn';
-        stampBtn.textContent = tr('スタンプ');
-        stampBtn.onclick = () => openStampDialog(tag);
-        actions.append(rename, folderSel, stampBtn, up, down, del);
-        return li;
-      }),
-    );
+        row.append(input, add);
+        body.append(row);
+      }
+      li.append(head, body);
+      return li;
+    };
+    els.tagList.replaceChildren(...folders.map(makeGroup), makeGroup(null));
   }
 
   // --- リマインダー(保存+ネイティブでは実通知のスケジュール同期) ---

@@ -600,7 +600,6 @@ input[type="time"], input[type="color"] { width: auto; }
 .popup-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px; }
 .popup-actions.vertical { flex-direction: column; align-items: stretch; }
 .manage-list li.hidden-tag { opacity: 0.55; }
-.manage-list li.hidden-tag .name::after { content: '(非表示)'; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 .section-hint { font-size: 13px; color: var(--text-dim); margin: 12px 0 6px; }
 /* 「よく使うタグ」を枠で囲って一覧と視覚的に分ける(2026-08-11 PD FB) */
 .frequent-box { background: color-mix(in srgb, var(--accent) 8%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; }
@@ -755,3 +754,23 @@ html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: v
 .lang-choice.on { border: 2px solid var(--accent); color: var(--accent); font-weight: 700; }
 .lang-choice.on::after { content: ' ✓'; }
 #onboarding-langs { width: 100%; }
+
+/* タグのフォルダ(v1.06・2026-10-14 PD FB)。設定ではフォルダごとのまとまり、きょう・日付の編集では開閉できる見出し */
+.manage-list li.folder-group { flex-direction: column; align-items: stretch; gap: 0; padding: 0; border-color: var(--accent); }
+.folder-group .folder-head { display: flex; align-items: center; gap: 8px; padding: 10px; cursor: pointer; min-height: 44px; font-weight: 700; }
+.folder-group .folder-body { padding: 0 8px 8px; }
+.folder-group .folder-body[hidden] { display: none; }
+.folder-group .folder-body .manage-list { padding-bottom: 6px; }
+.folder-group .folder-body .tag-add-row { margin-top: 2px; }
+.folder-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.folder-count { font-size: 12px; font-weight: 400; color: var(--text-dim); border: 1px solid var(--panel-edge); border-radius: 999px; padding: 1px 8px; }
+.folder-group .chev, .tag-folder .chev { display: flex; color: var(--text-dim); transform: rotate(-90deg); transition: transform .15s ease; }
+.folder-group .chev svg, .tag-folder .chev svg { width: 16px; height: 16px; }
+.folder-group.open .chev, .tag-folder.open .chev { transform: none; }
+.tag-folders { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+.tag-folders[hidden] { display: none; }
+.tag-folder { border: 1px solid var(--panel-edge); border-radius: 12px; background: var(--panel); }
+.tag-folder-head { display: flex; align-items: center; gap: 8px; width: 100%; padding: 10px 12px; font: inherit; font-weight: 700; color: var(--text); background: none; border: none; cursor: pointer; text-align: left; }
+.tag-folder .folder-on { font-size: 12px; font-weight: 700; color: var(--accent); }
+.tag-folder > .tag-stamps { padding: 0 10px 10px; }
+.tag-folder > .tag-stamps[hidden] { display: none; }

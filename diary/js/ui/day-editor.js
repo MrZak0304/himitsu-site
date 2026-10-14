@@ -5,6 +5,7 @@
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
 import { UI_ICONS } from '../icons.js';
 import { tr, formatLongDate } from '../i18n/index.js';
+import { renderTagPalette } from './tag-palette.js';
 
 
 export function createDayEditor(ctx, { onChange } = {}) {
@@ -12,6 +13,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
   const els = {
     dateNote: $('edit-date-note'),
     tags: $('edit-tags'),
+    tagFolders: $('edit-tag-folders'),
     text: $('edit-text'),
     imageAdd: $('edit-image-add'),
     imageInput: $('edit-image-input'),
@@ -23,6 +25,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
   let date = null;
   let urls = [];
   let renderSeq = 0;
+  const openFolders = new Set(); // 開いているタグのフォルダ(最初は閉じる)
 
   function note(el, message) {
     el.hidden = !message;
@@ -38,9 +41,10 @@ export function createDayEditor(ctx, { onChange } = {}) {
     if (!date) return;
     renderSeq += 1;
     const seq = renderSeq;
-    const [entry, tags, habits, checks] = await Promise.all([
+    const [entry, tags, folders, habits, checks] = await Promise.all([
       ctx.stores.entries.get(date),
       ctx.stores.tags.list({ includeHidden: false }), // 隠したタグは候補に出さない
+      ctx.stores.tagFolders.list(),
       ctx.stores.habits.list(),
       ctx.stores.habitLogs.forDate(date),
     ]);
@@ -51,22 +55,22 @@ export function createDayEditor(ctx, { onChange } = {}) {
 
     // タグスタンプ
     const on = new Set(entry?.tags ?? []);
-    els.tags.replaceChildren(
-      ...tags.map((tag) => {
-        const b = document.createElement('button');
-        b.className = `tag-stamp${on.has(tag.id) ? ' on' : ''}`;
-        b.textContent = tag.name;
-        b.onclick = async () => {
-          const cur = (await ctx.stores.entries.get(date))?.tags ?? [];
-          const next = cur.includes(tag.id) ? cur.filter((id) => id !== tag.id) : [...cur, tag.id];
-          await ctx.stores.entries.upsert(date, { tags: next });
-          ctx.notifySaved?.();
-          onChange?.();
-          refresh();
-        };
-        return b;
-      }),
-    );
+    const makeStamp = (tag) => {
+      const b = document.createElement('button');
+      b.className = `tag-stamp${on.has(tag.id) ? ' on' : ''}`;
+      b.textContent = tag.name;
+      b.onclick = async () => {
+        const cur = (await ctx.stores.entries.get(date))?.tags ?? [];
+        const next = cur.includes(tag.id) ? cur.filter((id) => id !== tag.id) : [...cur, tag.id];
+        await ctx.stores.entries.upsert(date, { tags: next });
+        ctx.notifySaved?.();
+        onChange?.();
+        refresh();
+      };
+      return b;
+    };
+    // きょうと同じく、フォルダごとにまとめる(v1.06 PD FB)
+    renderTagPalette({ foldersEl: els.tagFolders, looseEl: els.tags, tags, folders, makeStamp, isOn: (t) => on.has(t.id), openFolders });
 
     // 本文
     if (document.activeElement !== els.text) els.text.value = entry?.text ?? '';

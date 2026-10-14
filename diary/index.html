@@ -37,6 +37,7 @@
       <div class="tag-stamps frequent" id="today-frequent"></div>
     </div>
     <p class="section-hint" id="today-alltags-hint" hidden>すべてのタグ</p>
+    <div class="tag-folders" id="today-tag-folders" hidden></div>
     <div class="tag-stamps" id="today-tags"></div>
     <div class="note" id="tag-slot-note" hidden></div>
     <div class="tag-add-row">
@@ -144,6 +145,7 @@
       <div id="detail-edit-view" hidden>
         <p class="note-inline" id="edit-date-note"></p>
         <p class="panel-lead">タグをタップしてスタンプ!</p>
+        <div id="edit-tag-folders" class="tag-folders" hidden></div>
         <div id="edit-tags" class="tag-stamps"></div>
         <label class="field-label">できごと(任意)</label>
         <textarea id="edit-text" rows="4" placeholder="この日のできごと"></textarea>
@@ -189,7 +191,6 @@
       <summary>タグの管理</summary>
       <div class="folder-manage">
         <p class="section-hint">フォルダ(タグを整理)</p>
-        <ul id="folder-manage-list" class="manage-list"></ul>
         <div class="tag-add-row">
           <input id="new-folder-input" type="text" placeholder="フォルダ名(例: しごと)" maxlength="20">
           <button id="new-folder-add" class="btn sub">フォルダを追加</button>

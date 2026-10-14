@@ -419,4 +419,10 @@ export default {
   "言語 / Language": "Language",
   "使う言語を選んでください。あとから設定でも変えられます。": "Choose your language. You can change it later in Settings.",
   "切り替えると、アプリを読み込み直します。": "The app reloads when you switch.",
+  "非表示": "Hidden",
+  "フォルダ「{0}」を削除しますか?中のタグは消えずに未分類に戻ります。": "Delete the folder \"{0}\"? Its tags are kept and moved to Uncategorized.",
+  "このフォルダにはまだタグがありません。": "No tags in this folder yet.",
+  "フォルダに入っていないタグはありません。": "Every tag is in a folder.",
+  "このフォルダにタグを追加": "Add a tag to this folder",
+  "{0}個 押してあります": "{0} tapped",
 };
