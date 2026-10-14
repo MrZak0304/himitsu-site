@@ -691,7 +691,7 @@ export function initSettings(ctx) {
       current: getLanguagePreference(),
       onPick: async (id) => {
         if (id === getLanguagePreference()) return;
-        if (!(await changeLanguage(ctx, id))) renderLang(); // 表示の言語が同じなら選択だけ変える
+        if (!(await changeLanguage(ctx, id, { returnTo: 'settings-lang' }))) renderLang(); // 表示の言語が同じなら選択だけ変える
       },
     });
   renderLang();
@@ -1316,5 +1316,13 @@ export function initSettings(ctx) {
     for (const d of document.querySelectorAll('#panel-settings details.settings-group')) d.open = false;
   }
 
-  return { refresh, openLockSetup, closeLockSetup, collapseSections };
+  // 言語を切り替えて読み込み直したあと、言語の項目を開いて見せる(2026-10-14 PD FB「設定画面のままがいい」)
+  function openLanguageSection() {
+    const group = els.langChoices.closest('details');
+    if (!group) return;
+    group.open = true;
+    group.scrollIntoView({ block: 'nearest' }); // 見えていれば動かさない(上の固定ヘッダーに潜らせない)
+  }
+
+  return { refresh, openLockSetup, closeLockSetup, collapseSections, openLanguageSection };
 }

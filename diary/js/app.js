@@ -18,6 +18,7 @@ import { syncReminder, syncMonthlySummary, onNotificationTap } from './notificat
 import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
 import { monthOfKey } from './core/dates.js';
 import { initOnboarding } from './ui/onboarding.js';
+import { takeReturnTo } from './ui/language.js';
 import { createCardDialog } from './ui/card-dialog.js';
 import { createPlanDialog } from './ui/plan-dialog.js';
 import { createCardList } from './ui/card-list.js';
@@ -330,6 +331,11 @@ async function main() {
   });
 
   await selectTab('today');
+  // 設定で言語を切り替えて読み込み直したときは、設定の言語の項目に戻す(2026-10-14 PD FB)
+  if (takeReturnTo() === 'settings-lang') {
+    await selectTab('settings');
+    settingsUI.openLanguageSection();
+  }
 
   // 初回起動の案内(v1.1): データが無い初回だけ。最後にタグを押すと当日の記録になる
   await initOnboarding(ctx, { onDone: () => selectTab('today') });

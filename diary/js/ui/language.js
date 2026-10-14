@@ -22,8 +22,22 @@ export function renderLanguageChoices(container, { ids, current, onPick }) {
   );
 }
 
-// 言語の設定を変える。表示の言語が変わるなら、定番タグを付け替えてから読み込み直す(戻り値 true)
-export async function changeLanguage(ctx, pref) {
+// 読み込み直したあとに戻る場所(1 回だけ)。設定から切り替えたら設定の言語の項目に戻す(2026-10-14 PD FB)
+const RETURN_KEY = 'diary-return-to';
+
+export function takeReturnTo() {
+  try {
+    const v = globalThis.sessionStorage?.getItem(RETURN_KEY) ?? null;
+    globalThis.sessionStorage?.removeItem(RETURN_KEY);
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+// 言語の設定を変える。表示の言語が変わるなら、定番タグを付け替えてから読み込み直す(戻り値 true)。
+// returnTo を渡すと、読み込み直したあとにその場所へ戻る(例: 'settings-lang')
+export async function changeLanguage(ctx, pref, { returnTo = null } = {}) {
   const from = locale();
   const to = resolveLocale(pref);
   setLanguagePreference(pref);
@@ -32,6 +46,13 @@ export async function changeLanguage(ctx, pref) {
     DEFAULT_TAG_SOURCES.map((s) => trIn(from, s)),
     DEFAULT_TAG_SOURCES.map((s) => trIn(to, s)),
   );
+  if (returnTo) {
+    try {
+      globalThis.sessionStorage?.setItem(RETURN_KEY, returnTo);
+    } catch {
+      /* 戻れなくても切り替えはできる */
+    }
+  }
   // 公開デモの ?lang= は設定より優先されるので、外してから読み込み直す
   const url = new URL(window.location.href);
   url.searchParams.delete('lang');
