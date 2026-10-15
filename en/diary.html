@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PonNikki - Tap a tag: a 10-second diary | Support</title>
+<meta name="description" content="For anyone who can't keep a diary. Just tap a tag for today's mood. PonNikki is a diary app you can start in 10 seconds a day. App info and support.">
+<link rel="alternate" hreflang="ja" href="https://mrzak0304.github.io/himitsu-site/diary.html">
+<link rel="alternate" hreflang="en" href="https://mrzak0304.github.io/himitsu-site/en/diary.html">
+<style>
+  :root {
+    color-scheme: light;
+    --accent: #4a7dbd;
+    --accent-dark: #2f5687;
+    --text: #333333;
+    --muted: #666666;
+    --line: #dddddd;
+    --panel: #f3f6fb;
+  }
+  body {
+    margin: 0;
+    padding: 0 0 4rem;
+    background: #ffffff;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.7;
+  }
+  .hero {
+    background: var(--accent);
+    color: #ffffff;
+    padding: 2.5rem 1.25rem 2.2rem;
+    text-align: center;
+  }
+  .hero .icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    overflow: hidden;
+    margin: 0 auto 1rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+  .hero .icon svg { display: block; width: 100%; height: 100%; }
+  .hero h1 {
+    font-size: 1.6rem;
+    margin: 0 0 0.3rem;
+    line-height: 1.4;
+  }
+  .hero .sub {
+    font-size: 1rem;
+    margin: 0 0 0.8rem;
+    opacity: 0.95;
+  }
+  .hero .lead {
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 30em;
+    opacity: 0.95;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.6rem;
+  }
+  h3 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 1.4rem;
+    margin-bottom: 0.4rem;
+  }
+  p { margin: 0.8rem 0; }
+  ul { margin: 0.8rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  a { color: var(--accent); word-break: break-all; }
+  .features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .features li {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin: 0;
+  }
+  .features b { color: var(--accent-dark); }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  col.label { width: 24%; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--panel); font-weight: bold; }
+  .faq dt {
+    font-weight: bold;
+    margin-top: 1.2rem;
+  }
+  .faq dt::before { content: "Q. "; color: var(--accent); }
+  .faq dd {
+    margin: 0.3rem 0 0;
+  }
+  .faq dd::before { content: "A. "; color: var(--accent); font-weight: bold; }
+  .stores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+  }
+  .stores a {
+    display: inline-block;
+    background: var(--accent);
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    word-break: keep-all;
+  }
+  .stores a.sub { background: #ffffff; color: var(--accent); border: 2px solid var(--accent); }
+  .contact {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+  }
+  .note {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  footer {
+    max-width: 720px;
+    margin: 3rem auto 0;
+    padding: 1.5rem 1.25rem 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    color: #888888;
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+  .lang { max-width: 720px; margin: 0 auto; padding: 0.6rem 1.25rem 0; text-align: right; font-size: 0.85rem; }
+  .lang a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="icon" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="#4a7dbd"/>
+      <circle cx="880" cy="150" r="340" fill="#5b8ac6" opacity="0.55"/>
+      <circle cx="120" cy="900" r="300" fill="#4170ab" opacity="0.6"/>
+      <g stroke="#ffd166" stroke-width="34" stroke-linecap="round" fill="none">
+        <path d="M715 205 L775 130"/>
+        <path d="M790 300 L885 260"/>
+        <path d="M600 155 L618 65"/>
+      </g>
+      <g transform="rotate(-8 512 560)">
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#2f5687" opacity="0.35" transform="translate(16 22)"/>
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#ffffff"/>
+        <g fill="#4a7dbd" transform="translate(512 560)">
+          <g transform="skewX(-8)">
+            <rect x="-150" y="-70" width="300" height="52" rx="26"/>
+            <rect x="-150" y="22" width="300" height="52" rx="26"/>
+            <rect x="-86" y="-140" width="52" height="280" rx="26"/>
+            <rect x="36" y="-140" width="52" height="280" rx="26"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <h1>PonNikki</h1>
+  <p class="sub">Tap a tag: a 10-second diary</p>
+  <p class="lead">For anyone who can't keep a diary. Just tap a tag for today's mood. A casual diary app you can start in 10 seconds a day.</p>
+</header>
+<p class="lang"><a href="../diary.html" hreflang="ja" lang="ja">日本語</a> / English</p>
+
+<main>
+  <h2>Download</h2>
+  <p class="stores">
+    <a href="https://apps.apple.com/app/id6799875058">App Store (with ads)</a>
+    <a class="sub" href="https://apps.apple.com/app/id6799877267">App Store (one-time purchase)</a>
+  </p>
+  <p class="stores">
+    <a href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki.free&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary%26utm_campaign%3Dbadge_en">Google Play (with ads)</a>
+    <a class="sub" href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary%26utm_campaign%3Dpaid_en">Google Play (one-time purchase)</a>
+  </p>
+
+  <h2>About the app</h2>
+  <p>Writing every day is hard. But you still want to remember how today went. PonNikki is a diary app for you. At the end of the day, just tap a tag like "#DidMyBest" or "#Chill" and today is recorded. On days you feel like writing, add notes and photos too. Your featured photos and tags fill a monthly calendar, so you can look back on your month at a glance.</p>
+  <p>Keep it quick on most days, and write more on the days you want to remember. Great for anyone who gives up on diaries after a few days, or who just wants an easy way to keep track of everyday life.</p>
+
+  <h2>Main features</h2>
+  <ul class="features">
+    <li><b>Tag stamps</b>: Tap a tag and today is recorded. No writing needed. You can add your own tags too.</li>
+    <li><b>Notes and photos when you want</b>: Add up to 10 photos a day and pick one as your featured photo.</li>
+    <li><b>Look back on a calendar</b>: Your featured photos and tags fill a monthly calendar. See your most-used tags of the month too.</li>
+    <li><b>Plans</b>: Add plans with an emoji and a title. See them on the Today screen and in Look Back.</li>
+    <li><b>Today's Card</b>: Turn your photo and tags into one image to share on social media or save to your photos. Place tags like stamps and edit the card later (your notes are not included).</li>
+    <li><b>Tag stamps on cards</b>: Change the color and shape of each tag's stamp. You can also use your own image as a stamp.</li>
+    <li><b>Tag folders</b>: Group your tags into folders to keep them tidy.</li>
+    <li><b>Habit checks</b>: Check off daily habits. Streaks and 5 characters (boy, girl, cat, dog, finch) cheer you on.</li>
+    <li><b>Reminders</b>: Get a reminder at the time you choose.</li>
+    <li><b>Look Back lock</b>: Protect past entries with a passcode and Face ID or fingerprint. Today's entry is always quick to open.</li>
+    <li><b>Themes</b>: Change the look with color themes.</li>
+    <li><b>Backup</b>: Export and import all your data as one file when you change devices.</li>
+    <li><b>Stays on your device</b>: Your diary text, photos, tags, and habits are saved only on your device. No cloud sync and no account (the version with ads uses the network to show ads; your diary is never sent).</li>
+    <li><b>English and Japanese</b>: The app follows your device language. You can also choose it in Settings &gt; Language.</li>
+  </ul>
+
+  <h2>With ads vs. one-time purchase</h2>
+  <table>
+    <colgroup><col class="label"><col><col></colgroup>
+    <tr><th></th><th>PonNikki with Ads</th><th>PonNikki (one-time purchase)</th></tr>
+    <tr><td>Ads</td><td>Yes (banner and rewarded ads)</td><td>None</td></tr>
+    <tr><td>Your own tags</td><td>Up to 10 (watch an ad to add more)</td><td>Unlimited</td></tr>
+    <tr><td>Themes</td><td>5</td><td>20 plus a custom theme (background image too)</td></tr>
+    <tr><td>Everything else</td><td colspan="2">Diary, photos, habits, calendar, lock, and backup are the same in both</td></tr>
+  </table>
+  <p class="note">Your diary is never sent for advertising (in both versions). The one-time purchase version does not include any ad technology at all.</p>
+
+  <h2 id="support">Support and FAQ</h2>
+  <dl class="faq">
+    <dt>Where is my diary saved?</dt>
+    <dd>Only on your device. It is never sent to an outside server or synced to the cloud. No account is needed.</dd>
+
+    <dt>How do I move to a new device?</dt>
+    <dd>Go to Settings &gt; Backup (for a new device) &gt; Export to save all your data as one file (.json), then import it on your new device. Deleting the app deletes your data too, so always export a backup before deleting the app.</dd>
+
+    <dt>I forgot my Look Back lock passcode.</dt>
+    <dd>You can unlock it with the secret question you set up with the lock. If you don't remember the answer either, we can't unlock or recover it for you (your passcode is stored as a hash on your device and is never sent anywhere).</dd>
+
+    <dt>Does the Look Back lock encrypt my diary?</dt>
+    <dd>No. The Look Back lock helps keep others from viewing your past entries, but it does not encrypt the saved data. Please also use your device's own lock (passcode, Face ID, and so on).</dd>
+
+    <dt>I want more tags in the version with ads.</dt>
+    <dd>When your tag slots are full, a "Watch an ad for +1 slot" button appears. Watch the ad to the end to get one more slot. The one-time purchase version has unlimited tags.</dd>
+
+    <dt>Reminders don't arrive.</dt>
+    <dd>Check that notifications are allowed for this app in your device's Settings &gt; Notifications. Focus or Do Not Disturb may hold notifications.</dd>
+
+    <dt>Can I move my data to the one-time purchase version?</dt>
+    <dd>Yes. Export a backup in the version with ads and import it in the one-time purchase version (they use the same file format).</dd>
+
+    <dt>How do I change the language?</dt>
+    <dd>The app follows your device language (Japanese, or English for other languages). To choose it yourself, go to Settings &gt; Language. Tags and entries you typed yourself are not translated.</dd>
+  </dl>
+
+  <h2>Contact</h2>
+  <div class="contact">
+    <p>For bug reports, requests, or questions, please email us. We may reply in simple English.</p>
+    <p>Email: <a href="mailto:t.tool19920312@gmail.com">t.tool19920312@gmail.com</a></p>
+    <p class="note">It helps if you tell us your device model, OS version, app version (shown in Settings), and whether you use the version with ads or the one-time purchase version.</p>
+  </div>
+
+  <h2>Privacy Policy</h2>
+  <p><a href="./diary-privacy.html">Read the privacy policy</a></p>
+</main>
+<footer>
+  Operated by t_tool<br>
+  &copy; 2026 t_tool
+</footer>
+</body>
+</html>
