@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>嘭嘭日记 - 点一下标签，10秒写日记 | 支持与应用介绍</title>
+<meta name="description" content="写日记总是三天打鱼两天晒网？只要点一下标签选出今天的心情就好。每天 10 秒就能开始的日记应用「嘭嘭日记」的介绍与支持页面。">
+<link rel="alternate" hreflang="ja" href="https://mrzak0304.github.io/himitsu-site/diary.html">
+<link rel="alternate" hreflang="en" href="https://mrzak0304.github.io/himitsu-site/en/diary.html">
+<link rel="alternate" hreflang="ko" href="https://mrzak0304.github.io/himitsu-site/ko/diary.html">
+<link rel="alternate" hreflang="zh-Hans" href="https://mrzak0304.github.io/himitsu-site/zh-Hans/diary.html">
+<style>
+  :root {
+    color-scheme: light;
+    --accent: #4a7dbd;
+    --accent-dark: #2f5687;
+    --text: #333333;
+    --muted: #666666;
+    --line: #dddddd;
+    --panel: #f3f6fb;
+  }
+  body {
+    margin: 0;
+    padding: 0 0 4rem;
+    background: #ffffff;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+    line-height: 1.9;
+    overflow-wrap: break-word;
+  }
+  .hero {
+    background: var(--accent);
+    color: #ffffff;
+    padding: 2.5rem 1.25rem 2.2rem;
+    text-align: center;
+  }
+  .hero .icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    overflow: hidden;
+    margin: 0 auto 1rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+  .hero .icon svg { display: block; width: 100%; height: 100%; }
+  .hero h1 {
+    font-size: 1.6rem;
+    margin: 0 0 0.3rem;
+    line-height: 1.4;
+  }
+  .hero .sub {
+    font-size: 1rem;
+    margin: 0 0 0.8rem;
+    opacity: 0.95;
+  }
+  .hero .lead {
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 30em;
+    opacity: 0.95;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.6rem;
+  }
+  h3 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 1.4rem;
+    margin-bottom: 0.4rem;
+  }
+  p { margin: 0.8rem 0; }
+  ul { margin: 0.8rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  a { color: var(--accent); word-break: break-all; }
+  .features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .features li {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin: 0;
+  }
+  .features b { color: var(--accent-dark); }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  col.label { width: 24%; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--panel); font-weight: bold; }
+  .faq dt {
+    font-weight: bold;
+    margin-top: 1.2rem;
+  }
+  .faq dt::before { content: "Q. "; color: var(--accent); }
+  .faq dd {
+    margin: 0.3rem 0 0;
+  }
+  .faq dd::before { content: "A. "; color: var(--accent); font-weight: bold; }
+  .stores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+  }
+  .stores a {
+    display: inline-block;
+    background: var(--accent);
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+  }
+  .stores a.sub { background: #ffffff; color: var(--accent); border: 2px solid var(--accent); }
+  .contact {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+  }
+  .note {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  footer {
+    max-width: 720px;
+    margin: 3rem auto 0;
+    padding: 1.5rem 1.25rem 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    color: #888888;
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+  .lang { max-width: 720px; margin: 0 auto; padding: 0.6rem 1.25rem 0; text-align: right; font-size: 0.85rem; }
+  .lang a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="icon" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="#4a7dbd"/>
+      <circle cx="880" cy="150" r="340" fill="#5b8ac6" opacity="0.55"/>
+      <circle cx="120" cy="900" r="300" fill="#4170ab" opacity="0.6"/>
+      <g stroke="#ffd166" stroke-width="34" stroke-linecap="round" fill="none">
+        <path d="M715 205 L775 130"/>
+        <path d="M790 300 L885 260"/>
+        <path d="M600 155 L618 65"/>
+      </g>
+      <g transform="rotate(-8 512 560)">
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#2f5687" opacity="0.35" transform="translate(16 22)"/>
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#ffffff"/>
+        <g fill="#4a7dbd" transform="translate(512 560)">
+          <g transform="skewX(-8)">
+            <rect x="-150" y="-70" width="300" height="52" rx="26"/>
+            <rect x="-150" y="22" width="300" height="52" rx="26"/>
+            <rect x="-86" y="-140" width="52" height="280" rx="26"/>
+            <rect x="36" y="-140" width="52" height="280" rx="26"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <h1>嘭嘭日记</h1>
+  <p class="sub">点一下标签，10秒写日记</p>
+  <p class="lead">写日记总是三天打鱼两天晒网？只要点一下标签选出今天的心情就好。每天 10 秒就能开始的轻松日记应用。</p>
+</header>
+<p class="lang"><a href="../diary.html" hreflang="ja" lang="ja">日本語</a> / <a href="../en/diary.html" hreflang="en" lang="en">English</a> / <a href="../ko/diary.html" hreflang="ko" lang="ko">한국어</a> / 简体中文</p>
+
+<main>
+  <h2>下载</h2>
+  <p class="stores">
+    <a href="https://apps.apple.com/sg/app/id6799875058">App Store（含广告版）</a>
+    <a class="sub" href="https://apps.apple.com/sg/app/id6799877267">App Store（买断版）</a>
+  </p>
+  <p class="stores">
+    <a href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki.free&amp;hl=zh-CN&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary-zh-hans%26utm_campaign%3Dbadge">Google Play（含广告版）</a>
+    <a class="sub" href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki&amp;hl=zh-CN&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary-zh-hans%26utm_campaign%3Dpaid">Google Play（买断版）</a>
+  </p>
+  <p class="note">本应用不在中国大陆地区提供。</p>
+
+  <h2>这是一款怎样的应用</h2>
+  <p>每天写日记很难坚持。可还是想留下“今天过得怎么样”。这款日记应用就是为这样的你准备的。一天结束时，只要点一下“#努力了”“#悠闲”这样的标签，今天的记录就完成了。想写的日子，也可以留下文字和照片。封面照片和标签排列在月历上，一个月的生活一目了然。</p>
+  <p>平时“嘭”地点一下就好，想记录的日子再多写一些。推荐给写日记总是半途而废、想轻松记录每一天的你。</p>
+
+  <h2>主要功能</h2>
+  <ul class="features">
+    <li><b>点一下标签</b>：点一下常用标签就记录好了。不用写字也能成为日记。还可以添加自己的标签。</li>
+    <li><b>想写的日子也能写文字、放照片</b>：每天最多添加 10 张照片，可以把最喜欢的一张设为封面。</li>
+    <li><b>用月历回顾</b>：封面照片和标签排列在日历上。还能看到常用标签的月度排行。</li>
+    <li><b>日程</b>：用 1 个表情符号加标题记下日程。在今天页面和回顾中都能看到。</li>
+    <li><b>今日卡片</b>：把照片和标签做成一张图片，分享到社交平台或相册。标签可以像印章一样贴上去，之后也能再编辑（不包含正文）。</li>
+    <li><b>习惯印章</b>：可以把完成的习惯和连续天数做成印章，贴到今日卡片上。</li>
+    <li><b>标签印章</b>：每个标签都能更改贴到卡片上时的颜色和形状。也可以用自己做的图片当印章。</li>
+    <li><b>标签文件夹</b>：可以用文件夹把标签整理得井井有条。</li>
+    <li><b>习惯打卡</b>：每天给习惯打卡。连续完成天数和 5 种角色（男孩、女孩、猫咪、狗狗、文鸟）会为你加油。</li>
+    <li><b>提醒</b>：在设定的时间提醒你“来记录今天吧！”。</li>
+    <li><b>回顾锁定</b>：用密码和生物识别（Face ID、指纹）保护过去的日记。今天的记录不用解锁就能马上写。</li>
+    <li><b>主题</b>：用颜色主题换成喜欢的氛围。</li>
+    <li><b>备份</b>：换手机时，可以把全部数据导出为一个文件再导入。</li>
+    <li><b>简体中文、日语、英语、韩语</b>：跟随设备语言显示。也可以在设置 &gt; 语言中自己选择。</li>
+    <li><b>数据留在设备里</b>：日记正文、照片、标签和习惯都保存在设备里。没有云同步，也不需要注册（含广告版会为显示广告进行通信，但不会发送日记内容）。</li>
+  </ul>
+
+  <h2>含广告版与买断版的区别</h2>
+  <table>
+    <colgroup><col class="label"><col><col></colgroup>
+    <tr><th></th><th>嘭嘭日记 含广告</th><th>嘭嘭日记（买断）</th></tr>
+    <tr><td>广告</td><td>有（横幅、激励广告）</td><td>无</td></tr>
+    <tr><td>自己的标签</td><td>最多 10 个（看广告可以增加）</td><td>不限数量</td></tr>
+    <tr><td>主题</td><td>5 种</td><td>20 种＋自定义主题（也可以设置背景图片）</td></tr>
+    <tr><td>其他功能</td><td colspan="2">日记、照片、习惯、日历、锁定、备份两个版本都一样</td></tr>
+  </table>
+  <p class="note">日记内容不会为了广告而被发送（两个版本相同）。买断版本身不包含广告功能。</p>
+
+  <h2 id="support">支持与常见问题</h2>
+  <dl class="faq">
+    <dt>日记数据保存在哪里？</dt>
+    <dd>全部只保存在你使用的设备里。不会发送到外部服务器，也不会同步到云端。也不需要注册。</dd>
+
+    <dt>换手机时该怎么办？</dt>
+    <dd>请在「设置」→「备份」中把全部数据导出为一个文件（.json），然后在新设备上导入。删除应用后数据也会消失，删除前请务必先导出备份。</dd>
+
+    <dt>忘记了回顾锁定的密码。</dt>
+    <dd>可以用设置锁定时登记的「密保问题」解锁。如果密保答案也想不起来，开发者也无法解锁或恢复（因为密码经过哈希处理后只保存在设备里，不会发送到外部）。</dd>
+
+    <dt>上了回顾锁定，日记数据本身就受到保护了吗？</dt>
+    <dd>回顾锁定是“让别人不容易看到过去日记”的查看保护功能，并不会对保存的数据本身进行加密。请同时使用设备本身的锁屏（密码、Face ID 等）。</dd>
+
+    <dt>想在含广告版里添加更多标签。</dt>
+    <dd>标签名额满了以后，会出现「看广告名额 +1」按钮。看完广告就能多一个名额。买断版可以无限添加标签。</dd>
+
+    <dt>收不到提醒通知。</dt>
+    <dd>请在设备的「设置」→「通知」中确认本应用的通知已允许。在专注模式或勿扰模式下可能收不到通知。</dd>
+
+    <dt>怎么更改语言？</dt>
+    <dd>应用会跟随设备语言显示（简体中文、日语、韩语，其他语言显示为英语。繁体中文的设备也显示为英语）。想自己选择的话，请前往设置 &gt; 语言。自己输入的标签和日记不会被翻译。</dd>
+
+    <dt>可以把数据转移到买断版吗？</dt>
+    <dd>在含广告版中导出备份，再在买断版中导入就能转移（文件格式相同）。</dd>
+  </dl>
+
+  <h2>联系我们</h2>
+  <div class="contact">
+    <p>错误反馈、需求和问题，欢迎通过以下邮箱联系。</p>
+    <p>邮箱：<a href="mailto:t.tool19920312@gmail.com">t.tool19920312@gmail.com</a></p>
+    <p class="note">如果能一并告诉我们你使用的设备、系统版本、应用版本（显示在设置页面）以及是含广告版还是买断版，我们能更快地回复。也可以用英语或日语联系。</p>
+  </div>
+
+  <h2>隐私政策</h2>
+  <p><a href="./diary-privacy.html">查看隐私政策</a></p>
+</main>
+<footer>
+  运营：t_tool<br>
+  &copy; 2026 t_tool
+</footer>
+</body>
+</html>
