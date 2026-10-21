@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PonNikki - Diario en 10 s con un toque | Soporte</title>
+<meta name="description" content="Para quienes no logran llevar un diario. Solo toca una etiqueta con el ánimo de hoy. PonNikki es una app de diario que puedes empezar en 10 segundos al día. Información de la app y soporte.">
+<link rel="alternate" hreflang="ja" href="https://mrzak0304.github.io/himitsu-site/diary.html">
+<link rel="alternate" hreflang="en" href="https://mrzak0304.github.io/himitsu-site/en/diary.html">
+<link rel="alternate" hreflang="ko" href="https://mrzak0304.github.io/himitsu-site/ko/diary.html">
+<link rel="alternate" hreflang="zh-Hans" href="https://mrzak0304.github.io/himitsu-site/zh-Hans/diary.html">
+<link rel="alternate" hreflang="es" href="https://mrzak0304.github.io/himitsu-site/es/diary.html">
+<style>
+  :root {
+    color-scheme: light;
+    --accent: #4a7dbd;
+    --accent-dark: #2f5687;
+    --text: #333333;
+    --muted: #666666;
+    --line: #dddddd;
+    --panel: #f3f6fb;
+  }
+  body {
+    margin: 0;
+    padding: 0 0 4rem;
+    background: #ffffff;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.7;
+  }
+  .hero {
+    background: var(--accent);
+    color: #ffffff;
+    padding: 2.5rem 1.25rem 2.2rem;
+    text-align: center;
+  }
+  .hero .icon {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    overflow: hidden;
+    margin: 0 auto 1rem;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+  .hero .icon svg { display: block; width: 100%; height: 100%; }
+  .hero h1 {
+    font-size: 1.6rem;
+    margin: 0 0 0.3rem;
+    line-height: 1.4;
+  }
+  .hero .sub {
+    font-size: 1rem;
+    margin: 0 0 0.8rem;
+    opacity: 0.95;
+  }
+  .hero .lead {
+    font-size: 0.95rem;
+    margin: 0 auto;
+    max-width: 30em;
+    opacity: 0.95;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+  }
+  h2 {
+    font-size: 1.15rem;
+    color: var(--accent);
+    margin-top: 2.4rem;
+    margin-bottom: 0.6rem;
+    border-left: 4px solid var(--accent);
+    padding-left: 0.6rem;
+  }
+  h3 {
+    font-size: 1rem;
+    color: var(--text);
+    margin-top: 1.4rem;
+    margin-bottom: 0.4rem;
+  }
+  p { margin: 0.8rem 0; }
+  ul { margin: 0.8rem 0; padding-left: 1.4rem; }
+  li { margin: 0.4rem 0; }
+  a { color: var(--accent); word-break: break-all; }
+  .features {
+    list-style: none;
+    padding: 0;
+    margin: 1rem 0 0;
+    display: grid;
+    gap: 0.7rem;
+  }
+  .features li {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 0.8rem 1rem;
+    margin: 0;
+  }
+  .features b { color: var(--accent-dark); }
+  table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+  }
+  col.label { width: 24%; }
+  th, td {
+    border: 1px solid var(--line);
+    padding: 0.5rem 0.6rem;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: var(--panel); font-weight: bold; }
+  .faq dt {
+    font-weight: bold;
+    margin-top: 1.2rem;
+  }
+  .faq dt::before { content: "Q. "; color: var(--accent); }
+  .faq dd {
+    margin: 0.3rem 0 0;
+  }
+  .faq dd::before { content: "A. "; color: var(--accent); font-weight: bold; }
+  .stores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+  }
+  .stores a {
+    display: inline-block;
+    background: var(--accent);
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: bold;
+    border-radius: 999px;
+    padding: 0.55rem 1.1rem;
+    word-break: keep-all;
+  }
+  .stores a.sub { background: #ffffff; color: var(--accent); border: 2px solid var(--accent); }
+  .contact {
+    background: var(--panel);
+    border-radius: 12px;
+    padding: 1rem 1.2rem;
+  }
+  .note {
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
+  footer {
+    max-width: 720px;
+    margin: 3rem auto 0;
+    padding: 1.5rem 1.25rem 0;
+    border-top: 1px solid var(--line);
+    font-size: 0.85rem;
+    color: #888888;
+    text-align: center;
+  }
+  footer a { color: var(--accent); }
+  .lang { max-width: 720px; margin: 0 auto; padding: 0.6rem 1.25rem 0; text-align: right; font-size: 0.85rem; }
+  .lang a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="icon" aria-hidden="true">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="#4a7dbd"/>
+      <circle cx="880" cy="150" r="340" fill="#5b8ac6" opacity="0.55"/>
+      <circle cx="120" cy="900" r="300" fill="#4170ab" opacity="0.6"/>
+      <g stroke="#ffd166" stroke-width="34" stroke-linecap="round" fill="none">
+        <path d="M715 205 L775 130"/>
+        <path d="M790 300 L885 260"/>
+        <path d="M600 155 L618 65"/>
+      </g>
+      <g transform="rotate(-8 512 560)">
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#2f5687" opacity="0.35" transform="translate(16 22)"/>
+        <rect x="182" y="380" width="660" height="360" rx="180" fill="#ffffff"/>
+        <g fill="#4a7dbd" transform="translate(512 560)">
+          <g transform="skewX(-8)">
+            <rect x="-150" y="-70" width="300" height="52" rx="26"/>
+            <rect x="-150" y="22" width="300" height="52" rx="26"/>
+            <rect x="-86" y="-140" width="52" height="280" rx="26"/>
+            <rect x="36" y="-140" width="52" height="280" rx="26"/>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <h1>PonNikki</h1>
+  <p class="sub">Diario en 10 s con un toque</p>
+  <p class="lead">Para quienes no logran llevar un diario. Solo toca una etiqueta con el ánimo de hoy. Una app de diario sencilla que puedes empezar en 10 segundos al día.</p>
+</header>
+<p class="lang"><a href="../diary.html" hreflang="ja" lang="ja">日本語</a> / <a href="../en/diary.html" hreflang="en" lang="en">English</a> / <a href="../ko/diary.html" hreflang="ko" lang="ko">한국어</a> / <a href="../zh-Hans/diary.html" hreflang="zh-Hans" lang="zh-Hans">简体中文</a> / Español</p>
+
+<main>
+  <h2>Descargar</h2>
+  <p class="stores">
+    <a href="https://apps.apple.com/app/id6799875058">App Store (con anuncios)</a>
+    <a class="sub" href="https://apps.apple.com/app/id6799877267">App Store (pago único)</a>
+  </p>
+  <p class="stores">
+    <a href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki.free&amp;hl=es-419&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary-es%26utm_campaign%3Dbadge">Google Play (con anuncios)</a>
+    <a class="sub" href="https://play.google.com/store/apps/details?id=io.github.ttool.pontonikki&amp;hl=es-419&amp;referrer=utm_source%3Dsite%26utm_medium%3Ddiary-es%26utm_campaign%3Dpaid">Google Play (pago único)</a>
+  </p>
+
+  <h2>Sobre la app</h2>
+  <p>Escribir todos los días cuesta. Pero aun así quieres recordar cómo te fue hoy. PonNikki es una app de diario pensada para ti. Al final del día, solo toca una etiqueta como «#LoDiTodo» o «#Relax» y el día de hoy queda registrado. Los días en que tengas ganas de escribir, agrega también notas y fotos. Tus fotos destacadas y tus etiquetas llenan un calendario mensual, así que puedes repasar tu mes de un vistazo.</p>
+  <p>La mayoría de los días, hazlo rápido; los días que quieras recordar, escribe más. Ideal si siempre dejas el diario a los pocos días o si solo quieres una forma fácil de guardar tu día a día.</p>
+
+  <h2>Funciones principales</h2>
+  <ul class="features">
+    <li><b>Sellos de etiquetas</b>: Toca una etiqueta y el día de hoy queda registrado. No hace falta escribir. También puedes agregar tus propias etiquetas.</li>
+    <li><b>Notas y fotos cuando quieras</b>: Agrega hasta 10 fotos al día y elige una como tu foto destacada.</li>
+    <li><b>Repasa en un calendario</b>: Tus fotos destacadas y tus etiquetas llenan un calendario mensual. También puedes ver las etiquetas que más usaste en el mes.</li>
+    <li><b>Planes</b>: Agrega planes con un emoji y un título. Velos en la pantalla Hoy y en Recuerdos.</li>
+    <li><b>Tarjeta de hoy</b>: Convierte tu foto y tus etiquetas en una sola imagen para compartirla en redes sociales o guardarla en tus fotos. Coloca etiquetas como sellos y edita la tarjeta después (tus notas no se incluyen).</li>
+    <li><b>Sellos de etiquetas en las tarjetas</b>: Cambia el color y la forma del sello de cada etiqueta. También puedes usar tu propia imagen como sello.</li>
+    <li><b>Carpetas de etiquetas</b>: Agrupa tus etiquetas en carpetas para tenerlas ordenadas.</li>
+    <li><b>Hábitos</b>: Marca tus hábitos diarios. Las rachas y 5 personajes (niño, niña, gato, perro y pinzón) te animan.</li>
+    <li><b>Recordatorios</b>: Recibe un recordatorio a la hora que elijas.</li>
+    <li><b>Bloqueo de Recuerdos</b>: Protege tus entradas pasadas con un código y Face ID o huella digital. La entrada de hoy siempre se abre rápido.</li>
+    <li><b>Temas</b>: Cambia el aspecto con temas de colores.</li>
+    <li><b>Copia de seguridad</b>: Exporta e importa todos tus datos en un solo archivo cuando cambies de dispositivo.</li>
+    <li><b>Todo se queda en tu dispositivo</b>: El texto de tu diario, tus fotos, tus etiquetas y tus hábitos se guardan solo en tu dispositivo. Sin sincronización en la nube y sin cuenta (la versión con anuncios usa la red para mostrar anuncios; tu diario nunca se envía).</li>
+    <li><b>Español, inglés, japonés, coreano y chino simplificado</b>: La app sigue el idioma de tu dispositivo. También puedes elegirlo en Ajustes &gt; Idioma.</li>
+  </ul>
+
+  <h2>Con anuncios o de pago único</h2>
+  <table>
+    <colgroup><col class="label"><col><col></colgroup>
+    <tr><th></th><th>PonNikki con anuncios</th><th>PonNikki (pago único)</th></tr>
+    <tr><td>Anuncios</td><td>Sí (anuncios de banner y con recompensa)</td><td>Ninguno</td></tr>
+    <tr><td>Tus propias etiquetas</td><td>Hasta 10 (mira un anuncio para agregar más)</td><td>Ilimitadas</td></tr>
+    <tr><td>Temas</td><td>5</td><td>20 más un tema personalizado (también con imagen de fondo)</td></tr>
+    <tr><td>Todo lo demás</td><td colspan="2">El diario, las fotos, los hábitos, el calendario, el bloqueo y la copia de seguridad son iguales en ambas</td></tr>
+  </table>
+  <p class="note">Tu diario nunca se envía con fines publicitarios (en ambas versiones). La versión de pago único no incluye ninguna tecnología publicitaria.</p>
+
+  <h2 id="support">Soporte y preguntas frecuentes</h2>
+  <dl class="faq">
+    <dt>¿Dónde se guarda mi diario?</dt>
+    <dd>Solo en tu dispositivo. Nunca se envía a un servidor externo ni se sincroniza con la nube. No necesitas cuenta.</dd>
+
+    <dt>¿Cómo paso mis datos a un dispositivo nuevo?</dt>
+    <dd>Ve a Ajustes &gt; Copia de seguridad (para un dispositivo nuevo) &gt; Exportar para guardar todos tus datos en un solo archivo (.json) y luego impórtalo en tu dispositivo nuevo. Si eliminas la app, también se eliminan tus datos, así que exporta siempre una copia de seguridad antes de eliminarla.</dd>
+
+    <dt>Olvidé el código del bloqueo de Recuerdos.</dt>
+    <dd>Puedes desbloquearlo con la pregunta secreta que configuraste junto con el bloqueo. Si tampoco recuerdas la respuesta, no podemos desbloquearlo ni recuperarlo por ti (tu código se guarda como hash en tu dispositivo y nunca se envía a ningún lado).</dd>
+
+    <dt>¿El bloqueo de Recuerdos cifra mi diario?</dt>
+    <dd>No. El bloqueo de Recuerdos ayuda a evitar que otras personas vean tus entradas pasadas, pero no cifra los datos guardados. Usa también el bloqueo de tu propio dispositivo (código, Face ID, etc.).</dd>
+
+    <dt>Quiero más etiquetas en la versión con anuncios.</dt>
+    <dd>Cuando se llenan tus espacios de etiquetas, aparece el botón «Ver anuncio: +1 espacio». Mira el anuncio hasta el final para obtener un espacio más. La versión de pago único tiene etiquetas ilimitadas.</dd>
+
+    <dt>No me llegan los recordatorios.</dt>
+    <dd>Revisa que las notificaciones de esta app estén permitidas en Ajustes &gt; Notificaciones de tu dispositivo. Los modos Concentración o No molestar pueden retener las notificaciones.</dd>
+
+    <dt>¿Puedo pasar mis datos a la versión de pago único?</dt>
+    <dd>Sí. Exporta una copia de seguridad en la versión con anuncios e impórtala en la versión de pago único (usan el mismo formato de archivo).</dd>
+
+    <dt>¿Cómo cambio el idioma?</dt>
+    <dd>La app sigue el idioma de tu dispositivo (español, japonés, coreano o chino simplificado; en otros idiomas, inglés). Para elegirlo tú, ve a Ajustes &gt; Idioma. Las etiquetas y entradas que escribiste tú no se traducen.</dd>
+  </dl>
+
+  <h2>Contacto</h2>
+  <div class="contact">
+    <p>Para reportar errores, hacer solicitudes o preguntas, escríbenos por correo. Es posible que respondamos en inglés sencillo.</p>
+    <p>Correo: <a href="mailto:t.tool19920312@gmail.com">t.tool19920312@gmail.com</a></p>
+    <p class="note">Nos ayuda que nos digas el modelo de tu dispositivo, la versión del sistema operativo, la versión de la app (aparece en Ajustes) y si usas la versión con anuncios o la de pago único.</p>
+  </div>
+
+  <h2>Política de privacidad</h2>
+  <p><a href="./diary-privacy.html">Leer la política de privacidad</a></p>
+</main>
+<footer>
+  Operado por t_tool<br>
+  &copy; 2026 t_tool
+</footer>
+</body>
+</html>
