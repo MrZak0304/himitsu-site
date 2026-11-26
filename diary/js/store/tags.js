@@ -169,6 +169,14 @@ export function createTagsStore(storage) {
       if (changed > 0) persist(list);
       return changed;
     },
+    // どの言語の定番名のままの定番タグも toNames にそろえる(v1.10)。起動のたびに呼ぶ。
+    // 設定が「端末の言語に合わせる」のまま表示の言語が変わったとき(アプリの更新で対応言語が増えた・端末の言語を変えた)に、
+    // changeLanguage を通らずにタグだけ前の言語で残るのを防ぐ。名前を変えたタグ・追加したタグは変えない
+    async localizeBuiltinsFromAny(fromNameLists, toNames) {
+      let changed = 0;
+      for (const fromNames of fromNameLists) changed += await this.localizeBuiltins(fromNames, toNames);
+      return changed;
+    },
     async setFolder(id, folderId) {
       const list = kv.load();
       const tag = list.find((t) => t.id === id);

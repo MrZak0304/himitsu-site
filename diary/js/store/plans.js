@@ -1,10 +1,10 @@
-// 予定のストア(v1.06)。形は { [date]: [{ id, emoji, title, createdAt }] }。
+// 予定のストア(v1.06)。形は { [date]: [{ id, emoji, title, createdAt, remindAt }] }(remindAt=通知の時刻・v1.16)。
 // 記録(entries)とは別キーに置き、記録の統計(連続記録・月のまとめ)に混ざらないようにする。
 // 日記データは端末内にのみ保存し、外部送信しない(不変条件 1)。バックアップは v4 で plans を含む。
 
 import { createKvStore, makeId } from './kv.js';
 import { isValidKey } from '../core/dates.js';
-import { normalizeDayPlans, normalizeEmoji, normalizeTitle, canAddPlan, MESSAGES } from '../core/plans.js';
+import { normalizeDayPlans, normalizeEmoji, normalizeTitle, normalizeRemindAt, canAddPlan, MESSAGES } from '../core/plans.js';
 
 const KEY = 'diary-plans-v1';
 
@@ -40,19 +40,19 @@ export function createPlansStore(storage) {
       return kv.load()[date] ?? [];
     },
     // 追加。絵文字が無い・日付が不正・上限は日本語エラー
-    async add(date, { emoji, title = '' }) {
+    async add(date, { emoji, title = '', remindAt = null }) {
       if (!isValidKey(date)) throw fail(MESSAGES.badDate, 'bad-date');
       const em = normalizeEmoji(emoji);
       if (!em) throw fail(MESSAGES.noEmoji, 'no-emoji');
       const map = kv.load();
       const list = map[date] ?? [];
       if (!canAddPlan(list)) throw fail(MESSAGES.tooMany, 'too-many');
-      const plan = { id: makeId('p'), emoji: em, title: normalizeTitle(title), createdAt: Date.now() };
+      const plan = { id: makeId('p'), emoji: em, title: normalizeTitle(title), createdAt: Date.now(), remindAt: normalizeRemindAt(remindAt) };
       map[date] = [...list, plan];
       persist(map);
       return plan;
     },
-    async update(date, id, { emoji, title }) {
+    async update(date, id, { emoji, title, remindAt }) {
       const map = kv.load();
       const list = map[date] ?? [];
       const plan = list.find((p) => p.id === id);
@@ -63,6 +63,7 @@ export function createPlansStore(storage) {
         plan.emoji = em;
       }
       if (title !== undefined) plan.title = normalizeTitle(title);
+      if (remindAt !== undefined) plan.remindAt = normalizeRemindAt(remindAt);
       persist(map);
       return plan;
     },

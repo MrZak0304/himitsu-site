@@ -219,6 +219,17 @@ export function scaleStickerBy(sticker, ratio) {
   return clampSticker({ ...sticker, scale: (sticker.scale ?? 1) * r });
 }
 
+// 重なり順(2026-10-26 PD 回答 A「前へ」「後ろへ」): シールは配列の後ろほど上に描く。
+// index のシールを dir=1(前へ=ひとつ上)/ -1(後ろへ=ひとつ下)に入れ替える。端なら動かさない。
+// 戻り値: { stickers(新しい配列), index(動かしたあとの位置) }
+export function moveStickerLayer(stickers, index, dir) {
+  const list = [...(stickers ?? [])];
+  const to = index + (dir > 0 ? 1 : -1);
+  if (index < 0 || index >= list.length || to < 0 || to >= list.length) return { stickers: list, index };
+  [list[index], list[to]] = [list[to], list[index]];
+  return { stickers: list, index: to };
+}
+
 // 当たり判定: カード座標(px)の点が乗っている最前面(配列の最後)のシールの index。無ければ -1
 export function hitSticker(stickers, px, py, size = CARD_SIZE) {
   for (let i = (stickers?.length ?? 0) - 1; i >= 0; i -= 1) {
@@ -260,11 +271,13 @@ export function stickerHandlePoint(sticker, size = CARD_SIZE) {
   return { x: r.cx + dist * Math.cos(ang), y: r.cy + dist * Math.sin(ang) };
 }
 
-// つまみの当たり判定(少し広め)
-export function hitStickerHandle(sticker, px, py, size = CARD_SIZE) {
+// つまみの当たり判定(少し広め)。hitR: 判定の半径(カード座標 px)。画面では指で押せる大きさにするため、
+// 呼び出し側が画面の大きさから決めて渡す(2026-10-26 PD 実機確認「つまみの判定をもう少し大きく」)
+export const HANDLE_HIT_R = HANDLE_R + 12;
+export function hitStickerHandle(sticker, px, py, size = CARD_SIZE, hitR = HANDLE_HIT_R) {
   if (!sticker) return false;
   const h = stickerHandlePoint(sticker, size);
-  return Math.hypot(px - h.x, py - h.y) <= HANDLE_R + 12;
+  return Math.hypot(px - h.x, py - h.y) <= Math.max(hitR, HANDLE_HIT_R);
 }
 
 // つまみをカード座標 (px, py) までドラッグしたときの回転量をシールに反映

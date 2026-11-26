@@ -3,7 +3,8 @@
 export const BUILD = {
   variant: 'web', // 'web' | 'free' | 'paid'
   ads: false,
-  adMode: 'test', // 'test' | 'prod'。'prod' は本番広告(明示指定したビルドのみ)
+  adMode: 'test', // 'test' | 'prod' | 'off'。'prod' は本番広告、'off' は広告なしのお試し期間(どちらも明示指定したビルドのみ)
+  consentDebug: null, // 同意画面の確認用(テスト広告のビルドだけ)。{ geography: 'eea', testDevices: [...] }
 };
 
 // 「どのビルドか」を表す不変値。BUILD.variant は ?variant= の開発フックで書き換わるため、
@@ -26,5 +27,7 @@ export function applyDevOverrides(location) {
     BUILD.variant = v;
     BUILD.ads = v === 'free';
   }
+  // 広告なしのお試し期間(v1.14)の確認用: ?adMode=off で広告つき版の「+1」ボタンを試す
+  if (params.get('adMode') === 'off') BUILD.adMode = 'off';
   return { reset: params.get('reset') === '1' };
 }

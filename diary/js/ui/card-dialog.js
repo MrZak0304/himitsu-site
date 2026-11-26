@@ -11,13 +11,19 @@ import { normalizePushIndex } from '../core/image-rules.js';
 import {
   cardFileName, panCrop, clampCrop, pinchZoom, layoutCard, DEFAULT_CROP,
   autoStickers, clampSticker, hitSticker, placeNewSticker, STICKER_ROTATE_STEP,
-  stickerHandlePoint, hitStickerHandle, dragStickerHandle, scaleStickerBy, STICKER_SCALE_STEP, imageStampSize,
+  stickerHandlePoint, hitStickerHandle, dragStickerHandle, scaleStickerBy, moveStickerLayer, STICKER_SCALE_STEP, imageStampSize,
 } from '../core/card.js';
 import { drawCard, drawCropPreview, loadBitmap, renderCard, cropThumb, currentThemeColors } from '../card-render.js';
 import { deliverFile } from '../backup-io.js';
 import { cardSlotInfo, cardSlotStatusText } from '../core/card-slots.js';
-import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
-import { stampOrient } from '../core/stamp.js';
+import { requestRewarded, preloadRewarded, isRewardedReady, isAdFree } from '../ads.js';
+import { canGrant, markGranted, AD_FREE_USED_MESSAGE } from '../core/ad-free-grants.js';
+import { todayKey } from '../core/dates.js';
+import { stampOrient, STAMP_SHAPES, STAMP_COLORS, DEFAULT_BUILTIN_STAMP } from '../core/stamp.js';
+import { habitStampCount, habitStampText, normalizeHabitStampPrefs, canPickHabitStampColor, habitStampColor, initialHabitStamp } from '../core/habit-stats.js';
+
+const SHAPE_IDS = STAMP_SHAPES.map((sh) => sh.id);
+const COLOR_IDS = STAMP_COLORS.map((c) => c.id);
 import { makeId } from '../store/kv.js';
 import { tr } from '../i18n/index.js';
 
@@ -43,6 +49,9 @@ export function createCardDialog(ctx) {
     reset: $('card-reset'),
     tagsHint: $('card-tags-hint'),
     tags: $('card-tags'),
+    habitsHint: $('card-habits-hint'),
+    habits: $('card-habits'),
+    habitMode: $('card-habit-mode'),
     tools: $('card-sticker-tools'),
     rotL: $('card-rot-l'),
     rotR: $('card-rot-r'),
@@ -50,6 +59,9 @@ export function createCardDialog(ctx) {
     scaleUp: $('card-scale-up'),
     scaleDown: $('card-scale-down'),
     peel: $('card-peel'),
+    layer: $('card-layer'),
+    layerUp: $('card-layer-up'),
+    layerDown: $('card-layer-down'),
     stampMode: $('card-stamp-mode'),
     stampNone: $('card-stamp-none'),
     note: $('card-dialog-note'),
@@ -95,6 +107,8 @@ export function createCardDialog(ctx) {
     els.title.textContent = thumb ? THUMB_TITLE : CARD_TITLE;
     els.tagsHint.hidden = thumb;
     els.tags.hidden = thumb;
+    els.habitsHint.hidden = thumb || state.habits.length === 0;
+    els.habits.hidden = thumb || state.habits.length === 0;
     els.photosHint.hidden = thumb;
     els.photos.hidden = thumb;
     els.share.hidden = thumb;
@@ -103,14 +117,18 @@ export function createCardDialog(ctx) {
     els.slotNote.hidden = true;
     els.save.hidden = !thumb;
     els.cont.hidden = !thumb || !canMakeCard({ tags: state.tagNames, images: state.photos.map((p) => p.id) });
-    if (thumb) els.tools.hidden = true;
+    if (thumb) {
+      els.tools.hidden = true;
+      els.layer.hidden = true;
+    }
   }
 
   // --- タグのパレット(貼る/はがす)と選択中シールのツールバー ---
   // パレット: 貼ってあるタグは .on、編集中(選択中)のシールのタグは .selected で強調(PD FB 7: どれを触っているか分かるように)
   function renderPalette() {
-    const placed = new Set(state.stickers.map((s) => s.text));
-    const selectedText = state.selected >= 0 ? state.stickers[state.selected]?.text : null;
+    const placed = new Set(state.stickers.filter((s) => !s.kind).map((s) => s.text));
+    const sel = state.selected >= 0 ? state.stickers[state.selected] : null;
+    const selectedText = sel && !sel.kind ? sel.text : null;
     els.tags.replaceChildren(
       ...state.tagNames.map((name) => {
         const b = document.createElement('button');
@@ -120,7 +138,7 @@ export function createCardDialog(ctx) {
         b.dataset.tag = name;
         // タップ: 貼ってあれば選ぶだけ(はがすのはツールバーの「はがす」だけ。2026-10-12 PD FB 3 回目)、無ければ貼って選ぶ
         b.onclick = () => {
-          const idx = state.stickers.findIndex((s) => s.text === name);
+          const idx = state.stickers.findIndex((s) => !s.kind && s.text === name);
           if (idx >= 0) {
             state.selected = idx;
           } else {
@@ -134,15 +152,76 @@ export function createCardDialog(ctx) {
         return b;
       }),
     );
+    renderHabitPalette();
+  }
+
+  // --- 日課の達成スタンプ(v1.09)。その日に達成した日課だけ並べ、タップで貼る/選ぶ ---
+  // シールは { kind:'habit', habitId, habitMode:'streak'|'total', habitShape } を持ち、文言はその日の日数から作る
+  function habitText(st) {
+    const h = state.habits.find((x) => x.id === st.habitId);
+    return h ? habitStampText(h.name, habitStampCount(h.dates, state.dateKey, st.habitMode), st.habitMode) : st.text;
+  }
+
+  function renderHabitPalette() {
+    const sel = state.selected >= 0 ? state.stickers[state.selected] : null;
+    els.habits.replaceChildren(
+      ...state.habits.map((h) => {
+        const placed = state.stickers.some((s) => s.kind === 'habit' && s.habitId === h.id);
+        const selected = sel?.kind === 'habit' && sel.habitId === h.id;
+        const b = document.createElement('button');
+        b.className = `tag-stamp${placed ? ' on' : ''}${selected ? ' selected' : ''}`;
+        b.textContent = h.name;
+        b.dataset.habitId = h.id;
+        if (selected) b.setAttribute('aria-current', 'true');
+        b.onclick = () => {
+          const idx = state.stickers.findIndex((s) => s.kind === 'habit' && s.habitId === h.id);
+          if (idx >= 0) {
+            state.selected = idx;
+          } else {
+            // 形・色は日課タブで決めた見た目(無い日課は以前カードで選んだもの。2026-10-26 PD 回答・実機確認)
+            const { mode } = state.habitPrefs;
+            const { shape, color } = initialHabitStamp(h.stamp, state.habitPrefs);
+            const st = { kind: 'habit', habitId: h.id, habitMode: mode, habitShape: shape, text: '' };
+            if (canPickHabitStampColor(ctx.variant) && color !== 'theme') st.habitColor = color;
+            st.text = habitText(st);
+            state.stickers.push(decorate({ ...placeNewSticker(st.text, state.stickers), ...st }));
+            state.selected = state.stickers.length - 1;
+          }
+          renderPalette();
+          renderTools();
+          scheduleDraw();
+        };
+        return b;
+      }),
+    );
+  }
+
+  // 選んだ連続/累計と形を覚えて、次に貼るときの既定にする(PD 案 2026-10-18)
+  async function rememberHabitPrefs(next) {
+    state.habitPrefs = normalizeHabitStampPrefs({ ...state.habitPrefs, ...next }, SHAPE_IDS, COLOR_IDS);
+    await ctx.stores.settings.merge({ cardHabitStamp: state.habitPrefs }).catch(() => {});
   }
 
   function renderTools() {
     const s = state.mode === 'card' && state.selected >= 0 ? state.stickers[state.selected] : null;
+    const habit = s?.kind === 'habit';
     els.tools.hidden = !s;
-    els.stampMode.hidden = !s;
+    els.layer.hidden = !s;
+    els.stampMode.hidden = !s || habit;
+    els.habitMode.hidden = !habit;
     els.stampNone.hidden = true;
     if (!s) return;
+    // 重なり: いちばん上なら「前へ」、いちばん下なら「後ろへ」を押せない
+    els.layerUp.disabled = state.selected >= state.stickers.length - 1;
+    els.layerDown.disabled = state.selected <= 0;
     els.orient.textContent = s.orient === 'v' ? tr('ヨコ書き') : tr('タテ書き');
+    if (habit) {
+      for (const b of els.habitMode.querySelectorAll('[data-hmode]')) {
+        b.classList.toggle('on', b.dataset.hmode === s.habitMode);
+        b.setAttribute('aria-pressed', b.dataset.hmode === s.habitMode ? 'true' : 'false');
+      }
+      return;
+    }
     // スタンプの選択: オリジナル(タグの管理で作ったもの)が無いタグは「オリジナル」を押せず、案内を出す
     const hasOriginal = !!state.stampByName?.get(s.text);
     const mode = hasOriginal && s.stampMode !== 'default' ? 'original' : 'default';
@@ -175,6 +254,16 @@ export function createCardDialog(ctx) {
   // fresh=新しく貼るシールなら、設定の文字の向き(タテ書き/ヨコ書き)を最初の向きにする(保存済みの配置はそのまま)
   // stampMode:'default' のシールは、タグにオリジナルのスタンプがあっても既定のハンコで描く(カード編集で選ぶ。PD FB 2026-10-13)
   function decorate(st, { fresh = false } = {}) {
+    if (st.kind === 'habit') {
+      // 日課のスタンプは内蔵のハンコ。形は両方の版で、色は買い切り版だけ選べる(広告つき版はテーマ色)
+      const out = {
+        ...st,
+        stamp: { ...DEFAULT_BUILTIN_STAMP, shape: st.habitShape ?? DEFAULT_BUILTIN_STAMP.shape, color: habitStampColor(st.habitColor, ctx.variant, COLOR_IDS) },
+      };
+      delete out.w;
+      delete out.h;
+      return out;
+    }
     const original = state?.stampByName?.get(st.text) ?? null;
     const stamp = st.stampMode === 'default' ? null : original;
     const out = { ...st, stamp };
@@ -236,6 +325,17 @@ export function createCardDialog(ctx) {
     scheduleDraw();
   }
 
+  // その日に達成した日課(並びは日課タブの順)と、それぞれの達成日の集合
+  async function loadAchievedHabits(dateKey) {
+    const [list, checks] = await Promise.all([ctx.stores.habits.list(), ctx.stores.habitLogs.forDate(dateKey)]);
+    const out = [];
+    for (const h of list) {
+      if (checks[h.id] !== true) continue;
+      out.push({ id: h.id, name: h.name, stamp: h.stamp ?? null, dates: await ctx.stores.habitLogs.checkedDates(h.id) });
+    }
+    return out;
+  }
+
   // その日の写真を読み込む(blob のあるものだけ)
   async function loadPhotos(entry) {
     const photos = [];
@@ -288,6 +388,8 @@ export function createCardDialog(ctx) {
     const theme = currentThemeColors();
     const card = cardId ? (entry.cards ?? []).find((c) => c.id === cardId) ?? null : null;
     const { stampByName, stampBitmaps } = await loadStamps(tagNames);
+    const habits = await loadAchievedHabits(dateKey);
+    const settings = await ctx.stores.settings.get();
     state = {
       mode: 'card',
       dateKey,
@@ -304,10 +406,17 @@ export function createCardDialog(ctx) {
       cardId: card?.id ?? null,
       stampByName,
       stampBitmaps,
+      habits,
+      habitPrefs: normalizeHabitStampPrefs(settings.cardHabitStamp, SHAPE_IDS, COLOR_IDS),
     };
     // 既定=自動配置をシール化(今のデザイン)。作り直しなら保存したシール配置(今あるタグのぶんだけ)から
     const tagSet = new Set(tagNames);
-    const saved = card ? card.stickers.filter((st) => tagSet.has(st.text)).map((st) => decorate(clampSticker({ ...st }))) : null;
+    // 日課のスタンプは、その日に達成した日課のぶんだけ残し、文言はいまの日数で作り直す(日課の名前の変更も反映)
+    const habitIds = new Set(habits.map((h) => h.id));
+    const keep = (st) => (st.kind === 'habit' ? habitIds.has(st.habitId) : tagSet.has(st.text));
+    const saved = card
+      ? card.stickers.filter(keep).map((st) => decorate(clampSticker(st.kind === 'habit' ? { ...st, text: habitText(st) } : { ...st })))
+      : null;
     state.stickers = saved && saved.length > 0 ? saved : autoStickersFor();
     renderPhotoPicker();
     renderPalette();
@@ -329,14 +438,27 @@ export function createCardDialog(ctx) {
   // --- 日記内への保存(v1.05): 1日1枚+広告つき版はリワードで追加、買い切り版は無制限 ---
   async function refreshSlot(entry) {
     if (!state || state.mode !== 'card') return;
-    const info = cardSlotInfo(entry ?? (await ctx.stores.entries.get(state.dateKey)), ctx.variant);
+    const adFree = isAdFree();
+    const info = cardSlotInfo(entry ?? (await ctx.stores.entries.get(state.dateKey)), ctx.variant, { adFree });
     const editing = !!state.cardId;
     const blocked = !editing && !info.canAdd;
     els.create.disabled = blocked;
-    const status = cardSlotStatusText(info);
+    let status = cardSlotStatusText(info, { adFree });
     els.slotNote.hidden = editing || !status;
     els.slotNote.textContent = editing || !status ? '' : status;
     els.slotAd.hidden = !blocked;
+    if (blocked && adFree) {
+      // 広告なしのお試し期間(v1.14): 「+1」ボタン。実際の日付で 1 日 1 回(カードの日付ではなく)
+      els.slotAd.textContent = tr('枠を+1してこのカードを保存');
+      const s = await ctx.stores.settings.get();
+      const used = !canGrant(s.adFreeGrants.card, todayKey());
+      els.slotAd.disabled = used;
+      if (used && status) {
+        status = `${status} ${AD_FREE_USED_MESSAGE}`;
+        els.slotNote.textContent = status;
+      }
+      return;
+    }
     if (blocked) {
       // 広告が用意できたときだけ押せる(タグ枠のリワードと同じ作法)
       els.slotAd.disabled = !isRewardedReady();
@@ -400,6 +522,19 @@ export function createCardDialog(ctx) {
   els.slotAd.onclick = async () => {
     if (!state) return;
     const { dateKey } = state;
+    if (isAdFree()) {
+      // 広告なしのお試し期間(v1.14): 押すとすぐその日の枠+1 → そのまま保存。1 日 1 回まで
+      const s = await ctx.stores.settings.get();
+      const today = todayKey();
+      if (!canGrant(s.adFreeGrants.card, today)) {
+        await refreshSlot();
+        return;
+      }
+      await ctx.stores.settings.merge({ adFreeGrants: markGranted(s.adFreeGrants, 'card', today) });
+      await ctx.stores.entries.earnCardSlot(dateKey);
+      await saveCard();
+      return;
+    }
     const isNative = window.Capacitor?.isNativePlatform?.();
     ctx.showLoading(isNative ? tr('広告を読み込んでいます…') : tr('広告(ダミー)を視聴中…'));
     let failReason = null;
@@ -435,6 +570,7 @@ export function createCardDialog(ctx) {
     if (idx < 0) return ids.length > 1 ? openThumb(dateKey, ids.slice(1)) : { opened: false };
     state = {
       mode: 'thumb',
+      habits: [],
       stampByName: new Map(),
       stampBitmaps: new Map(),
       dateKey,
@@ -451,6 +587,7 @@ export function createCardDialog(ctx) {
     };
     renderPhotoPicker();
     els.tags.replaceChildren();
+    els.habits.replaceChildren();
     renderTools();
     applyMode();
     note(null);
@@ -468,7 +605,10 @@ export function createCardDialog(ctx) {
     thumbUrls = [];
     els.photos.replaceChildren();
     els.tags.replaceChildren();
+    els.habits.replaceChildren();
     els.tools.hidden = true;
+    els.layer.hidden = true;
+    els.habitMode.hidden = true;
     els.root.hidden = true;
   }
 
@@ -479,6 +619,8 @@ export function createCardDialog(ctx) {
   const pointers = new Map(); // pointerId → {x, y}
   let gesture = null; // {kind:'sticker'|'rotate'|'photo'|'pinch'|'pinchSticker', ...}
   const photoMovable = () => state?.mode === 'thumb' && !!state.bitmap;
+
+  const HANDLE_HIT_CSS_PX = 26; // 回転つまみの当たり判定の半径(画面の px)
 
   function cardPoint(e) {
     const rect = els.preview.getBoundingClientRect();
@@ -506,7 +648,8 @@ export function createCardDialog(ctx) {
     const p = cardPoint(e);
     const size = els.preview.width;
     if (state.mode === 'card') {
-      if (state.selected >= 0 && hitStickerHandle(state.stickers[state.selected], p.x, p.y, size)) {
+      // つまみは画面上で半径 26px ぶん反応させる(指で押しやすく。2026-10-26 PD 実機確認)
+      if (state.selected >= 0 && hitStickerHandle(state.stickers[state.selected], p.x, p.y, size, HANDLE_HIT_CSS_PX * p.scale)) {
         gesture = { kind: 'rotate', idx: state.selected };
         return;
       }
@@ -622,6 +765,26 @@ export function createCardDialog(ctx) {
       return decorate(next);
     });
   };
+  // 日課のスタンプ: 連続/累計の切り替え(文言を作り直す)。選んだものは次の既定にもなる。
+  // 形・色はカード画面では選ばない(日課タブで日課ごとに決める。2026-10-26 PD 実機確認「カードの形・色は削除したい」)
+  els.habitMode.onclick = (e) => {
+    const b = e.target.closest('[data-hmode]');
+    if (!b || !state || state.selected < 0 || state.stickers[state.selected]?.kind !== 'habit') return;
+    updateSelected((s) => {
+      const next = { ...s, habitMode: b.dataset.hmode };
+      return decorate({ ...next, text: habitText(next) });
+    });
+    rememberHabitPrefs({ mode: b.dataset.hmode });
+  };
+  // 重なり順: 選んでいるシールをひとつ上/下へ(選んだままにする)
+  function moveLayer(dir) {
+    if (!state || state.selected < 0) return;
+    const r = moveStickerLayer(state.stickers, state.selected, dir);
+    state.stickers = r.stickers;
+    select(r.index);
+  }
+  els.layerUp.onclick = () => moveLayer(1);
+  els.layerDown.onclick = () => moveLayer(-1);
   els.peel.onclick = () => {
     if (!state || state.selected < 0) return;
     state.stickers.splice(state.selected, 1);

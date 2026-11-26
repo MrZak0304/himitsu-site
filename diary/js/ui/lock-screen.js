@@ -4,6 +4,7 @@
 
 import { verifyValue, verifyAnswer, hashValue, makeSalt } from '../core/lock.js';
 import { tr } from '../i18n/index.js';
+import { singleFlight } from '../core/single-flight.js';
 
 export const MESSAGES = {
   wrongPasscode: tr('パスコードが違います。'),
@@ -92,7 +93,12 @@ export function createLockGuard(ctx) {
     r?.(result);
   }
 
-  async function requestUnlock() {
+  // 解除の要求は同時に 1 つだけ(二度押しで生体認証が重なると、指紋が通っても結果が捨てられ、
+  // 1 つ目の呼び出しが返らずに残る。2026-11-21 Android 1.17 の確認。js/core/single-flight.js)。
+  // 進行中に呼ばれたら同じ結果を待つ。パスコードの画面が出ている間に呼ばれた場合も同じ
+  const requestUnlock = singleFlight(requestUnlockOnce);
+
+  async function requestUnlockOnce() {
     const settings = await ctx.stores.settings.get();
     if (!settings.lock.enabled || !settings.lock.passcodeHash) return true;
     if (unlocked) return true;
@@ -160,6 +166,7 @@ export function createLockGuard(ctx) {
     await ctx.stores.settings.merge({
       lock: { ...settings.lock, salt, passcodeHash: await hashValue(els.pass1.value, salt) },
     });
+    ctx.syncMonthly?.().catch(() => {}); // 通知文面を今のロック状態で作り直す
     unlocked = true;
     close(true);
   };

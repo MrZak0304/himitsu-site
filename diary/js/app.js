@@ -14,13 +14,17 @@ import { createSettingsStore } from './store/settings.js';
 import { createImagePipeline } from './images.js';
 import { createImageStore } from './store/images.js';
 import { createBackupIO, cleanupBackupCache } from './backup-io.js';
-import { syncReminder, syncMonthlySummary, onNotificationTap } from './notifications.js';
-import { monthlySummaryText, prevMonthOf } from './core/monthly-summary.js';
+import { syncReminder, syncMonthlySummary, syncPlanReminders, onNotificationTap } from './notifications.js';
+import { monthlySummaryText, prevMonthOf, isLockActive } from './core/monthly-summary.js';
+import { shouldRequestReview } from './core/review.js';
+import { reviewAvailable, requestReview } from './review.js';
 import { monthOfKey } from './core/dates.js';
 import { initOnboarding } from './ui/onboarding.js';
-import { takeReturnTo } from './ui/language.js';
+import { takeReturnTo, followLocaleForBuiltinTags } from './ui/language.js';
 import { createCardDialog } from './ui/card-dialog.js';
+import { createMonthCardDialog } from './ui/month-card-dialog.js';
 import { createPlanDialog } from './ui/plan-dialog.js';
+import { createEmojiPicker } from './ui/emoji-picker.js';
 import { createCardList } from './ui/card-list.js';
 import { applyTheme, applyBackgroundImage } from './ui/theme.js';
 import { initToday } from './ui/today.js';
@@ -116,6 +120,7 @@ async function main() {
     settings: createSettingsStore(nativeStorage),
     plans: createPlansStore(nativeStorage), // 予定(v1.06)。記録とは別
   };
+  await followLocaleForBuiltinTags(stores); // 表示の言語が自動で変わっても定番タグの名前が付いてくる(v1.10)
   const backupIO = createBackupIO();
 
   // --- 画面内ポップアップ(window.confirm/alert は使わない) ---
@@ -187,17 +192,37 @@ async function main() {
   ctx.lock = lock;
   ctx.cardList = createCardList(ctx); // 日記内に保存したカードの一覧(v1.05)。きょう/日別詳細で共用
   ctx.cardDialog = createCardDialog(ctx); // きょうの1枚カード(v1.1)。きょう/ふりかえり詳細から開く
+  ctx.monthCardDialog = createMonthCardDialog(ctx); // 月の1枚。ふりかえり(ロックの内側)から開く
   ctx.planDialog = createPlanDialog(ctx); // 予定の追加・編集(v1.06)。きょう/ふりかえり詳細から開く
+  ctx.emojiPicker = createEmojiPicker(); // 絵文字のポップアップ(2026-10-27)。タグ・できごとの「🎉▾」から開く
 
   const habitsUI = initHabits(ctx);
   ctx.renderCharacter = habitsUI.renderCharacter;
   ctx.reactCharacter = habitsUI.reactCharacter;
   ctx.reactAllDone = habitsUI.reactAllDone;
 
+  // ストアの評価ダイアログ(2026-10-21 マーケ施策): 記録した日が 7 日に達した日の保存の直後に 1 回だけ。
+  // タグを続けて押している途中に出さないよう、最後の保存から少し待ち、文字の入力中なら次の保存まで見送る
+  const REVIEW_DELAY_MS = 2500;
+  let reviewTimer = null;
+  const scheduleReviewCheck = () => {
+    if (!reviewAvailable()) return;
+    clearTimeout(reviewTimer);
+    reviewTimer = setTimeout(async () => {
+      const el = document.activeElement;
+      if (el && (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT')) return;
+      const [s, entriesMap] = await Promise.all([stores.settings.get(), stores.entries.all()]);
+      if (!shouldRequestReview({ entriesMap, today: todayKey(), requested: s.review.requested })) return;
+      await stores.settings.merge({ review: { requested: true } }); // 先に記録する(失敗しても 2 回目は呼ばない)
+      await requestReview();
+    }, REVIEW_DELAY_MS);
+  };
+
   // 保存確認(2026-08-10 PD FB): トースト+キャラの一言で「記録できた」を明示する
   const saveToast = document.getElementById('save-toast');
   let saveToastTimer = null;
-  ctx.notifySaved = async () => {
+  ctx.notifySaved = async ({ diary = true } = {}) => {
+    if (diary) scheduleReviewCheck();
     saveToast.classList.add('show');
     clearTimeout(saveToastTimer);
     saveToastTimer = setTimeout(() => saveToast.classList.remove('show'), 1500);
@@ -229,10 +254,21 @@ async function main() {
     const [entriesMap, habitLogsMap, habits, tags] = await Promise.all([
       stores.entries.all(), stores.habitLogs.all(), stores.habits.list(), stores.tags.list({ includeHidden: true }),
     ]);
-    const body = monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf: new Map(tags.map((t) => [t.id, t.name])), year, month });
+    const body = monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf: new Map(tags.map((t) => [t.id, t.name])), year, month, locked: isLockActive(s.lock) });
     return syncMonthlySummary(s.monthlySummary.enabled, body, { requestPermission });
   };
   ctx.syncMonthly().catch(() => {});
+
+  // 予定のお知らせ(v1.16): 起動・アプリに戻ったとき・予定の保存/削除・バックアップの取り込みで予約し直す。
+  // 1 本の Promise につないで 1 つずつ走らせ、走り始めにストアから読み直す(重なると消した予定の通知が残るため)
+  let planReminderChain = Promise.resolve();
+  ctx.syncPlanReminders = () => {
+    planReminderChain = planReminderChain
+      .then(async () => syncPlanReminders(await stores.plans.all()))
+      .catch(() => ({ ok: false }));
+    return planReminderChain;
+  };
+  ctx.syncPlanReminders();
 
   // --- タブ切替(hidden属性で統一: KTD1)。ふりかえりは進入ガード(R10) ---
   const panels = {
@@ -281,6 +317,7 @@ async function main() {
   for (const btn of navButtons) {
     btn.onclick = () => selectTab(btn.dataset.tab);
   }
+  ctx.selectTab = selectTab; // きょうの日課の「編集 ›」から日課タブへ(v1.09)
 
   ctx.refreshAll = async () => {
     await selectTab(currentTab);
@@ -303,12 +340,14 @@ async function main() {
       // 過去日の写真を出したまま離席させない(ロックの趣旨)。ただしリワード広告の表示中は離席ではない
       // (ネイティブの全画面広告で document が hidden になる。閉じると編集が消える=2026-10-12 PD FB)
       if (!ctx.cardDialog.adInProgress?.()) ctx.cardDialog.close();
+      ctx.monthCardDialog.close(); // 過去の月を出したまま離席させない
       settingsUI.collapseSections(); // 入力途中のパスコードを残したまま離席させない
       // 別アプリへ移るときは「きょう」に戻す(2026-08-10 PD FB)。
       // 戻るたびにロック解除を求められる煩わしさが消え、アプリスイッチャーの
       // サムネイルに過去の記録が残らない副次効果もある(ロックの趣旨に沿う)
       if (currentTab === 'calendar') selectTab('today');
     } else {
+      ctx.syncPlanReminders(); // 戻ったら近い分から予約し直す(日跨ぎ・上限 40 件の繰り上げ)
       const nowDay = todayKey();
       if (nowDay !== lastDay) {
         lastDay = nowDay;
@@ -318,7 +357,7 @@ async function main() {
   });
   window.addEventListener('pagehide', () => lock.relock());
 
-  // 通知タップ: 月のまとめ→ふりかえりの前月(ロック中はロック画面が先=不変条件3)。リマインダー→きょう
+  // 通知タップ: 月のまとめ→ふりかえりの前月(ロック中はロック画面が先=不変条件3)。リマインダー・予定のお知らせ→きょう
   onNotificationTap(async (kind) => {
     if (kind === 'monthly-summary') {
       const mo = monthOfKey(todayKey());

@@ -1,6 +1,11 @@
 // 日課ストア。アイコンは内蔵SVG / 絵文字 / ユーザー画像の3択(SPEC §2.2)。
 
 import { createKvStore, makeId } from './kv.js';
+import { normalizeHabitStamp } from '../core/habit-stats.js';
+import { STAMP_SHAPES, STAMP_COLORS } from '../core/stamp.js';
+
+const SHAPE_IDS = STAMP_SHAPES.map((sh) => sh.id);
+const COLOR_IDS = STAMP_COLORS.map((c) => c.id);
 
 const KEY = 'diary-habits-v1';
 const ICON_TYPES = new Set(['builtin', 'emoji', 'image']);
@@ -11,13 +16,17 @@ function normalizeHabit(raw, i) {
   const icon = typeof raw.icon === 'object' && raw.icon !== null && ICON_TYPES.has(raw.icon.type)
     ? { type: raw.icon.type, value: String(raw.icon.value ?? '') }
     : { type: 'builtin', value: 'star' };
-  return {
+  const habit = {
     id: raw.id,
     name: raw.name,
     icon,
     order: Number.isInteger(raw.order) ? raw.order : i,
     createdAt: Number.isFinite(raw.createdAt) ? raw.createdAt : Date.now(),
   };
+  // カード用スタンプの見た目(2026-10-26・バックアップ v5)。無い日課(旧データ)は持たない
+  const stamp = normalizeHabitStamp(raw.stamp, SHAPE_IDS, COLOR_IDS);
+  if (stamp) habit.stamp = stamp;
+  return habit;
 }
 
 function normalizeAll(raw) {
@@ -42,8 +51,10 @@ export function createHabitsStore(storage) {
     async list() {
       return kv.load();
     },
-    async add(name, icon) {
+    async add(name, icon, stamp = null) {
       const habit = { id: makeId('h'), name, icon, order: kv.load().length, createdAt: Date.now() };
+      const st = normalizeHabitStamp(stamp, SHAPE_IDS, COLOR_IDS);
+      if (st) habit.stamp = st;
       persist([...kv.load(), habit]);
       return habit;
     },

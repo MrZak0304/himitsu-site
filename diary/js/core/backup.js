@@ -5,12 +5,16 @@
 // v3(2026-10-10・v1.05): 記録に日記内保存カード `cards`・`cardSlotsEarned`、タグにカード用スタンプ `stamp` を追加。
 //   いずれも各ストアの normalize が欠落を既定値で補うため、v1/v2 はそのまま取り込める(形は v2 と同じ)。
 // v4(2026-10-13・v1.06): 予定 `plans`({ [date]: [{id, emoji, title, createdAt}] })を追加。v1〜v3 は plans 無し={} として取り込む。
+// v5(2026-10-26): 日課にカード用スタンプの見た目 `stamp`({ shape, color })を追加。日課ストアの normalize が欠落を
+//   「設定なし」として補うため、v1〜v4 はそのまま取り込める(形は v4 と同じ)。
+// v6(2026-11-01・v1.16): 予定に通知の時刻 `remindAt`('HH:MM' か null)を追加。予定ストアの normalize が欠落を
+//   「お知らせなし」(null)として補うため、v1〜v5 はそのまま取り込める(形は v5 と同じ)。
 // images[] には記録の添付画像に加え、日課アイコン用・ユーザー保存キャラ用・カスタム背景用、
 // 保存カード(kind:'card')・画像スタンプ(kind:'stamp')の画像も含める。
 
 import { tr } from '../i18n/index.js';
 
-export const BACKUP_VERSION = 4;
+export const BACKUP_VERSION = 6;
 // v1 の想定上限(画像総量の目安)。超過時は書き出しを日本語エラーで中断する。
 // 大容量対応はフェーズ3で v2 形式(分割・zip等)を検討。
 export const MAX_IMAGE_BYTES = 200 * 1024 * 1024;

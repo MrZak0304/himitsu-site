@@ -1,21 +1,30 @@
 // ふりかえりタブ。月カレンダー(一押しサムネ背景+タグ上位1〜2個)と日別詳細(R8, R9)。
 // このタブへの進入ガード(ロック)は app.js 側で行う。
 
-import { buildMonth, prevMonth, nextMonth } from '../core/calendar.js';
+import { buildMonth, prevMonth, nextMonth, swipeAxis, swipeSettle } from '../core/calendar.js';
 import { monthOfKey } from '../core/dates.js';
 import { monthlyTagRanking } from '../core/tag-stats.js';
-import { monthlyHabitCounts } from '../core/habit-stats.js';
+import { monthlyHabitCounts, habitNameShown } from '../core/habit-stats.js';
 import { createDayEditor } from './day-editor.js';
 import { canMakeCard } from './card-dialog.js';
+import { MONTH_CARD_EMPTY_MESSAGE } from './month-card-dialog.js';
+import { monthHasEntries } from '../core/month-card.js';
 import { cellEmojis } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
 import { tr, formatDate, formatYearMonth } from '../i18n/index.js';
+
+const MONTH_CARD_HINT = tr('月のカレンダーを1枚の画像にして、SNSや写真アプリに共有できます(本文・予定は入りません)。');
 
 export function initCalendar(ctx) {
   const $ = (id) => document.getElementById(id);
   const els = {
     title: $('cal-title'),
     grid: $('cal-grid'),
+    gridPrev: $('cal-grid-prev'),
+    gridNext: $('cal-grid-next'),
+    swipe: $('cal-swipe'),
+    panel: $('panel-calendar'),
+    track: $('cal-track'),
     prev: $('cal-prev'),
     next: $('cal-next'),
     detail: $('day-detail'),
@@ -35,6 +44,8 @@ export function initCalendar(ctx) {
     detailHabits: $('detail-habits'),
     detailEmpty: $('detail-empty'),
     detailClose: $('detail-close'),
+    monthCardBtn: $('month-card-btn'),
+    monthCardHint: $('month-card-hint'),
     monthRanking: $('month-ranking'),
     monthRankingList: $('month-ranking-list'),
     monthRankingEmpty: $('month-ranking-empty'),
@@ -71,56 +82,62 @@ export function initCalendar(ctx) {
       ctx.stores.plans.all(),
     ]);
     const tagName = new Map(tags.map((t) => [t.id, t.name]));
-    const weeks = buildMonth(cur.year, cur.month, entries, today);
-
     const newUrls = [];
-    const cells = [];
-    for (const week of weeks) {
-      for (const cell of week) {
-        const div = document.createElement('div');
-        if (!cell) {
-          div.className = 'cal-cell empty';
+    // 1 か月分のマス。隣の月(スワイプでのぞく分)はタップできないマスにする
+    async function monthCells(ym, interactive) {
+      const weeks = buildMonth(ym.year, ym.month, entries, today);
+      const cells = [];
+      for (const week of weeks) {
+        for (const cell of week) {
+          const div = document.createElement('div');
+          if (!cell) {
+            div.className = 'cal-cell empty';
+            cells.push(div);
+            continue;
+          }
+          div.className = `cal-cell${cell.isToday ? ' today' : ''}`;
+          div.dataset.date = cell.key;
+          const day = document.createElement('span');
+          day.className = 'cal-day';
+          day.textContent = cell.day;
+          div.append(day);
+          // 予定(v1.06): マスの右上に絵文字(最大 2 個)。記録の有無とは独立
+          const emojis = cellEmojis(plans[cell.key]);
+          if (emojis.length > 0) {
+            const pl = document.createElement('span');
+            pl.className = 'cal-plans';
+            pl.textContent = emojis.join('');
+            div.append(pl);
+          }
+          if (cell.imageId) {
+            const rec = await ctx.pipeline.store.get(cell.imageId);
+            if (rec?.thumbBlob) {
+              const url = URL.createObjectURL(rec.thumbBlob);
+              newUrls.push(url);
+              div.style.backgroundImage = `url(${url})`;
+              div.classList.add('has-image');
+            }
+          }
+          if (cell.tags.length > 0) {
+            const wrap = document.createElement('span');
+            wrap.className = 'cal-tags';
+            for (const id of cell.tags) {
+              const t = document.createElement('span');
+              t.className = 'cal-tag';
+              t.textContent = tagName.get(id) ?? '';
+              wrap.append(t);
+            }
+            div.append(wrap);
+          }
+          if (interactive) div.onclick = () => openDetail(cell.key);
           cells.push(div);
-          continue;
         }
-        div.className = `cal-cell${cell.isToday ? ' today' : ''}`;
-        div.dataset.date = cell.key;
-        const day = document.createElement('span');
-        day.className = 'cal-day';
-        day.textContent = cell.day;
-        div.append(day);
-        // 予定(v1.06): マスの右上に絵文字(最大 2 個)。記録の有無とは独立
-        const emojis = cellEmojis(plans[cell.key]);
-        if (emojis.length > 0) {
-          const pl = document.createElement('span');
-          pl.className = 'cal-plans';
-          pl.textContent = emojis.join('');
-          div.append(pl);
-        }
-        if (cell.imageId) {
-          const rec = await ctx.pipeline.store.get(cell.imageId);
-          if (rec?.thumbBlob) {
-            const url = URL.createObjectURL(rec.thumbBlob);
-            newUrls.push(url);
-            div.style.backgroundImage = `url(${url})`;
-            div.classList.add('has-image');
-          }
-        }
-        if (cell.tags.length > 0) {
-          const wrap = document.createElement('span');
-          wrap.className = 'cal-tags';
-          for (const id of cell.tags) {
-            const t = document.createElement('span');
-            t.className = 'cal-tag';
-            t.textContent = tagName.get(id) ?? '';
-            wrap.append(t);
-          }
-          div.append(wrap);
-        }
-        div.onclick = () => openDetail(cell.key);
-        cells.push(div);
       }
+      return cells;
     }
+    const cells = await monthCells(cur, true);
+    const cellsPrev = await monthCells(prevMonth(cur.year, cur.month), false);
+    const cellsNext = await monthCells(nextMonth(cur.year, cur.month), false);
     if (seq !== renderSeq) {
       for (const u of newUrls) URL.revokeObjectURL(u);
       return;
@@ -128,6 +145,14 @@ export function initCalendar(ctx) {
     for (const u of urls) URL.revokeObjectURL(u);
     urls = newUrls;
     els.grid.replaceChildren(...cells);
+    els.gridPrev.replaceChildren(...cellsPrev);
+    els.gridNext.replaceChildren(...cellsNext);
+    fitSwipeHeight();
+
+    // 月の1枚: 記録のある月だけ作れる(無い月は押せず、理由をひとこと出す)
+    const canMonthCard = monthHasEntries(buildMonth(cur.year, cur.month, entries, today));
+    els.monthCardBtn.disabled = !canMonthCard;
+    els.monthCardHint.textContent = canMonthCard ? MONTH_CARD_HINT : MONTH_CARD_EMPTY_MESSAGE;
 
     // 月間タグランキング(この月によく使ったタグ。上位5件・hidden除外)
     const hiddenIds = new Set(tags.filter((t) => t.hidden).map((t) => t.id));
@@ -277,7 +302,7 @@ export function initCalendar(ctx) {
         ctx.renderHabitIcon(icon, habit.icon);
         const name = document.createElement('span');
         name.className = 'habit-name';
-        name.textContent = habit.name;
+        name.textContent = habitNameShown(habit);
         li.append(mark, icon, name);
         return li;
       }),
@@ -296,14 +321,24 @@ export function initCalendar(ctx) {
     els.detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  function move(dir) {
-    cur = dir < 0 ? prevMonth(cur.year, cur.month) : nextMonth(cur.year, cur.month);
-    // 月移動で編集・詳細は閉じる
-    editing = false;
-    editor.close();
-    els.detail.hidden = true;
-    openDate = null;
-    renderGrid();
+  // 月を送る(矢印ボタン・スワイプ共通)。カレンダーを横にすべらせてから描き直す
+  async function move(dir) {
+    if (sliding) return;
+    sliding = true;
+    try {
+      await slideTrack(dir);
+      cur = dir < 0 ? prevMonth(cur.year, cur.month) : nextMonth(cur.year, cur.month);
+      // 月移動で編集・詳細は閉じる
+      editing = false;
+      editor.close();
+      els.detail.hidden = true;
+      openDate = null;
+      // すべり終えた位置(隣の月)を見せたまま描き直し、描き終えたら同じ描画で真ん中へ戻す(ちらつかない)
+      await renderGrid();
+    } finally {
+      setTrack(0, false);
+      sliding = false;
+    }
   }
 
   // 過去日の編集を開始/終了(ふりかえり=ロックの内側でのみ)
@@ -322,6 +357,15 @@ export function initCalendar(ctx) {
   }
 
   els.prev.onclick = () => move(-1);
+  // 月の1枚(表示中の月)。記録が無い月はボタンを押せない(renderGrid で切り替える)
+  els.monthCardBtn.onclick = async () => {
+    els.monthCardBtn.disabled = true; // 二度押しで 2 回開かない
+    try {
+      await ctx.monthCardDialog.open({ year: cur.year, month: cur.month });
+    } finally {
+      els.monthCardBtn.disabled = false; // 押せたのは記録のある月だけ。開いている日別詳細は閉じない
+    }
+  };
   els.next.onclick = () => move(1);
   for (const b of els.subtabs.querySelectorAll('.sub-tab')) {
     b.onclick = () => showSubview(b.dataset.subview);
@@ -345,16 +389,90 @@ export function initCalendar(ctx) {
   };
 
   // スワイプで前後の月へ(Pointer Events。HTML5 DnD は使わない: 教訓 drag-test)
-  let downX = null;
-  els.grid.addEventListener('pointerdown', (e) => {
-    downX = e.clientX;
+  // 3 か月分(前・今・次)を横に並べた帯を指に合わせて動かし、離したら隣の月へ送るか元に戻す
+  // (2026-10-26 PD 要望「すぐに切り替わるじゃなく動かした感のある中間の動作」)。
+  // #panel-calendar と .cal-swipe は touch-action: pan-y なので、縦のなぞりはブラウザのスクロールのまま(教訓 calendar-swipe-touch)
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  let sliding = false;
+  let drag = null; // { id, x, y, axis, dx, samples:[{x,t}] }
+  let swipedAt = -Infinity;
+
+  // offset: 0=今の月 / -1=前の月 / 1=次の月 を見せる位置。dx: 指のぶんのずれ(px)
+  function setTrack(offset, animate, dx = 0) {
+    els.track.style.transition = animate && !reduceMotion?.matches ? 'transform 0.25s ease-out' : 'none';
+    els.track.style.transform = `translateX(calc(${(-1 - offset) * (100 / 3)}% + ${dx}px))`;
+  }
+  function slideTrack(offset) {
+    return new Promise((resolve) => {
+      if (reduceMotion?.matches) {
+        setTrack(offset, false);
+        resolve();
+        return;
+      }
+      const done = () => {
+        els.track.removeEventListener('transitionend', done);
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(done, 400); // transitionend が来ないとき(位置が変わらない等)の保険
+      els.track.addEventListener('transitionend', done);
+      setTrack(offset, true);
+    });
+  }
+  // 帯の高さは今の月に合わせる(5 週と 6 週の月で下に空きができないように)
+  function fitSwipeHeight() {
+    els.swipe.style.height = els.grid.offsetHeight ? `${els.grid.offsetHeight}px` : '';
+  }
+  if (window.ResizeObserver) new ResizeObserver(fitSwipeHeight).observe(els.grid);
+
+  // なぞりを受け付ける場所: カレンダーのパネル全体(曜日の行・マスの下のすき間も。2026-10-26 PD 実機 FB
+  // 「カレンダー全体で反応するようにして欲しい」)。開いた日の詳細と下のサブタブは除く
+  const swipeTarget = (el) => subview === 'calendar' && !el?.closest?.('#day-detail, #cal-subtabs');
+  els.panel.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary) return;
+    swipedAt = -Infinity; // 新しくタッチしたら、次の click は普通のタップとして通す
+    if (sliding || e.button > 0 || !swipeTarget(e.target)) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY, axis: null, dx: 0, samples: [{ x: e.clientX, t: e.timeStamp }] };
   });
-  els.grid.addEventListener('pointerup', (e) => {
-    if (downX === null) return;
-    const dx = e.clientX - downX;
-    downX = null;
-    if (Math.abs(dx) > 50) move(dx > 0 ? -1 : 1);
+  els.panel.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (drag.axis === null) {
+      drag.axis = swipeAxis(dx, e.clientY - drag.y);
+      if (drag.axis === 'y') { drag = null; return; } // 縦はスクロールに任せる
+      if (drag.axis === null) return;
+      try { els.panel.setPointerCapture(e.pointerId); } catch { /* 指がもう離れている */ }
+    }
+    drag.dx = dx;
+    drag.samples.push({ x: e.clientX, t: e.timeStamp });
+    if (drag.samples.length > 6) drag.samples.shift();
+    setTrack(0, false, dx);
   });
+  const endDrag = (e, cancelled) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag;
+    drag = null;
+    if (d.axis !== 'x') return;
+    swipedAt = performance.now();
+    // 離す直前(最大 6 回分)の速さ px/ms
+    const first = d.samples[0];
+    const last = d.samples[d.samples.length - 1];
+    const velocity = last.t > first.t ? (last.x - first.x) / (last.t - first.t) : 0;
+    const dir = cancelled ? 0 : swipeSettle(d.dx, els.swipe.clientWidth, velocity);
+    if (dir === 0) {
+      // 元に戻すだけなので、戻っている途中でも次のなぞりを受け付ける(sliding にしない)
+      slideTrack(0);
+    } else {
+      move(dir);
+    }
+  };
+  els.panel.addEventListener('pointerup', (e) => endDrag(e, false));
+  els.panel.addEventListener('pointercancel', (e) => endDrag(e, true));
+  // なぞり終えたマスの click で日別詳細が開かないようにする(iOS では click が少し遅れて来ることがある。
+  // 次にタッチするまでの 0.5 秒だけ)
+  els.panel.addEventListener('click', (e) => {
+    if (performance.now() - swipedAt < 500) e.stopPropagation();
+  }, true);
 
   // 指定の年月を開く(月のまとめ通知からの遷移用)
   async function showMonth(year, month) {

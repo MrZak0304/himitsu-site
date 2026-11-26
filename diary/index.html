@@ -2,7 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 画面全体の拡大・縮小はロックする(2026-10-26 PD 実機確認「全体の拡大縮小は基本ロックしておきたい」)。
+     カードの絵の上のスタンプ・写真の 2 本指の拡大縮小はアプリが受ける(.card-preview は touch-action: none) -->
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <!-- アプリ名: 正式名称「ポンとにっき 〜タグでスタンプする日記〜」(2026-08-10 PD決定)。表記はここと #app-title の2箇所 -->
 <title>ポンとにっき 〜タグでスタンプする日記〜</title>
@@ -21,77 +23,108 @@
   <!-- きょう -->
   <section class="panel" id="panel-today">
     <div class="today-head"><h2 class="panel-title" id="today-date"></h2><span class="streak-badge" id="today-streak" hidden></span></div>
-    <!-- 予定(v1.06): 手帳のように絵文字+タイトルで。今週(きょうから 7 日)を 1 行に並べ、タップした日の予定を下に出す(PD FB 2026-10-13) -->
-    <div id="today-plans-wrap" class="plans-box">
-      <div class="plans-head"><span class="plans-title">📅 今週の予定</span><button id="today-plan-add" class="mini-btn" type="button">＋予定</button></div>
-      <div id="today-week" class="week-strip" role="tablist" aria-label="今週の予定"></div>
-      <div id="today-week-detail" class="week-detail">
-        <p class="week-detail-label" id="today-week-label"></p>
-        <ul id="today-plans" class="plan-list" hidden></ul>
-        <p class="note-inline" id="today-plans-empty">この日の予定はありません。「＋予定」で入れられます。</p>
+    <!-- はじめの並び(2026-10-28 開発リードの家族の FB。予定を日課の上に=同日 22:17 PD): 予定 → 日課 → よく使うタグ → タグ → タグの追加 → できごと → フォルダのタグ → 写真 → カード -->
+    <!-- 項目は data-block ごとの箱。並びは設定の「きょう画面の並び」で変えられる(2026-10-28 PD。js/core/today-layout.js) -->
+    <div id="today-blocks">
+    <div class="today-block" data-block="plans">
+      <!-- 予定(v1.06): 手帳のように絵文字+タイトルで。今週(きょうから 7 日)を 1 行に並べ、タップした日の予定を下に出す(PD FB 2026-10-13) -->
+      <div id="today-plans-wrap" class="plans-box">
+        <div class="plans-head"><span class="plans-title">📅 今週の予定</span><button id="today-plan-add" class="mini-btn" type="button">＋予定</button></div>
+        <div id="today-week" class="week-strip" role="tablist" aria-label="今週の予定"></div>
+        <div id="today-week-detail" class="week-detail">
+          <p class="week-detail-label" id="today-week-label"></p>
+          <ul id="today-plans" class="plan-list" hidden></ul>
+          <p class="note-inline" id="today-plans-empty">この日の予定はありません。「＋予定」で入れられます。</p>
+        </div>
       </div>
     </div>
-    <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
-    <div id="today-frequent-wrap" class="frequent-box" hidden>
-      <p class="section-hint">⭐ よく使うタグ</p>
-      <div class="tag-stamps frequent" id="today-frequent"></div>
+    <div class="today-block" data-block="habits">
+      <!-- きょうの日課: 1 つなら行をそのまま出す。2 つ以上なら、全部を 1 つの枠(アイコンと達成数+「▾」)にしまい、押すと全部の日課が開く(2026-10-28 PD「日課タブに全て収容され、🔽を押すと日課が全て展開される形」)。日課タブへの「編集 ›」はそのまま -->
+      <div class="section-head">
+        <h3 class="section-title">きょうの日課 <span id="today-habit-count" class="habit-count"></span></h3>
+        <button id="today-habit-edit" class="mini-btn" type="button">編集 ›</button>
+      </div>
+      <button id="today-habit-fold" class="habit-fold" type="button" aria-expanded="false" aria-controls="today-habits" hidden>
+        <span class="habit-fold-icons" id="today-habit-fold-icons"></span>
+        <span class="habit-fold-label" id="today-habit-fold-label"></span>
+        <span class="toggle-mark" aria-hidden="true">▾</span>
+      </button>
+      <ul id="today-habits" class="habit-checklist"></ul>
+      <p class="note" id="today-habit-note" hidden></p>
     </div>
-    <p class="section-hint" id="today-alltags-hint" hidden>すべてのタグ</p>
-    <div class="tag-folders" id="today-tag-folders" hidden></div>
-    <div class="tag-stamps" id="today-tags"></div>
-    <div class="note" id="tag-slot-note" hidden></div>
-    <div class="tag-add-row">
-      <input id="new-tag-input" type="text" placeholder="#あたらしいタグ" maxlength="30">
-      <button id="new-tag-add" class="btn">追加</button>
+    <div class="today-block" data-block="frequent">
+      <p class="panel-lead">きょうはどんな日だった?タグをタップしてスタンプ!</p>
+      <div id="today-frequent-wrap" class="frequent-box" hidden>
+        <p class="section-hint">⭐ よく使うタグ</p>
+        <div class="tag-stamps frequent" id="today-frequent"></div>
+      </div>
     </div>
-    <button id="watch-ad-btn" class="btn sub" hidden>広告を見て枠を+1する</button>
-
-    <label class="field-label" for="today-text">きょうのできごと(任意)</label>
-    <textarea id="today-text" rows="4" placeholder="詳しく書きたいときはこちらへ"></textarea>
-
-    <div class="images-head">
-      <span class="field-label">写真(1日10枚まで・一押しに★)</span>
-      <button id="image-add-btn" class="btn sub">写真を追加</button>
+    <div class="today-block" data-block="tags">
+      <div class="tag-stamps" id="today-tags"></div>
+      <div class="note" id="tag-slot-note" hidden></div>
+      <!-- 「🎉▾」: 絵文字のポップアップを開く(2026-10-27 PD 了承) -->
+      <div class="tag-add-row">
+        <input id="new-tag-input" type="text" placeholder="#あたらしいタグ" maxlength="30">
+        <button id="new-tag-emoji" class="emoji-open-btn" type="button" aria-label="絵文字を入れる">🎉▾</button>
+        <button id="new-tag-add" class="btn">追加</button>
+      </div>
+      <button id="watch-ad-btn" class="btn sub" hidden>広告を見て枠を+1する</button>
     </div>
-    <input id="image-input" type="file" accept="image/*" multiple hidden>
-    <div class="note" id="image-note" hidden></div>
-    <div id="today-images" class="image-grid"></div>
-
-    <!-- きょうの1枚カード(v1.1): タグ+写真+日付を画像にして共有。本文は載せない -->
-    <div class="card-row">
-      <button id="today-card-btn" class="btn sub"><span data-ui-icon="share"></span> きょうの1枚カードを作成</button>
-      <p class="note-inline card-hint">写真とタグを1枚の画像にして、SNSや写真アプリに共有できます(本文は入りません)。</p>
+    <div class="today-block" data-block="text">
+      <label class="field-label" for="today-text">きょうのできごと(任意)</label>
+      <div class="text-emoji-wrap">
+        <textarea id="today-text" rows="4" placeholder="詳しく書きたいときはこちらへ"></textarea>
+        <button id="today-text-emoji" class="emoji-open-btn" type="button" aria-label="絵文字を入れる">🎉▾</button>
+      </div>
     </div>
-    <p class="note" id="today-card-note" hidden></p>
-    <div id="today-cards" class="image-grid card-grid" hidden></div>
+    <div class="today-block" data-block="folders">
+      <p class="section-hint" id="today-alltags-hint" hidden>すべてのタグ</p>
+      <div class="tag-folders" id="today-tag-folders" hidden></div>
+    </div>
+    <div class="today-block" data-block="photos">
+      <div class="images-head">
+        <span class="field-label">写真(1日10枚まで・一押しに★)</span>
+        <button id="image-add-btn" class="btn sub">写真を追加</button>
+      </div>
+      <input id="image-input" type="file" accept="image/*" multiple hidden>
+      <div class="note" id="image-note" hidden></div>
+      <div id="today-images" class="image-grid"></div>
+    </div>
+    <div class="today-block" data-block="card">
+      <!-- きょうの1枚カード(v1.1): タグ+写真+日付を画像にして共有。本文は載せない -->
+      <div class="card-row">
+        <button id="today-card-btn" class="btn sub"><span data-ui-icon="share"></span> きょうの1枚カードを作成</button>
+        <p class="note-inline card-hint">写真とタグを1枚の画像にして、SNSや写真アプリに共有できます(本文は入りません)。</p>
+      </div>
+      <p class="note" id="today-card-note" hidden></p>
+      <div id="today-cards" class="image-grid card-grid" hidden></div>
+    </div>
+    </div>
 
-    <h3 class="section-title">きょうの日課</h3>
-    <ul id="today-habits" class="habit-checklist"></ul>
-    <p class="note" id="today-habit-note" hidden></p>
   </section>
 
   <!-- 日課 -->
   <section class="panel" id="panel-habits" hidden>
     <h2 class="panel-title">日課</h2>
-    <p class="diary-streak">日記の連続記録: <strong id="diary-streak-days">0</strong>日</p>
+    <p class="diary-streak">日記の連続記録: <strong id="diary-streak-days">0</strong><span id="diary-streak-unit">日</span></p>
     <ul id="habit-list" class="habit-manage-list"></ul>
     <div class="habit-add">
       <h3 class="section-title">日課を追加</h3>
-      <input id="habit-name-input" type="text" placeholder="日課の名前(例: 運動)" maxlength="20">
+      <!-- アイコン・絵文字・画像を選ぶと名前の欄の左に入り、名前は書いても書かなくても追加できる(2026-10-28 開発リードの家族の FB) -->
+      <div class="habit-name-row">
+        <span id="habit-name-icon" class="habit-icon habit-name-icon" aria-hidden="true"></span>
+        <input id="habit-name-input" type="text" placeholder="日課の名前(なくてもOK)" maxlength="20">
+      </div>
       <div class="icon-tabs">
-        <button class="icon-tab active" data-icon-tab="builtin">アイコン</button>
-        <button class="icon-tab" data-icon-tab="emoji">絵文字</button>
-        <button class="icon-tab" data-icon-tab="image">画像</button>
+        <button class="icon-tab active" data-icon-tab="builtin" type="button">アイコン</button>
+        <button class="icon-tab" data-icon-tab="emoji" type="button" aria-label="絵文字">🎉▾</button>
+        <button class="icon-tab" data-icon-tab="image" type="button">画像</button>
       </div>
       <div id="icon-pane-builtin" class="icon-pane"></div>
-      <div id="icon-pane-emoji" class="icon-pane" hidden>
-        <input id="habit-emoji-input" type="text" placeholder="絵文字を1つ(例: 📚)" maxlength="4">
-      </div>
-      <div id="icon-pane-image" class="icon-pane" hidden>
-        <button id="habit-image-btn" class="btn sub">画像を選ぶ</button>
-        <input id="habit-image-input" type="file" accept="image/*" hidden>
-        <span id="habit-image-chosen" class="note-inline"></span>
-      </div>
+      <input id="habit-image-input" type="file" accept="image/*" hidden>
+      <!-- スタンプの見た目(2026-10-26 PD 回答: 日課ごとに日課タブで決める。色は買い切り版だけ) -->
+      <p class="section-hint">スタンプ</p>
+      <div id="habit-add-stamp"></div>
       <div class="note" id="habit-note" hidden></div>
       <button id="habit-add-btn" class="btn">日課を追加する</button>
     </div>
@@ -115,7 +148,20 @@
     <!-- サブビュー: カレンダー -->
     <div id="subview-calendar">
     <div class="cal-dow"><span data-wd="0">日</span><span data-wd="1">月</span><span data-wd="2">火</span><span data-wd="3">水</span><span data-wd="4">木</span><span data-wd="5">金</span><span data-wd="6">土</span></div>
-    <div id="cal-grid" class="cal-grid"></div>
+    <!-- スワイプ用の帯: 前・今・次の月を横に並べ、指に合わせて流す(2026-10-26 PD 要望)。隣の月は見せるだけ -->
+    <div id="cal-swipe" class="cal-swipe">
+      <div id="cal-track" class="cal-track">
+        <div id="cal-grid-prev" class="cal-grid" aria-hidden="true" inert></div>
+        <div id="cal-grid" class="cal-grid"></div>
+        <div id="cal-grid-next" class="cal-grid" aria-hidden="true" inert></div>
+      </div>
+    </div>
+
+    <!-- 月の1枚: 月カレンダーを 1 枚の画像にして共有。本文・予定・日課は載せない。ふりかえりの中(ロックの内側)だけに置く -->
+    <div class="card-row month-card-row">
+      <button id="month-card-btn" class="btn sub"><span data-ui-icon="share"></span> この月を1枚にする</button>
+      <p class="note-inline card-hint" id="month-card-hint">月のカレンダーを1枚の画像にして、SNSや写真アプリに共有できます(本文・予定は入りません)。</p>
+    </div>
 
     <div id="day-detail" hidden>
       <div class="detail-head">
@@ -148,7 +194,10 @@
         <div id="edit-tag-folders" class="tag-folders" hidden></div>
         <div id="edit-tags" class="tag-stamps"></div>
         <label class="field-label">できごと(任意)</label>
-        <textarea id="edit-text" rows="4" placeholder="この日のできごと"></textarea>
+        <div class="text-emoji-wrap">
+          <textarea id="edit-text" rows="4" placeholder="この日のできごと"></textarea>
+          <button id="edit-text-emoji" class="emoji-open-btn" type="button" aria-label="絵文字を入れる">🎉▾</button>
+        </div>
         <div class="images-head">
           <span class="field-label">写真(1日10枚まで・一押しに★)</span>
           <button id="edit-image-add" class="btn sub">写真を追加</button>
@@ -209,6 +258,10 @@
     <details class="settings-group">
       <summary>表示</summary>
       <label class="row"><input type="checkbox" id="streak-badge-enabled"> きょう画面に「連続◯日」を表示する</label>
+      <!-- きょう画面の項目の並び(2026-10-28 PD「設定画面で各項目の順番をいじれるように」) -->
+      <p class="section-hint">きょう画面の並び</p>
+      <ul id="today-order-list" class="today-order-list"></ul>
+      <button id="today-order-reset" class="btn sub" type="button">はじめの並びに戻す</button>
     </details>
 
     <!-- 言語(v1.06)。独立した項目にする(2026-10-14 PD FB)。日本語のときも見つけられるよう、見出しは「言語 / Language」 -->
@@ -228,6 +281,9 @@
       <label class="row"><input type="checkbox" id="monthly-enabled"> 毎月1日に先月のまとめを通知する</label>
       <p class="note-inline">「9月は12日記録。いちばん多かったタグは #まったり」のように、先月のふりかえりをお知らせします。</p>
       <div class="note" id="monthly-note" hidden></div>
+      <p class="section-hint">予定のお知らせ</p>
+      <label class="row">予定のお知らせの時刻 <input type="time" id="plan-reminder-time" value="08:00"></label>
+      <p class="note-inline">予定のお知らせを新しくオンにするときの時刻です。</p>
     </details>
 
     <details class="settings-group" id="lock-group">
@@ -323,7 +379,11 @@
       <summary>このアプリについて</summary>
       <p class="note-inline" id="about-build"></p>
       <p class="note-inline">日記の本文・写真・タグ・日課はすべてこの端末の中だけに保存され、外部に送信されません(広告つき版の広告表示に伴う通信を除きます)。</p>
-      <p class="note-inline"><a href="https://mrzak0304.github.io/himitsu-site/diary-privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></p>
+      <p class="note-inline"><a id="privacy-link" href="https://mrzak0304.github.io/himitsu-site/diary-privacy.html" target="_blank" rel="noopener">プライバシーポリシー</a></p>
+      <button id="rate-app-btn" class="btn sub" type="button" hidden>アプリを評価する</button>
+      <div class="note" id="rate-app-note" hidden></div>
+      <button id="ad-privacy-btn" class="btn sub" type="button" hidden>広告のプライバシー設定</button>
+      <div class="note" id="ad-privacy-note" hidden></div>
     </details>
   </section>
 </main>
@@ -346,6 +406,9 @@
     </div>
     <p class="section-hint" id="card-tags-hint">きょうのタグ</p>
     <div id="card-tags" class="tag-stamps card-tags"></div>
+    <!-- 日課の達成スタンプ(v1.09・PD 依頼 2026-10-18): その日に達成した日課だけ。タップで「運動 連続12日達成」を貼る -->
+    <p class="section-hint" id="card-habits-hint" hidden>日課</p>
+    <div id="card-habits" class="tag-stamps card-tags" hidden></div>
     <!-- 選択中シールのツールバー: 1行に収める(PD FB 6)。回転は記号だけ、縦横は「タテ書き/ヨコ書き」 -->
     <div id="card-sticker-tools" class="card-tools sticker-tools" hidden>
       <button id="card-rot-l" class="btn sub mini" type="button" title="左に90度回す" aria-label="左に90度回す">↺</button>
@@ -355,11 +418,23 @@
       <button id="card-scale-down" class="btn sub mini" type="button" title="小さくする">縮小</button>
       <button id="card-peel" class="btn ghost mini" type="button">はがす</button>
     </div>
+    <!-- 選択中シールの重なり順(2026-10-26 PD 回答 A)。後から貼ったものが上。端では押せない -->
+    <div id="card-layer" class="choice-row card-stamp-mode" hidden>
+      <span class="choice-label">重なり</span>
+      <button id="card-layer-up" class="mini-btn" type="button" title="ひとつ上に重ねる">前へ</button>
+      <button id="card-layer-down" class="mini-btn" type="button" title="ひとつ下に重ねる">後ろへ</button>
+    </div>
     <!-- 選択中シールのスタンプ: タグの管理で作ったスタンプ(オリジナル)を使うか、デフォルトにするか(シールごと。PD FB 2026-10-13) -->
     <div id="card-stamp-mode" class="choice-row card-stamp-mode" hidden>
       <span class="choice-label">スタンプ</span>
       <button class="mini-btn" data-mode="default" type="button">デフォルト</button>
       <button class="mini-btn" data-mode="original" type="button">オリジナル</button>
+    </div>
+    <!-- 選択中の日課スタンプ: 連続/累計をスタンプごとに選ぶ(PD 回答 2026-10-19)。形・色は日課タブで日課ごとに決める(2026-10-26) -->
+    <div id="card-habit-mode" class="choice-row card-stamp-mode" hidden>
+      <span class="choice-label">日数</span>
+      <button class="mini-btn" data-hmode="streak" type="button">連続</button>
+      <button class="mini-btn" data-hmode="total" type="button">累計</button>
     </div>
     <p class="note-inline" id="card-stamp-none" hidden>このタグのオリジナルのスタンプはまだありません。設定の「タグの管理」で作れます。</p>
     <p class="section-hint" id="card-photos-hint">写真を選ぶ</p>
@@ -373,6 +448,20 @@
       <button id="card-save" class="btn" hidden>この範囲で保存</button>
       <button id="card-continue" class="btn sub" hidden>保存してカードを作る</button>
       <button id="card-cancel" class="btn ghost">やめる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 月の1枚のダイアログ。プレビュー → 共有(日記内には保存しない) -->
+<div id="month-card-dialog" hidden>
+  <div class="popup-card card-dialog-card">
+    <h2 id="month-card-title">月の1枚</h2>
+    <canvas id="month-card-preview" class="month-card-preview" width="1080" height="1350" aria-label="月の1枚のプレビュー"></canvas>
+    <label class="row month-card-photos-row" id="month-card-photos-row"><input type="checkbox" id="month-card-photos" checked> 写真をのせる</label>
+    <p class="note" id="month-card-note" hidden></p>
+    <div class="popup-actions vertical">
+      <button id="month-card-share" class="btn">共有する</button>
+      <button id="month-card-cancel" class="btn ghost">やめる</button>
     </div>
   </div>
 </div>
@@ -495,22 +584,36 @@
   <div class="popup-card">
     <h2 id="plan-dialog-title">予定を追加</h2>
     <label class="row stamp-alpha-row plan-row" id="plan-date-row">日にち <input id="plan-date" type="date"></label>
-    <label class="row stamp-alpha-row plan-row">タイトル <input id="plan-title" type="text" placeholder="例: 母の誕生日(20文字まで)" maxlength="20"></label>
-    <div class="row stamp-alpha-row plan-row" id="plan-emoji-row">
-      <span id="plan-emoji-label">絵文字</span>
-      <input id="plan-emoji-input" type="text" placeholder="1文字" maxlength="8" aria-labelledby="plan-emoji-label">
-      <button id="plan-emoji-pick" class="mini-btn" type="button" aria-expanded="false" aria-controls="plan-emoji-panel">えらぶ ▾</button>
+    <!-- タイトルと「🎉▾」は 1 行(2026-10-30: 新しいタグの入力と同じ動き)。選んだ絵文字はタイトル欄の先頭に入り、それが予定の絵文字になる -->
+    <div class="row stamp-alpha-row plan-row" id="plan-title-row">
+      <label for="plan-title">タイトル</label>
+      <input id="plan-title" type="text" placeholder="例: 母の誕生日(20文字まで)" maxlength="31">
+      <button id="plan-emoji-pick" class="emoji-open-btn" type="button" aria-label="絵文字を入れる">🎉▾</button>
     </div>
-    <div id="plan-emoji-panel" class="emoji-panel" hidden>
-      <input id="plan-emoji-search" type="search" placeholder="さがす(例: 誕生日・病院)" autocomplete="off">
-      <div id="plan-emojis" class="emoji-palette"></div>
-      <p class="note-inline" id="plan-emoji-none" hidden>見つかりません。上の入力欄に好きな絵文字を1つ入れられます。</p>
+    <!-- 予定のお知らせ(v1.16)。オンにすると時刻を選べる。時刻は通知のためだけで、カレンダー・帯には出さない -->
+    <div class="row stamp-alpha-row plan-row" id="plan-remind-row">
+      <label class="plan-remind-toggle"><input id="plan-remind" type="checkbox"> <span aria-hidden="true">🔔</span> お知らせ</label>
+      <input id="plan-remind-time" type="time" aria-label="お知らせの時刻" hidden>
     </div>
+    <p class="note-inline" id="plan-remind-web-note" hidden>通知はアプリ版(iPhone/Android)で有効になります。</p>
     <p class="note" id="plan-note" hidden></p>
     <div class="popup-actions vertical">
       <button id="plan-save" class="btn" type="button">保存</button>
       <button id="plan-delete" class="btn sub danger" type="button" hidden>この予定を消す</button>
       <button id="plan-cancel" class="btn ghost" type="button">やめる</button>
+    </div>
+  </div>
+</div>
+
+<!-- 絵文字のポップアップ(2026-10-27 PD 了承)。タグ・できごと・予定の「🎉▾」から。開いてもキーボードは出さない -->
+<div id="emoji-dialog" hidden>
+  <div class="popup-card">
+    <h2>絵文字をえらぶ</h2>
+    <input id="emoji-search" type="search" placeholder="さがす(例: 誕生日・病院)" autocomplete="off">
+    <div id="emoji-list" class="emoji-palette"></div>
+    <p class="note-inline" id="emoji-none" hidden>見つかりません。ほかの言葉でさがしてみてください。</p>
+    <div class="popup-actions vertical">
+      <button id="emoji-close" class="btn ghost" type="button">閉じる</button>
     </div>
   </div>
 </div>

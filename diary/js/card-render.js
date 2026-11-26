@@ -5,15 +5,17 @@
 
 import { layoutCard, photoSourceRect, stickerRect, stampSize, imageStampSize, CARD_SIZE, HANDLE_OFFSET, HANDLE_R } from './core/card.js';
 import { resolveStampColors, stampRotate, stampOrient } from './core/stamp.js';
-import { tr } from './i18n/index.js';
+import { tr, locale } from './i18n/index.js';
 
-const FONT_STACK = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", Roboto, sans-serif';
+const FONT_STACK_JA = '-apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP", "Noto Sans JP", "Apple SD Gothic Neo", "Noto Sans CJK KR", "Noto Sans KR", Roboto, sans-serif';
+// 中国語(v1.09)は簡体字の書体を先に(日本語の書体だと字形が日本式になる)
+const FONT_STACK = locale() === 'zh-Hans' ? `"PingFang SC", "Noto Sans CJK SC", "Noto Sans SC", ${FONT_STACK_JA}` : FONT_STACK_JA;
 
-function font(size, weight = 700) {
+export function font(size, weight = 700) {
   return `${weight} ${size}px ${FONT_STACK}`;
 }
 
-function roundRect(ctx, x, y, w, h, r) {
+export function roundRect(ctx, x, y, w, h, r) {
   ctx.beginPath();
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + w, y, x + w, y + h, r);

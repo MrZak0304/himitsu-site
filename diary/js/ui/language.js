@@ -2,10 +2,10 @@
 // 設定の「言語 / Language」と初回案内の言語の画面で同じ部品を使う。
 // 切り替えると読み込み直す(モジュールの定数の文言も作り直すため)。名前を変えていない定番タグは切り替え先の言語に付け替える。
 
-import { tr, trIn, locale, resolveLocale, LANGUAGE_CHOICES, setLanguagePreference } from '../i18n/index.js';
+import { tr, trIn, locale, resolveLocale, LANGUAGE_CHOICES, SUPPORTED_LOCALES, setLanguagePreference } from '../i18n/index.js';
 import { DEFAULT_TAG_SOURCES } from '../store/tags.js';
 
-// 選択肢のボタンを並べる。ids は出す選択肢('auto' / 'ja' / 'en')、current は選択中の id
+// 選択肢のボタンを並べる。ids は出す選択肢('auto' / 'ja' / 'en' / 'ko' / 'zh-Hans' / 'es' / 'pt-BR')、current は選択中の id
 export function renderLanguageChoices(container, { ids, current, onPick }) {
   container.replaceChildren(
     ...LANGUAGE_CHOICES.filter((c) => ids.includes(c.id)).map((c) => {
@@ -15,7 +15,7 @@ export function renderLanguageChoices(container, { ids, current, onPick }) {
       b.setAttribute('role', 'radio');
       b.setAttribute('aria-checked', String(c.id === current));
       b.dataset.lang = c.id;
-      b.textContent = c.label ?? tr('端末の言語に合わせる'); // 日本語 / English は各言語の名前のまま
+      b.textContent = c.label ?? tr('端末の言語に合わせる'); // 日本語 / English / 한국어 / 简体中文 / Español / Português (Brasil) は各言語の名前のまま
       b.onclick = () => onPick(c.id);
       return b;
     }),
@@ -33,6 +33,13 @@ export function takeReturnTo() {
   } catch {
     return null;
   }
+}
+
+// 起動時: どの言語の定番名のままの定番タグも、いまの表示の言語の名前にそろえる(v1.10)。
+// 「端末の言語に合わせる」のまま表示の言語が変わったとき(例: 1.09 まで英語だったスペイン語の端末)もタグが付いてくる
+export async function followLocaleForBuiltinTags(stores) {
+  const others = SUPPORTED_LOCALES.filter((l) => l !== locale()).map((l) => DEFAULT_TAG_SOURCES.map((s) => trIn(l, s)));
+  await stores.tags.localizeBuiltinsFromAny(others, DEFAULT_TAG_SOURCES.map((s) => trIn(locale(), s)));
 }
 
 // 言語の設定を変える。表示の言語が変わるなら、定番タグを付け替えてから読み込み直す(戻り値 true)。

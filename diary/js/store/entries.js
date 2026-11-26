@@ -4,6 +4,8 @@
 import { isValidKey } from '../core/dates.js';
 import { removeTagFromEntries } from '../core/tags-usage.js';
 import { clampSticker } from '../core/card.js';
+import { HABIT_STAMP_MODES } from '../core/habit-stats.js';
+import { STAMP_SHAPES, STAMP_COLORS } from '../core/stamp.js';
 import { createKvStore, makeId } from './kv.js';
 
 const KEY = 'diary-entries-v1';
@@ -15,6 +17,15 @@ function normalizeSticker(raw) {
   const out = { text: st.text, x: st.x, y: st.y, rotate: st.rotate, orient: st.orient, scale: st.scale };
   // カード編集で「デフォルト」を選んだシール(v1.06)。無ければタグの設定どおり(オリジナルがあればそれ)
   if (raw.stampMode === 'default') out.stampMode = 'default';
+  // 日課の達成スタンプ(v1.09)。text は保存時の文言で、作り直すときはその日の日数で作り直す
+  if (raw.kind === 'habit' && typeof raw.habitId === 'string' && raw.habitId !== '') {
+    out.kind = 'habit';
+    out.habitId = raw.habitId;
+    out.habitMode = HABIT_STAMP_MODES.includes(raw.habitMode) ? raw.habitMode : HABIT_STAMP_MODES[0];
+    out.habitShape = STAMP_SHAPES.some((sh) => sh.id === raw.habitShape) ? raw.habitShape : 'round';
+    // 色(2026-10-26。買い切り版だけ選べる)。無ければテーマ色。旧カードには無いので v は変えない
+    if (STAMP_COLORS.some((c) => c.id === raw.habitColor) && raw.habitColor !== 'theme') out.habitColor = raw.habitColor;
+  }
   // 画像スタンプ(v1.05)の等倍サイズ。無ければ文字から計算する
   if (Number.isFinite(raw.w) && raw.w > 0 && Number.isFinite(raw.h) && raw.h > 0) {
     out.w = raw.w;

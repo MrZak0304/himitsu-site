@@ -7,8 +7,10 @@ import { tr } from '../i18n/index.js';
 
 export const CARD_BASE_SLOTS = 1;
 export const NO_CARD_SLOT_MESSAGE = tr('この日のカードは1枚まで保存できます。広告を見るともう1枚作れます(買い切り版は無制限)。');
+// 広告なしのお試し期間(adMode='off'・v1.14)は広告の代わりに 1 日 1 回の「+1」
+export const NO_CARD_SLOT_MESSAGE_AD_FREE = tr('この日のカードは1枚まで保存できます。1日1回、もう1枚作れます(買い切り版は無制限)。');
 
-export function cardSlotInfo(entry, variant) {
+export function cardSlotInfo(entry, variant, { adFree = false } = {}) {
   const saved = Array.isArray(entry?.cards) ? entry.cards.length : 0;
   const earned = Number.isInteger(entry?.cardSlotsEarned) && entry.cardSlotsEarned > 0 ? entry.cardSlotsEarned : 0;
   if (variant !== 'free') {
@@ -16,12 +18,14 @@ export function cardSlotInfo(entry, variant) {
   }
   const limit = CARD_BASE_SLOTS + earned;
   const remaining = Math.max(0, limit - saved);
-  return { limit, remaining, saved, canAdd: remaining > 0, reason: remaining > 0 ? null : NO_CARD_SLOT_MESSAGE };
+  return { limit, remaining, saved, canAdd: remaining > 0, reason: remaining > 0 ? null : adFree ? NO_CARD_SLOT_MESSAGE_AD_FREE : NO_CARD_SLOT_MESSAGE };
 }
 
 // 広告つき版向けの枠状況の表示文。無制限(買い切り版・web)は null
-export function cardSlotStatusText(info) {
+export function cardSlotStatusText(info, { adFree = false } = {}) {
   if (!Number.isFinite(info?.remaining)) return null;
-  if (info.remaining <= 0) return tr('この日のカードは保存ずみです。広告を見るともう1枚作れます。');
+  if (info.remaining <= 0) {
+    return adFree ? tr('この日のカードは保存ずみです。1日1回、もう1枚作れます。') : tr('この日のカードは保存ずみです。広告を見るともう1枚作れます。');
+  }
   return tr('この日はあと{0}枚保存できます。', info.remaining);
 }

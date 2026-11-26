@@ -2,19 +2,37 @@
 // パスコード・合言葉はハッシュのみ保持(平文フィールドを持たない)。
 
 import { createKvStore } from './kv.js';
-import { tr } from '../i18n/index.js';
+import { TODAY_BLOCKS, normalizeTodayOrder } from '../core/today-layout.js';
+import { tr, trIn, N_, SUPPORTED_LOCALES } from '../i18n/index.js';
+import { DEFAULT_HABIT_STAMP, normalizeHabitStampPrefs } from '../core/habit-stats.js';
+import { STAMP_SHAPES, STAMP_COLORS } from '../core/stamp.js';
+import { normalizeAdFreeGrants } from '../core/ad-free-grants.js';
+import { normalizeRemindAt } from '../core/plans.js';
 
 const KEY = 'diary-settings-v1';
 
-// キャラクターのセリフ既定値(設定から編集可。空にすると既定に戻る)
-export const DEFAULT_LINES = {
-  joy: [tr('やっほー!'), tr('えへへ'), tr('きょうも書いてえらい!')],
-  anger: [tr('むぅ!'), tr('ぷんぷん!')],
-  sorrow: [tr('しょんぼり…'), tr('よしよしして…')],
-  fun: [tr('るんるん♪'), tr('たのしい〜!'), tr('いっしょにがんばろう!')],
-  allDone: [tr('全部達成!えらい!'), tr('ぜんぶできた!すごい!')],
-  saved: [tr('記録できたよ!'), tr('きょうのこと、残したよ!')],
+// キャラクターのセリフ既定値(設定から編集可。空にすると既定に戻る)。原文(日本語)で持ち、表示の言語で訳す
+const LINE_SOURCES = {
+  joy: [N_('やっほー!'), N_('えへへ'), N_('きょうも書いてえらい!')],
+  anger: [N_('むぅ!'), N_('ぷんぷん!')],
+  sorrow: [N_('しょんぼり…'), N_('よしよしして…')],
+  fun: [N_('るんるん♪'), N_('たのしい〜!'), N_('いっしょにがんばろう!')],
+  allDone: [N_('全部達成!えらい!'), N_('ぜんぶできた!すごい!')],
+  saved: [N_('記録できたよ!'), N_('きょうのこと、残したよ!')],
 };
+export const DEFAULT_LINES = Object.fromEntries(
+  Object.entries(LINE_SOURCES).map(([k, srcs]) => [k, srcs.map((src) => tr(src))]),
+);
+
+// 保存されたセリフが「どれかの言語の既定のまま」か(利用者が編集していない)。
+// 設定を一度保存するとその時の言語の既定セリフも一緒に保存されるため、言語を切り替えても
+// 前の言語のセリフが残っていた(2026-10-18 開発リード指摘)。既定のままなら、いまの言語の既定で出す
+function isDefaultLinesInAnyLocale(key, lines) {
+  return SUPPORTED_LOCALES.some((l) => {
+    const def = LINE_SOURCES[key].map((src) => trIn(l, src));
+    return def.length === lines.length && def.every((v, i) => v === lines[i]);
+  });
+}
 
 export const DEFAULT_SETTINGS = {
   lock: {
@@ -27,6 +45,8 @@ export const DEFAULT_SETTINGS = {
     answerSalt: null,
   },
   reminder: { enabled: false, time: '21:00' },
+  // 予定のお知らせ(v1.16): 予定で新しくお知らせをオンにするときの時刻の初期値。予約は予定ごとの remindAt で行う
+  planReminder: { time: '08:00' },
   // 月のまとめ通知(v1.1): 毎月1日に前月のまとめをローカル通知。既定ON(ネイティブのみ実動作)
   monthlySummary: { enabled: true },
   // 表示設定(v1.1): きょう画面の「連続◯日」バッジ。既定ON(PD FB 2026-10-05: 非表示にもできるように)
@@ -39,6 +59,14 @@ export const DEFAULT_SETTINGS = {
   characterLines: DEFAULT_LINES,
   customTheme: null,
   tagSlots: { base: 10, earned: 0 },
+  // 広告なしのお試し期間(adMode='off'・v1.14)の「+1」を最後に使った日。タグとカードを別々に数える
+  adFreeGrants: { tag: null, card: null },
+  // 日課の達成スタンプ(v1.09): 前回選んだ連続/累計と形。次に貼るときの既定にする
+  cardHabitStamp: { ...DEFAULT_HABIT_STAMP },
+  // ストアの評価ダイアログ(2026-10-21 マーケ施策): 一度呼んだら true。2 回目以降は呼ばない
+  review: { requested: false },
+  // きょう画面の項目の並び(2026-10-28 PD)。項目 ID の配列。merge はトップレベル単位なので display とは別にする
+  todayOrder: [...TODAY_BLOCKS],
 };
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
@@ -50,7 +78,7 @@ function normalizeLines(raw) {
   const out = {};
   for (const k of Object.keys(DEFAULT_LINES)) {
     const src = Array.isArray(raw?.[k]) ? raw[k].filter((v) => typeof v === 'string' && v.trim() !== '') : [];
-    out[k] = src.length > 0 ? src : [...DEFAULT_LINES[k]];
+    out[k] = src.length > 0 && !isDefaultLinesInAnyLocale(k, src) ? src : [...DEFAULT_LINES[k]];
   }
   return out;
 }
@@ -89,9 +117,13 @@ function normalizeSettings(raw, { fresh = false } = {}) {
       enabled: reminder.enabled === true,
       time: /^\d{2}:\d{2}$/.test(reminder.time) ? reminder.time : d.reminder.time,
     },
+    planReminder: {
+      time: normalizeRemindAt(raw.planReminder?.time) ?? d.planReminder.time,
+    },
     monthlySummary: {
       enabled: !(typeof raw.monthlySummary === 'object' && raw.monthlySummary !== null && raw.monthlySummary.enabled === false),
     },
+    todayOrder: normalizeTodayOrder(raw.todayOrder),
     display: {
       streakBadge: !(typeof raw.display === 'object' && raw.display !== null && raw.display.streakBadge === false),
     },
@@ -136,6 +168,11 @@ function normalizeSettings(raw, { fresh = false } = {}) {
     tagSlots: {
       base: Number.isInteger(tagSlots.base) && tagSlots.base >= 0 ? tagSlots.base : d.tagSlots.base,
       earned: Number.isInteger(tagSlots.earned) && tagSlots.earned >= 0 ? tagSlots.earned : 0,
+    },
+    adFreeGrants: normalizeAdFreeGrants(raw.adFreeGrants),
+    cardHabitStamp: normalizeHabitStampPrefs(raw.cardHabitStamp, STAMP_SHAPES.map((sh) => sh.id), STAMP_COLORS.map((c) => c.id)),
+    review: {
+      requested: typeof raw.review === 'object' && raw.review !== null && raw.review.requested === true,
     },
   };
 }

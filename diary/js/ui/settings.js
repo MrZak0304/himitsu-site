@@ -6,15 +6,17 @@ import { hexToHsv, hsvToHex } from '../core/color.js';
 import { applyTheme, applyBackgroundImage } from './theme.js';
 import { CHARACTERS, EXPRESSION_LABELS } from '../characters.js';
 import { UI_ICONS } from '../icons.js';
-import { buildLabel } from '../ads.js';
+import { buildLabel, whenAdsReady, privacyOptionsAvailable, openPrivacyOptions } from '../ads.js';
 import { deliverBackup, BACKUP_EXT, BACKUP_PREFIX } from '../backup-io.js';
 import { syncReminder } from '../notifications.js';
+import { reviewAvailable, openStoreReview } from '../review.js';
 import { todayKey } from '../core/dates.js';
 import { tagUsage } from '../core/tags-usage.js';
 import { tagSlotInfo } from '../core/tag-slots.js';
+import { TODAY_BLOCKS, normalizeTodayOrder, moveTodayBlock, moveTodayBlockTo, isDefaultTodayOrder } from '../core/today-layout.js';
 import { STAMP_COLORS, STAMP_SHAPES, DEFAULT_BUILTIN_STAMP, clampAlpha, clampRotate, stampRotate, STAMP_ORIENTS, stampOrient } from '../core/stamp.js';
 import { drawStampPreview, currentThemeColors, loadBitmap } from '../card-render.js';
-import { tr, getLanguagePreference } from '../i18n/index.js';
+import { tr, getLanguagePreference, privacyPolicyUrl } from '../i18n/index.js';
 import { renderLanguageChoices, changeLanguage } from './language.js';
 
 export function initSettings(ctx) {
@@ -31,7 +33,10 @@ export function initSettings(ctx) {
     reminderTime: $('reminder-time'),
     reminderNote: $('reminder-note'),
     monthlyEnabled: $('monthly-enabled'),
+    planReminderTime: $('plan-reminder-time'),
     streakBadge: $('streak-badge-enabled'),
+    todayOrderList: $('today-order-list'),
+    todayOrderReset: $('today-order-reset'),
     langChoices: $('lang-choices'),
     monthlyNote: $('monthly-note'),
     lockEnabled: $('lock-enabled'),
@@ -70,6 +75,11 @@ export function initSettings(ctx) {
     backupNote: $('backup-note'),
     purchaseGroup: $('purchase-group'),
     aboutBuild: $('about-build'),
+    privacyLink: $('privacy-link'),
+    rateAppBtn: $('rate-app-btn'),
+    rateAppNote: $('rate-app-note'),
+    adPrivacyBtn: $('ad-privacy-btn'),
+    adPrivacyNote: $('ad-privacy-note'),
   };
   let charUrls = [];
 
@@ -684,10 +694,161 @@ export function initSettings(ctx) {
     await ctx.stores.settings.merge({ display: { streakBadge: els.streakBadge.checked } });
     ctx.refreshToday?.();
   };
+  // きょう画面の並び(2026-10-28 PD)。「↑」「↓」で入れ替え、すぐきょう画面に反映する
+  const TODAY_BLOCK_LABELS = {
+    habits: tr('きょうの日課'),
+    plans: tr('今週の予定'),
+    frequent: tr('よく使うタグ'),
+    tags: tr('タグ(#あたらしいタグ)'),
+    text: tr('きょうのできごと'),
+    folders: tr('すべてのタグ(フォルダ)'),
+    photos: tr('写真'),
+    card: tr('きょうの1枚カード'),
+  };
+  async function saveTodayOrder(order) {
+    await ctx.stores.settings.merge({ todayOrder: order });
+    renderTodayOrder(order);
+    ctx.refreshToday?.();
+  }
+  function renderTodayOrder(raw) {
+    const order = normalizeTodayOrder(raw);
+    els.todayOrderList.replaceChildren(
+      ...order.map((id, i) => {
+        const li = document.createElement('li');
+        li.dataset.block = id;
+        // 行のどこかを長押しすると持ち上がり、上下に動かすと並べ替わる(2026-10-28 PD「長押しで持ち上げて」。B 案=↑↓も残す)。
+        // 長押しの前に指が動いたらふつうのスクロール。「≡」は目印で、押さえるとすぐ持ち上がる
+        const handle = document.createElement('span');
+        handle.className = 'today-order-handle';
+        handle.textContent = '≡';
+        handle.setAttribute('aria-hidden', 'true');
+        handle.onpointerdown = (e) => {
+          if (e.button !== undefined && e.button !== 0) return;
+          e.preventDefault();
+          e.stopPropagation();
+          startOrderDrag(e, li, id, order);
+        };
+        li.onpointerdown = (e) => waitLongPress(e, li, id, order);
+        const label = document.createElement('span');
+        label.className = 'today-order-name';
+        label.textContent = TODAY_BLOCK_LABELS[id] ?? id;
+        const up = document.createElement('button');
+        up.type = 'button';
+        up.className = 'mini-btn';
+        up.dataset.dir = 'up';
+        up.innerHTML = UI_ICONS.up;
+        up.title = tr('上へ');
+        up.setAttribute('aria-label', tr('上へ'));
+        up.disabled = i === 0;
+        up.onclick = () => saveTodayOrder(moveTodayBlock(order, id, -1));
+        const down = document.createElement('button');
+        down.type = 'button';
+        down.className = 'mini-btn';
+        down.dataset.dir = 'down';
+        down.innerHTML = UI_ICONS.down;
+        down.title = tr('下へ');
+        down.setAttribute('aria-label', tr('下へ'));
+        down.disabled = i === order.length - 1;
+        down.onclick = () => saveTodayOrder(moveTodayBlock(order, id, 1));
+        li.append(handle, label, up, down);
+        return li;
+      }),
+    );
+    els.todayOrderReset.disabled = isDefaultTodayOrder(order);
+  }
+  els.todayOrderReset.onclick = () => saveTodayOrder([...TODAY_BLOCKS]);
+
+  // 長押し(0.4 秒)で持ち上げる。それまでに 8px より動いたり離したりしたらやめる(スクロールや「↑」「↓」のため)
+  const LONG_PRESS_MS = 400;
+  function waitLongPress(e, li, id, order) {
+    if ((e.button !== undefined && e.button !== 0) || e.target.closest('button')) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let last = e;
+    const timer = setTimeout(() => {
+      stop();
+      startOrderDrag(last, li, id, order);
+    }, LONG_PRESS_MS);
+    const move = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      last = ev;
+      if (Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) stop();
+    };
+    const stop = () => {
+      clearTimeout(timer);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+      window.removeEventListener('pointercancel', stop);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
+  }
+
+  // 持ち上げている間は画面をスクロールさせない(2026-10-28 PD「編集中はスクロールをロック」)。
+  // iOS は touchstart の時点で登録済みの、passive でない touchmove でしか止められないので、リストに常に置いておく
+  let orderDragging = false;
+  els.todayOrderList.addEventListener('touchmove', (e) => { if (orderDragging) e.preventDefault(); }, { passive: false });
+  els.todayOrderList.addEventListener('contextmenu', (e) => e.preventDefault()); // 長押しのメニューを出さない
+
+  // 持ち上げた行は指の下にとどめる。指の今の位置と各行の位置を毎回比べるので、途中でスクロールが入ってもずれない。
+  // 行はリストの外へは出さず、となりの行の真ん中を越えたら入れ替える。離した位置で保存する
+  function startOrderDrag(e, li, id, order) {
+    const list = els.todayOrderList;
+    try {
+      li.setPointerCapture?.(e.pointerId);
+    } catch {
+      // すでに離した指など、捕まえられないときはそのまま
+    }
+    const grab = e.clientY - li.getBoundingClientRect().top; // 行の上端から指までの距離
+    orderDragging = true;
+    li.classList.add('dragging');
+    navigator.vibrate?.(10);
+    const place = (clientY) => {
+      li.style.translate = '';
+      for (;;) {
+        const r = li.getBoundingClientRect();
+        const box = list.getBoundingClientRect();
+        const mid = clientY - grab + r.height / 2; // 入れ替えは指の位置で決める(リストの端より外へ動かしても端の行と入れ替わる)
+        const prev = li.previousElementSibling;
+        const next = li.nextElementSibling;
+        if (next && mid > next.getBoundingClientRect().top + next.offsetHeight / 2) {
+          list.insertBefore(next, li);
+        } else if (prev && mid < prev.getBoundingClientRect().top + prev.offsetHeight / 2) {
+          list.insertBefore(li, prev);
+        } else {
+          const top = Math.min(Math.max(clientY - grab, box.top), box.bottom - r.height); // 見た目はリストの中にとどめる
+          li.style.translate = `0 ${top - r.top}px`;
+          return;
+        }
+      }
+    };
+    const move = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      ev.preventDefault();
+      place(ev.clientY);
+    };
+    const end = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('pointercancel', end);
+      orderDragging = false;
+      li.classList.remove('dragging');
+      li.style.translate = '';
+      const to = [...list.children].indexOf(li);
+      const next = moveTodayBlockTo(order, id, to);
+      if (next.join() !== normalizeTodayOrder(order).join()) saveTodayOrder(next);
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('pointercancel', end);
+  }
+
   // 言語(v1.06)。端末の言語に合わせる(既定)/ 日本語 / English。表示の言語が変わるときは読み込み直す(定数の文言も作り直すため)
   const renderLang = () =>
     renderLanguageChoices(els.langChoices, {
-      ids: ['auto', 'ja', 'en'],
+      ids: ['auto', 'ja', 'en', 'ko', 'zh-Hans', 'es', 'pt-BR'],
       current: getLanguagePreference(),
       onPick: async (id) => {
         if (id === getLanguagePreference()) return;
@@ -700,6 +861,11 @@ export function initSettings(ctx) {
     await ctx.stores.settings.merge({ monthlySummary: { enabled: els.monthlyEnabled.checked } });
     const r = (await ctx.syncMonthly?.({ requestPermission: true })) ?? { ok: true };
     note(els.monthlyNote, r.ok ? null : r.reason);
+  };
+  // 予定のお知らせの時刻(v1.16): 新しくお知らせをオンにするときの初期値。付いている予定の時刻は変えない
+  els.planReminderTime.onchange = async () => {
+    const next = await ctx.stores.settings.merge({ planReminder: { time: els.planReminderTime.value } });
+    els.planReminderTime.value = next.planReminder.time; // 空・不正は既定(8:00)に戻る
   };
   // ネイティブでは通知が実際に届くため、Web向けの注記は隠す
   if (window.Capacitor?.isNativePlatform?.()) {
@@ -733,6 +899,7 @@ export function initSettings(ctx) {
       }
       await ctx.stores.settings.merge({ lock: { ...s.lock, enabled: false } });
     }
+    ctx.syncMonthly?.().catch(() => {}); // ロック状態に合わせて通知文面を作り直す(権限は求めない)
     refreshLock();
   };
 
@@ -773,6 +940,7 @@ export function initSettings(ctx) {
     els.lockAnswer.value = '';
     els.lockSetup.hidden = true;
     note(els.lockSetupNote, null);
+    ctx.syncMonthly?.().catch(() => {}); // ロック状態に合わせて通知文面を作り直す(権限は求めない)
     refreshLock();
   };
 
@@ -1270,6 +1438,8 @@ export function initSettings(ctx) {
       applyTheme(s, ctx.variant);
       await applyBackgroundImage(s, ctx.variant, ctx.pipeline.store);
       note(els.backupNote, tr('取り込みが完了しました。'), true);
+      ctx.syncMonthly?.().catch(() => {}); // ロック状態に合わせて通知文面を作り直す(権限は求めない)
+      ctx.syncPlanReminders?.(); // 取り込んだ予定のお知らせで予約し直す(v1.16)
       ctx.refreshAll?.();
     } catch (err) {
       note(els.backupNote, err.message);
@@ -1281,13 +1451,32 @@ export function initSettings(ctx) {
   // --- 有料版案内・このアプリについて ---
   els.purchaseGroup.hidden = ctx.variant !== 'free';
   els.aboutBuild.textContent = tr('ビルド: {0}', buildLabel());
+  els.privacyLink.href = privacyPolicyUrl(); // 表示の言語のページ(英語は en/、韓国語は ko/、中国語は zh-Hans/、スペイン語は es/、ポルトガル語は pt-BR/)
+  // アプリを評価する(2026-10-21 マーケ施策): ストアのレビュー画面を開く。Web(デモ)では出さない
+  els.rateAppBtn.hidden = !reviewAvailable();
+  els.rateAppBtn.onclick = async () => {
+    note(els.rateAppNote, null);
+    const r = await openStoreReview();
+    if (!r.ok) note(els.rateAppNote, r.reason);
+  };
+  // 広告のプライバシー設定(v1.08・GDPR): 同意の対象の地域(英国など)の人にだけ出す。広告の初期化を待ってから判断
+  whenAdsReady().then(() => {
+    els.adPrivacyBtn.hidden = !privacyOptionsAvailable();
+  });
+  els.adPrivacyBtn.onclick = async () => {
+    note(els.adPrivacyNote, null);
+    const r = await openPrivacyOptions();
+    if (!r.ok) note(els.adPrivacyNote, r.reason);
+  };
 
   async function refresh() {
     const s = await ctx.stores.settings.get();
     els.reminderEnabled.checked = s.reminder.enabled;
     els.reminderTime.value = s.reminder.time;
+    els.planReminderTime.value = s.planReminder.time;
     els.monthlyEnabled.checked = s.monthlySummary.enabled;
     els.streakBadge.checked = s.display.streakBadge;
+    renderTodayOrder(s.todayOrder);
     await Promise.all([refreshFolders(), refreshTags(), refreshLock(), refreshCharacters(), refreshThemes(), refreshLines()]);
   }
 

@@ -4,6 +4,7 @@
 
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
 import { UI_ICONS } from '../icons.js';
+import { habitNameShown } from '../core/habit-stats.js';
 import { tr, formatLongDate } from '../i18n/index.js';
 import { renderTagPalette } from './tag-palette.js';
 
@@ -15,6 +16,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
     tags: $('edit-tags'),
     tagFolders: $('edit-tag-folders'),
     text: $('edit-text'),
+    textEmoji: $('edit-text-emoji'),
     imageAdd: $('edit-image-add'),
     imageInput: $('edit-image-input'),
     imageNote: $('edit-image-note'),
@@ -169,7 +171,7 @@ export function createDayEditor(ctx, { onChange } = {}) {
           ctx.renderHabitIcon(icon, habit.icon);
           const name = document.createElement('span');
           name.className = 'habit-name';
-          name.textContent = habit.name;
+          name.textContent = habitNameShown(habit);
           li.append(cb, icon, name);
           return li;
         }),
@@ -183,6 +185,9 @@ export function createDayEditor(ctx, { onChange } = {}) {
     ctx.notifySaved?.();
     onChange?.();
   };
+
+  // 「🎉▾」: きょうと同じく、できごとに絵文字を入れる(2026-10-27 PD 了承)
+  ctx.emojiPicker.attach(els.textEmoji, els.text, { onInsert: () => els.text.onchange() });
 
   els.imageAdd.onclick = () => els.imageInput.click();
   els.imageInput.onchange = async () => {

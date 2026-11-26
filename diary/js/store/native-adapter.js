@@ -15,7 +15,9 @@ export const IMAGE_DIR = 'images';
 export const STAGING_DIR = 'migrating';
 export const MARKER_PATH = `${DATA_DIR}/migrated.json`;
 export const SETTINGS_KEY = 'diary-settings-v1';
-export const COLLECTION_KEYS = ['diary-entries-v1', 'diary-tags-v1', 'diary-tag-folders-v1', 'diary-habits-v1', 'diary-habitlogs-v1'];
+// 起動時(bootstrap)に読み込むファイル。js/store/ でストアを足したら必ずここにも足す(足し忘れると書き込みはされるが
+// 起動のたびに空に見え、次の保存で上書きされて消える。1.06 の予定で実際に起きた=教訓 2026-10-16-native-collection-keys)
+export const COLLECTION_KEYS = ['diary-entries-v1', 'diary-tags-v1', 'diary-tag-folders-v1', 'diary-habits-v1', 'diary-habitlogs-v1', 'diary-plans-v1'];
 export const PREFERENCES_MAX = 100_000; // Preferencesは小さな設定のみ(プランKTD2)
 
 export const MESSAGES = {

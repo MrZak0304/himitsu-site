@@ -54,8 +54,9 @@
 html, body {
   margin: 0;
   padding: 0;
-  /* ダブルタップでの拡大を無効化(ピンチによる拡大は残す)。2026-08-13 PD実機FB */
-  touch-action: manipulation;
+  /* 画面全体の拡大・縮小をロック(ダブルタップもピンチも。2026-10-26 PD 実機確認で 2026-08-13 の
+     「ピンチによる拡大は残す」を変更)。スクロールだけブラウザに任せる */
+  touch-action: pan-x pan-y;
 }
 
 body {
@@ -65,6 +66,16 @@ body {
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+}
+/* 韓国語(v1.07): 端末のハングル書体を先に。語の途中で折り返さない(長すぎる語だけ折る) */
+html[lang="ko"] body {
+  font-family: "Apple SD Gothic Neo", "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Hiragino Sans", sans-serif;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* 中国語・簡体字(v1.09): 簡体字の書体を先に(日本語の書体だと字形が日本式になり、無い字だけ別の書体になる) */
+html[lang="zh-Hans"] body {
+  font-family: "PingFang SC", "Noto Sans SC", "Noto Sans CJK SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 }
 
 /* カスタム背景画像(有料版)。画像を全面に敷き、可読性のため上に半透明の膜を重ねる。
@@ -179,6 +190,9 @@ main {
 .panel-title { margin: 8px 0; font-size: 20px; }
 .panel-lead { margin: 0 0 12px; color: var(--text-dim); font-size: 14px; }
 .section-title { margin: 20px 0 8px; font-size: 15px; }
+/* 見出し+右端のボタン(きょうの日課の「編集 ›」v1.09) */
+.section-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 20px 0 8px; }
+.section-head .section-title { margin: 0; }
 .field-label { display: block; margin: 16px 0 6px; font-size: 14px; color: var(--text-dim); }
 .note { color: var(--danger); font-size: 13px; margin: 8px 0; }
 .note-inline { color: var(--text-dim); font-size: 13px; margin: 6px 0; }
@@ -325,7 +339,15 @@ input[type="time"], input[type="color"] { width: auto; }
 .diary-streak strong { color: var(--accent); font-size: 20px; }
 
 .habit-manage-list { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-direction: column; gap: 8px; }
-.habit-manage-list li { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 10px 12px; }
+.habit-manage-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 10px 12px; }
+/* 文言の長い言語(スペイン語など)では、1 行に収まらないボタンを次の行へ折り返す(v1.10。はみ出し対策) */
+.habit-manage-list .habit-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+/* 日課ごとのスタンプの見た目(2026-10-26)。行の下に開く */
+.habit-manage-list .habit-stamp-editor { display: block; padding: 4px 4px 12px; }
+.habit-stamp-editor .habit-edit-name { width: 100%; box-sizing: border-box; margin-bottom: 4px; }
+.habit-stamp-editor .habit-edit-actions { display: flex; gap: 8px; margin-top: 8px; }
+.habit-stamp-picker .habit-stamp-preview { display: block; width: 100%; max-width: 240px; height: auto; border-radius: 10px; border: 1px solid var(--panel-edge); margin: 4px 0; }
+.habit-manage-list .mini-btn.on { border-color: var(--accent); color: var(--accent); }
 
 .habit-add { margin-top: 20px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; padding: 12px; }
 .icon-tabs { display: flex; gap: 6px; margin: 8px 0; }
@@ -359,10 +381,17 @@ input[type="time"], input[type="color"] { width: auto; }
 }
 /* 下部固定のサブタブと重ならないよう、ふりかえりの中身に下余白を足す */
 #panel-calendar { padding-bottom: 64px; }
+/* ふりかえりはパネル全体で横のなぞりを受ける(月の切り替え)。縦スクロールだけブラウザに任せる。
+   パネルの中に横スクロールする部品は置かない */
+#panel-calendar { touch-action: pan-y; }
 .sub-tab { flex: 1; appearance: none; font-family: inherit; font-size: 13px; padding: 8px 4px; border: 1px solid var(--panel-edge); border-radius: 999px; background: var(--panel); color: var(--text-dim); cursor: pointer; white-space: nowrap; }
 .sub-tab.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); font-weight: bold; }
 .cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; color: var(--text-dim); font-size: 12px; margin-bottom: 4px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+/* スワイプの帯(前・今・次の月)。横のなぞりはスクリプトで受け、縦スクロールはブラウザに任せる */
+.cal-swipe { overflow: hidden; touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.cal-track { display: flex; align-items: flex-start; width: 300%; transform: translateX(-33.3333%); }
+.cal-track > .cal-grid { flex: 0 0 33.3333%; min-width: 0; box-sizing: border-box; }
 
 .cal-cell {
   aspect-ratio: 0.82;
@@ -569,7 +598,7 @@ input[type="time"], input[type="color"] { width: auto; }
 .nav-item.active { color: var(--accent); }
 
 /* --- ロック画面・ポップアップ・オーバーレイ(すべて position:fixed 全画面) --- */
-#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding, #card-dialog, #stamp-dialog, #plan-dialog {
+#lock-screen, #confirm-popup, #tag-action-popup, #loading-overlay, #onboarding, #card-dialog, #month-card-dialog, #stamp-dialog, #plan-dialog, #emoji-dialog {
   position: fixed;
   inset: 0;
   z-index: 200;
@@ -659,7 +688,12 @@ input[type="time"], input[type="color"] { width: auto; }
 
 /* きょうの1枚カードのダイアログ(v1.1) */
 #card-dialog { z-index: 240; align-items: flex-start; overflow-y: auto; }
+#month-card-dialog { z-index: 240; align-items: flex-start; overflow-y: auto; }
 .card-dialog-card { width: min(420px, 100%); margin: 8px auto; }
+.month-card-preview { width: 100%; height: auto; aspect-ratio: 4 / 5; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--bg); display: block; }
+.month-card-photos-row { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
+.month-card-row { margin-bottom: 12px; }
+.month-card-row .btn:disabled { opacity: .5; }
 .card-dialog-card h2 { font-size: 16px; margin: 0; text-align: center; }
 .card-preview { width: 100%; height: auto; aspect-ratio: 1 / 1; border-radius: 12px; border: 1px solid var(--panel-edge); touch-action: none; cursor: grab; background: var(--bg); }
 .card-photos { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
@@ -708,31 +742,34 @@ html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: v
 .plan-emoji { font-size: 20px; line-height: 1; width: 26px; text-align: center; flex: none; }
 .plan-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .plan-date { flex: none; font-size: 12px; color: var(--text-dim); }
+.plan-bell { flex: none; font-size: 13px; line-height: 1; }
 .cal-cell .cal-plans { position: absolute; top: 1px; right: 2px; font-size: 12px; line-height: 1; letter-spacing: -2px; text-shadow: none; }
-/* 絵文字のドロップダウン(検索+一覧)。PD FB 2026-10-13 */
-.emoji-panel { border: 1px solid var(--panel-edge); border-radius: 10px; padding: 8px; margin: 6px 0; background: color-mix(in srgb, var(--accent) 5%, var(--panel)); }
-#plan-dialog .emoji-panel input[type="search"] { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px 10px; border: 1px solid var(--panel-edge); border-radius: 8px; background: var(--panel); color: var(--text); font-family: inherit; }
+/* 絵文字の一覧(ポップアップ)。PD FB 2026-10-13 */
+#emoji-dialog input[type="search"] { width: 100%; box-sizing: border-box; font-size: 16px; padding: 8px 10px; border: 1px solid var(--panel-edge); border-radius: 8px; background: var(--panel); color: var(--text); font-family: inherit; }
 .emoji-palette { display: grid; grid-template-columns: repeat(8, 1fr); gap: 4px; margin: 6px 0 0; max-height: 176px; overflow-y: auto; }
 .emoji-btn { appearance: none; border: 1px solid var(--panel-edge); background: var(--panel); border-radius: 8px; font-size: 20px; line-height: 1; padding: 6px 0; cursor: pointer; font-family: inherit; }
 .emoji-btn.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
-#plan-dialog { z-index: 230; align-items: flex-start; overflow-y: auto; }
+/* 予定ダイアログは画面の上下のまん中に(2026-10-31 PD FB「上の方に来すぎて操作しづらく、枠も一部見切れていた」)。
+   margin: auto で中央に置き、画面より高いとき(キーボードが出たときなど)は上から並べてスクロールできるようにする。
+   上下はセーフエリア(時刻・ホームバー)の分だけ空ける */
+#plan-dialog { z-index: 230; align-items: flex-start; overflow-y: auto; padding-top: calc(20px + env(safe-area-inset-top, 0px)); padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
 /* 確認ポップアップと処理中は、どのダイアログ(z-index 230)より上に出す(予定の削除確認がダイアログの下に隠れた) */
 #confirm-popup { z-index: 300; }
 #loading-overlay { z-index: 310; }
-#plan-dialog .popup-card { margin: 8px auto; }
+#plan-dialog .popup-card { margin: auto; }
 #plan-dialog input[type="text"], #plan-dialog input[type="date"] { width: 100%; box-sizing: border-box; }
 #plan-dialog .plan-row { margin: 8px 0; }
-#plan-dialog .plan-row > span:first-child, #plan-date-row { white-space: nowrap; }
+#plan-dialog .plan-row > label:first-child, #plan-date-row { white-space: nowrap; }
 #plan-dialog .plan-row input { flex: 1; min-width: 0; }
-#plan-emoji-row #plan-emoji-input { flex: 0 0 80px; text-align: center; font-size: 20px; padding: 8px 4px; }
-/* 「1文字」の案内が見切れないよう、案内だけ小さく(入力の文字は 16px 以上のまま=iOS の拡大を防ぐ)。PD FB 2026-10-13 */
-#plan-emoji-row #plan-emoji-input::placeholder { font-size: 13px; }
+/* 予定のお知らせ(v1.16): 「🔔 お知らせ」のチェックと時刻を 1 行に */
+#plan-dialog .plan-remind-toggle { display: flex; align-items: center; gap: 6px; white-space: nowrap; flex: none; }
+#plan-dialog .plan-remind-toggle input { flex: none; }
+#plan-dialog #plan-remind-time { min-height: 40px; padding: 4px 8px; background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 18px; }
 /* 日にちの欄は太く・文字を大きく(iOS の既定の灰色の細い欄は見づらい)。PD FB 2026-10-13 */
 #plan-dialog #plan-date { -webkit-appearance: none; appearance: none; min-height: 50px; padding: 8px 12px; margin: 4px 0; background: var(--panel); border: 2px solid var(--panel-edge); border-radius: 10px; color: var(--text); font-family: inherit; font-size: 20px; font-weight: 700; line-height: 1.2; }
 #plan-dialog #plan-date::-webkit-date-and-time-value { text-align: left; }
 #plan-dialog #plan-date:focus { border-color: var(--accent); outline: none; }
 #plan-date-row { font-size: 13px; }
-#plan-emoji-row .mini-btn { flex: none; font-size: 13px; padding: 6px 10px; }
 /* 控えめな削除ボタン(予定を消す など)。.btn.danger(赤地に白字)と組み合わせると赤地に赤字で読めなくなった(PD FB 2026-10-13) */
 .btn.sub.danger { background: var(--panel); color: var(--danger); border-color: var(--danger); }
 .stamp-preview { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--panel-edge); background: var(--panel); display: block; }
@@ -745,6 +782,8 @@ html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: v
 .card-stamp-mode .choice-label { font-size: 13px; color: var(--text-dim); }
 .choice-row .mini-btn:disabled { opacity: .45; cursor: default; }
 .choice-row .mini-btn.on { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.card-habit-color { gap: 5px; }
+.card-habit-color .swatch { width: 25px; height: 25px; border-radius: 7px; }
 .manage-list .badge.stamp { color: var(--accent); border-color: var(--accent); }
 
 /* 言語の選択(v1.06) */
@@ -774,3 +813,51 @@ html:not([lang="ja"]) .card-tools.sticker-tools { flex-wrap: wrap; overflow-x: v
 .tag-folder .folder-on { font-size: 12px; font-weight: 700; color: var(--accent); }
 .tag-folder > .tag-stamps { padding: 0 10px 10px; }
 .tag-folder > .tag-stamps[hidden] { display: none; }
+
+/* 絵文字のポップアップ(2026-10-27 PD 了承)。「🎉▾」から開く。上に寄せて、キーボードが出ても検索欄と一覧が見える */
+#emoji-dialog { z-index: 240; align-items: flex-start; overflow-y: auto; }
+#emoji-dialog .popup-card { margin: 8px auto; }
+#emoji-dialog h2 { margin: 0 0 4px; font-size: 17px; }
+#emoji-dialog .emoji-palette { max-height: min(52vh, 360px); grid-template-columns: repeat(6, 1fr); }
+#emoji-dialog .emoji-btn { font-size: 26px; padding: 8px 0; }
+.emoji-open-btn { appearance: none; flex: none; border: 1px solid var(--panel-edge); background: var(--panel); color: var(--text-dim); border-radius: 10px; padding: 6px 8px; font-size: 18px; line-height: 1; font-family: inherit; cursor: pointer; white-space: nowrap; }
+.emoji-open-btn:active { background: color-mix(in srgb, var(--accent) 15%, var(--panel)); }
+/* できごとの入力欄の右上に「🎉▾」 */
+.text-emoji-wrap { position: relative; }
+.text-emoji-wrap textarea { width: 100%; box-sizing: border-box; padding-right: 64px; }
+.text-emoji-wrap .emoji-open-btn { position: absolute; top: 10px; right: 6px; }
+
+/* きょうの日課を畳む(2026-10-27 PD 回答)。見出しを押すと開く。達成数を見出しに出す */
+.section-toggle { appearance: none; border: 0; background: transparent; color: var(--text); font-family: inherit; display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer; flex: 1; min-width: 0; text-align: left; }
+.section-toggle .section-title { margin: 0; }
+.section-toggle .habit-count { font-size: 13px; color: var(--text-dim); }
+.section-toggle .toggle-mark { font-size: 12px; color: var(--text-dim); transition: transform .15s; }
+.section-toggle[aria-expanded="true"] .toggle-mark { transform: rotate(90deg); }
+#today-plans-wrap { margin-top: 12px; }
+
+/* 日課を追加: 選んだアイコン・絵文字・画像を名前の欄の左に出す(2026-10-28 開発リードの家族の FB) */
+.habit-name-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--panel-edge); border-radius: 10px; background: var(--panel); padding: 0 0 0 10px; margin: 4px 0; }
+.habit-name-row input[type="text"] { border: 0; margin: 0; padding-left: 0; flex: 1; min-width: 0; background: transparent; }
+.habit-name-row input[type="text"]:focus { outline: none; }
+.habit-name-icon { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; font-size: 22px; line-height: 1; color: var(--accent); }
+.habit-name-icon svg { width: 24px; height: 24px; }
+.habit-name-icon img { width: 28px; height: 28px; object-fit: cover; border-radius: 6px; }
+.habit-name-row:focus-within { border-color: var(--accent); }
+
+/* きょう画面の並び(設定の「表示」。2026-10-28 PD) */
+.today-order-list { list-style: none; padding: 0; margin: 4px 0 8px; display: flex; flex-direction: column; gap: 6px; }
+.today-order-list li { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 10px; padding: 6px 10px; }
+.today-order-list .today-order-name { flex: 1; min-width: 0; font-size: 14px; }
+/* きょうの日課が 2 つ以上のとき: 全部を 1 つの枠にしまい、「▾」で開く(2026-10-28 PD)。枠は日課の行と同じ見た目 */
+.habit-fold { appearance: none; width: 100%; display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 10px 12px; background: var(--panel); border: 1px solid var(--panel-edge); border-radius: 12px; color: var(--text); font-family: inherit; font-size: 15px; text-align: left; cursor: pointer; }
+.habit-fold-icons { display: inline-flex; gap: 2px; flex: none; max-width: 50%; overflow: hidden; }
+.habit-fold-icons .habit-icon { opacity: .35; }
+.habit-fold-icons .habit-icon.done { opacity: 1; }
+.habit-fold-label { flex: 1; min-width: 0; }
+.habit-fold .toggle-mark { flex: none; font-size: 18px; color: var(--accent); transition: transform .15s; }
+.habit-fold.open .toggle-mark { transform: rotate(180deg); }
+.section-head h3.section-title .habit-count { font-size: 13px; font-weight: normal; color: var(--text-dim); }
+/* 並べ替えのつまみ(ドラッグ&ドロップ。2026-10-28 PD)。つまみの上ではスクロールしない。行は長押しで持ち上がる */
+.today-order-handle { flex: none; width: 28px; height: 32px; display: inline-flex; align-items: center; justify-content: center; font-size: 20px; color: var(--text-dim); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.today-order-list li.dragging { position: relative; z-index: 2; box-shadow: 0 8px 20px rgba(0, 0, 0, .3); border-color: var(--accent); scale: 1.03; touch-action: none; }
+.today-order-list li.dragging .today-order-handle { cursor: grabbing; color: var(--accent); }

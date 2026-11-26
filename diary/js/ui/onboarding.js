@@ -75,7 +75,7 @@ export async function initOnboarding(ctx, { onDone } = {}) {
     langs.hidden = false;
     next.textContent = tr('つぎへ');
     renderLanguageChoices(langs, {
-      ids: ['ja', 'en'],
+      ids: ['ja', 'en', 'ko', 'zh-Hans', 'es', 'pt-BR'],
       current: locale(),
       // 今と同じ言語なら設定は「端末の言語に合わせる」のまま。違う言語なら設定に残して読み込み直す
       onPick: async (id) => {

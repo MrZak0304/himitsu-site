@@ -28,9 +28,16 @@ export function recordedDaysInMonth(entriesMap, year, month) {
   return n;
 }
 
+// ふりかえりのロックが有効か(オン かつ パスコード設定済み)。通知文面の出し分けに使う。
+export function isLockActive(lockSettings) {
+  return Boolean(lockSettings?.enabled && lockSettings?.passcodeHash);
+}
+
 // 通知本文。例: 「9月は12日記録。いちばん多かったタグは #まったり(8回)。日課は21日達成!」
 // tagNameOf: id → 名前(hidden も含めて引ける Map)。habits: 現存する日課。
-export function monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf, year, month }) {
+// locked=true(ふりかえりのロック有効)なら中身を出さず汎用文面だけ。通知は端末のロック画面に出る=アプリのロックの外側のため。
+export function monthlySummaryText({ entriesMap, habitLogsMap, habits, tagNameOf, year, month, locked = false }) {
+  if (locked) return MONTHLY_FALLBACK;
   const days = recordedDaysInMonth(entriesMap, year, month);
   const [top] = monthlyTagRanking(entriesMap, year, month, { limit: 1 });
   const habitTotal = monthlyHabitCounts(habitLogsMap, habits, year, month).reduce((a, h) => a + h.count, 0);

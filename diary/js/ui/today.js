@@ -4,13 +4,16 @@ import { tagSlotInfo, slotStatusText } from '../core/tag-slots.js';
 import { acceptImages, normalizePushIndex, removeImageAt, MAX_IMAGES_PER_DAY } from '../core/image-rules.js';
 import { frequentTagIds } from '../core/tag-stats.js';
 import { UI_ICONS } from '../icons.js';
-import { requestRewarded, preloadRewarded, isRewardedReady } from '../ads.js';
+import { requestRewarded, preloadRewarded, isRewardedReady, isAdFree } from '../ads.js';
+import { canGrant, markGranted, AD_FREE_USED_MESSAGE } from '../core/ad-free-grants.js';
 import { canMakeCard, CARD_EMPTY_MESSAGE } from './card-dialog.js';
 import { streak } from '../core/streaks.js';
+import { habitNameShown } from '../core/habit-stats.js';
 import { weekDays, shortDateLabel } from '../core/plans.js';
 import { renderPlanList } from './plan-dialog.js';
 import { tr, formatLongDate } from '../i18n/index.js';
 import { renderTagPalette } from './tag-palette.js';
+import { normalizeTodayOrder } from '../core/today-layout.js';
 
 
 export function initToday(ctx) {
@@ -33,6 +36,14 @@ export function initToday(ctx) {
     images: $('today-images'),
     habits: $('today-habits'),
     habitNote: $('today-habit-note'),
+    habitEdit: $('today-habit-edit'),
+    habitFold: $('today-habit-fold'),
+    habitFoldIcons: $('today-habit-fold-icons'),
+    habitFoldLabel: $('today-habit-fold-label'),
+    habitCount: $('today-habit-count'),
+    blocks: $('today-blocks'),
+    tagEmoji: $('new-tag-emoji'),
+    textEmoji: $('today-text-emoji'),
     cardBtn: $('today-card-btn'),
     cardNote: $('today-card-note'),
     cards: $('today-cards'),
@@ -47,6 +58,7 @@ export function initToday(ctx) {
   let renderSeq = 0; // 連続操作時に古い描画が新しい描画を上書きしないための世代トークン
   let selectedDate = null; // 「今週の予定」で選んでいる日(既定はきょう)
   const openFolders = new Set(); // 開いているタグのフォルダ(最初は閉じる。アプリを開いている間だけ覚える)
+  let habitsOpen = false; // きょうの日課が 2 つ以上のとき、しまった枠を開いているか(最初は閉じる=2026-10-28 PD。アプリを開いている間だけ覚える)
 
   function note(el, message) {
     el.hidden = !message;
@@ -56,7 +68,7 @@ export function initToday(ctx) {
   async function slotState() {
     const settings = await ctx.stores.settings.get();
     const count = await ctx.stores.tags.userTagCount();
-    return tagSlotInfo(settings.tagSlots, ctx.variant, count);
+    return tagSlotInfo(settings.tagSlots, ctx.variant, count, { adFree: isAdFree() });
   }
 
   async function refresh() {
@@ -76,6 +88,7 @@ export function initToday(ctx) {
       ctx.stores.settings.get(),
     ]);
     if (seq !== renderSeq) return; // より新しい refresh が始まっていたら破棄
+    applyOrder(settings.todayOrder);
 
     // タグスタンプ
     const on = new Set(entry?.tags ?? []);
@@ -97,6 +110,8 @@ export function initToday(ctx) {
     };
     // フォルダごとにまとめる(最初は閉じる)。未分類のタグは見出しなしで並べる(v1.06 PD FB)
     renderTagPalette({ foldersEl: els.tagFolders, looseEl: els.tags, tags, folders, makeStamp, isOn: (t) => on.has(t.id), openFolders });
+    // フォルダのタグは「きょうのできごと」の下に「すべてのタグ」として並べる(2026-10-27 手描きの並び案・PD 了承)
+    els.allTagsHint.hidden = els.tagFolders.hidden;
 
     // よく使うタグ(直近30日の頻出。hidden除外・すぐ押せる)。候補一覧に載っているものだけ。
     const allEntries = await ctx.stores.entries.all();
@@ -105,17 +120,15 @@ export function initToday(ctx) {
       .filter((id) => byId.has(id));
     if (freqIds.length > 0) {
       els.frequentWrap.hidden = false;
-      els.allTagsHint.hidden = false; // 頻出と一覧を見出しで分ける(2026-08-11 PD FB)
       els.frequent.replaceChildren(...freqIds.map((id) => makeStamp(byId.get(id))));
     } else {
       els.frequentWrap.hidden = true;
-      els.allTagsHint.hidden = true;
       els.frequent.replaceChildren();
     }
 
     // タグ枠(無料版): 残数と導線を常時表示する(2026-08-11 PD FB)。
     // いっぱいの時だけ隠す旧挙動をやめ、残りがある時も「あと〇個」を見せる。
-    note(els.slotNote, slotStatusText(slots));
+    note(els.slotNote, slotStatusText(slots, { adFree: isAdFree() }));
     if (slots.reason === null && slots.remaining !== 0) els.slotNote.classList.remove('slot-full');
     else els.slotNote.classList.toggle('slot-full', !slots.canAdd);
     // free では枠に余裕があっても「広告を見て+1」を出す(いっぱいになる前から導線が見える)
@@ -255,7 +268,11 @@ export function initToday(ctx) {
     if (imageIds.length >= MAX_IMAGES_PER_DAY) note(els.imageNote, tr('画像は1日10枚までです。'));
     else note(els.imageNote, null);
 
-    // 日課チェック
+    // 日課チェック(見出しに達成数を出す)
+    const showHabitCount = (done) => {
+      els.habitCount.textContent = habits.length > 0 ? `${done}/${habits.length}` : '';
+    };
+    showHabitCount(habits.filter((h) => checks[h.id] === true).length);
     if (habits.length === 0) {
       els.habits.replaceChildren();
       els.habitNote.hidden = false;
@@ -272,11 +289,10 @@ export function initToday(ctx) {
           cb.dataset.habitId = habit.id;
           cb.onchange = async () => {
             await ctx.stores.habitLogs.setChecked(today, habit.id, cb.checked);
-            if (cb.checked) {
-              const after = await ctx.stores.habitLogs.forDate(today);
-              const allDone = habits.every((h) => after[h.id] === true);
-              if (allDone) ctx.reactAllDone?.();
-            }
+            const after = await ctx.stores.habitLogs.forDate(today);
+            showHabitCount(habits.filter((h) => after[h.id] === true).length);
+            renderHabitFold(habits, after);
+            if (cb.checked && habits.every((h) => after[h.id] === true)) ctx.reactAllDone?.();
             ctx.refreshHabits?.();
           };
           const icon = document.createElement('span');
@@ -284,13 +300,54 @@ export function initToday(ctx) {
           ctx.renderHabitIcon(icon, habit.icon);
           const name = document.createElement('span');
           name.className = 'habit-name';
-          name.textContent = habit.name;
+          name.textContent = habitNameShown(habit);
           li.append(cb, icon, name);
           return li;
         }),
       );
     }
+    renderHabitFold(habits, checks);
   }
+
+  // 「編集 ›」: 日課タブへ移って日課を編集する(PD 依頼 2026-10-18)
+  els.habitEdit.onclick = () => ctx.selectTab?.('habits');
+
+  // きょうの日課の開け閉め(2026-10-28 PD「日課タブに全て収容され、🔽を押すと日課が全て展開される形」)。
+  // 1 つなら行をそのまま出す。2 つ以上なら、全部を 1 つの枠(アイコン・達成数・▾)にしまい、押すと全部の行が開く
+  function renderHabitFold(habits, checks) {
+    const many = habits.length >= 2;
+    els.habitFold.hidden = !many;
+    els.habits.hidden = many && !habitsOpen;
+    els.habitFold.classList.toggle('open', many && habitsOpen);
+    els.habitFold.setAttribute('aria-expanded', many && habitsOpen ? 'true' : 'false');
+    if (!many) return;
+    els.habitFoldLabel.textContent = habitsOpen ? tr('とじる') : tr('{0}つの日課', habits.length);
+    els.habitFoldIcons.replaceChildren(
+      ...habits.map((h) => {
+        const icon = document.createElement('span');
+        icon.className = `habit-icon${checks[h.id] === true ? ' done' : ''}`;
+        ctx.renderHabitIcon(icon, h.icon);
+        return icon;
+      }),
+    );
+  }
+  els.habitFold.onclick = () => {
+    habitsOpen = !habitsOpen;
+    refresh();
+  };
+
+  // 項目の並び(2026-10-28 PD「設定画面で各項目の順番をいじれるように」)。設定の todayOrder のとおりに箱を並べる
+  function applyOrder(order) {
+    const boxes = new Map([...els.blocks.querySelectorAll(':scope > .today-block')].map((el) => [el.dataset.block, el]));
+    for (const id of normalizeTodayOrder(order)) {
+      const el = boxes.get(id);
+      if (el) els.blocks.append(el);
+    }
+  }
+
+  // 「🎉▾」: 絵文字のポップアップから、タグの名前・できごとに絵文字を入れる(2026-10-27 PD 了承)
+  ctx.emojiPicker.attach(els.tagEmoji, els.tagInput);
+  ctx.emojiPicker.attach(els.textEmoji, els.text, { onInsert: () => els.text.onchange() });
 
   // タグ追加(その場)
   els.tagAdd.onclick = async () => {
@@ -324,6 +381,15 @@ export function initToday(ctx) {
   let adRetryTimer = null;
   async function updateWatchAdState() {
     if (ctx.variant !== 'free') return;
+    if (isAdFree()) {
+      // 広告なしのお試し期間(v1.14): 「+1」ボタン。その日に使ったら押せず、案内を出す
+      els.watchAd.textContent = tr('枠を+1する');
+      const s = await ctx.stores.settings.get();
+      const used = !canGrant(s.adFreeGrants.tag, ctx.todayKey());
+      els.watchAd.disabled = used;
+      if (used) note(els.slotNote, `${els.slotNote.textContent ? `${els.slotNote.textContent} ` : ''}${AD_FREE_USED_MESSAGE}`);
+      return;
+    }
     els.watchAd.disabled = !isRewardedReady();
     const ok = await preloadRewarded();
     els.watchAd.disabled = !ok;
@@ -337,6 +403,19 @@ export function initToday(ctx) {
 
   // リワード(Webはダミー視聴)→枠+1(恒久)
   els.watchAd.onclick = async () => {
+    if (isAdFree()) {
+      // 広告なしのお試し期間(v1.14): 押すとすぐ枠+1(恒久)。1 日 1 回まで
+      const s = await ctx.stores.settings.get();
+      const today = ctx.todayKey();
+      if (canGrant(s.adFreeGrants.tag, today)) {
+        await ctx.stores.settings.merge({
+          tagSlots: { ...s.tagSlots, earned: s.tagSlots.earned + 1 },
+          adFreeGrants: markGranted(s.adFreeGrants, 'tag', today),
+        });
+      }
+      await refresh();
+      return;
+    }
     const isNative = window.Capacitor?.isNativePlatform?.();
     ctx.showLoading(isNative ? tr('広告を読み込んでいます…') : tr('広告(ダミー)を視聴中…'));
     let failReason = null;
